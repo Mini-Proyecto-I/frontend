@@ -9,6 +9,7 @@ import { Checkbox } from "@/features/today/components/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/features/today/components/popover";
 import { Calendar as CalendarPicker } from "@/features/today/components/calendar";
 import { cn } from "@/shared/utils/utils";
+import { useTodayData } from '../features/today/hooks/useTodayData';
 
 // Componente Progress simple (temporal hasta que se implemente el componente completo)
 const Progress = ({ value, className }: { value: number; className?: string }) => {
@@ -34,6 +35,13 @@ const courseColorMap: Record<string, string> = {
 
 
 export default function Today() {
+    const { courses, activities, subtasks, logs, loading, error } = useTodayData();
+
+    console.log('Cursos:', courses);
+    console.log('Actividades:', activities);
+    console.log('Subtasks:', subtasks);
+    console.log('Reprogramming logs:', logs);
+
     const { user, getSubtasksForDate, getTotalHoursForDate, updateSubtask } = useStore();
     const today = new Date().toISOString().split('T')[0];
     const todaySubtasks = getSubtasksForDate(today);
