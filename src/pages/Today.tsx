@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
+import { es } from 'date-fns/locale';
 import { Calendar, Clock, AlertTriangle, ChevronRight, Loader2 } from "lucide-react";
 import { useStore } from "@/app/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/features/today/components/card";
@@ -193,8 +194,8 @@ export default function Today() {
         {/* Main content */}
         <div className="flex-1 min-w-0 space-y-6">
           <div>
-            <h1 className="text-2xl font-bold">Good Morning, {user.name.split(' ')[0]}! ☀️</h1>
-            <p className="text-muted-foreground mt-1">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
+            <h1 className="text-2xl font-bold">¡Buenos días, {user.name.split(' ')[0]}! ☀️</h1>
+            <p className="text-muted-foreground mt-1">{format(new Date(), 'EEEE, MMMM d, yyyy', { locale: es })}</p>
           </div>
 
           {/* Overload alert */}
@@ -289,7 +290,7 @@ export default function Today() {
                                 className="text-xs h-7"
                                 onClick={() => setRescheduleId({ activityId, subtaskId: st.id })}
                               >
-                                Reschedule
+                                Reprogramar
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0" align="end">
@@ -323,14 +324,14 @@ export default function Today() {
           {/* Capacity */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Study Capacity</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Capacidad de estudio</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-baseline gap-1 mb-3">
                 <span className={cn('text-3xl font-bold', isOverloaded ? 'text-destructive' : 'text-primary')}>
                   {totalHours}
                 </span>
-                <span className="text-muted-foreground text-sm">/ {user.dailyLimit}h limit</span>
+                <span className="text-muted-foreground text-sm">/ {user.dailyLimit}h límite</span>
               </div>
               <Progress value={progressPercent} className={cn('h-2', isOverloaded && '[&>div]:bg-destructive')} />
               {isOverloaded && (
@@ -344,7 +345,7 @@ export default function Today() {
           {/* Subject focus */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Subject Focus</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Enfoque por materia</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {Object.values(grouped).map((g: GroupedActivity) => {

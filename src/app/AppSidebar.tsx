@@ -14,6 +14,7 @@ import {
   SidebarSeparator,
 } from '@/shared/components/sidebar';
 import { Avatar, AvatarFallback } from '@/shared/components/avatar';
+import { cn } from '@/shared/utils/utils';
 
 const navItems = [
   { title: 'Hoy', url: '/hoy', icon: CalendarDays },
@@ -24,12 +25,17 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="py-4">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary">
             <GraduationCap className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="text-lg font-bold tracking-tight text-foreground">
+          <span 
+            className={cn(
+              "text-lg font-bold tracking-tight text-foreground",
+              "group-data-[collapsible=icon]:hidden" // ← Clave para ocultar
+            )}
+          >
             StudyFlow
           </span>
         </div>
@@ -61,15 +67,15 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-3">
-        <SidebarSeparator />
+      <SidebarFooter className="py-3">
+        <SidebarSeparator className="group-data-[collapsible=icon]:hidden" />
         <div className="flex items-center gap-3 mt-2">
           <Avatar className="h-8 w-8 shrink-0">
             <AvatarFallback className="bg-primary/20 text-primary text-xs font-bold">
               {user.name.split(' ').map((n) => n[0]).join('')}
             </AvatarFallback>
           </Avatar>
-          <div className="flex flex-col">
+          <div className={cn("flex flex-col", "group-data-[collapsible=icon]:hidden")}>
             <span className="text-sm font-medium text-foreground">{user.name}</span>
             <span className="text-xs text-muted-foreground">{user.major}</span>
           </div>
