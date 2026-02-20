@@ -7,7 +7,7 @@ import { cn } from "@/shared/utils/utils";
 import { Button } from "@/features/today/components/button";
 import { Input } from "@/shared/components/input";
 import { Separator } from "@/shared/components/separator";
-import { Sheet, SheetContent } from "@/shared/components/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/shared/components/sheet";
 import { Skeleton } from "@/shared/components/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/components/tooltip";
 
@@ -161,6 +161,7 @@ const Sidebar = React.forwardRef<
   if (isMobile) {
     return (
       <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
+        <SheetTitle></SheetTitle>
         <SheetContent
           data-sidebar="sidebar"
           data-mobile="true"
@@ -188,37 +189,25 @@ const Sidebar = React.forwardRef<
       data-side={side}
     >
       {/* This is what handles the sidebar gap on desktop */}
-      <div
-        className={cn(
-          "relative h-svh w-[--sidebar-width] bg-transparent transition-[width] duration-200 ease-linear",
-          "group-data-[collapsible=offcanvas]:w-0",
-          "group-data-[side=right]:rotate-180",
-          variant === "floating" || variant === "inset"
-            ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4))]"
-            : "group-data-[collapsible=icon]:w-[--sidebar-width-icon]",
-        )}
-      />
-      <div
-        className={cn(
-          "fixed inset-y-0 z-10 h-svh w-[--sidebar-width] transition-[left,right,width] duration-200 ease-linear flex",
-          side === "left"
-            ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
-            : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
-          // Adjust the padding for floating and inset variants.
-          variant === "floating" || variant === "inset"
-            ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4)_+2px)]"
-            : "group-data-[collapsible=icon]:w-[--sidebar-width-icon] group-data-[side=left]:border-r group-data-[side=right]:border-l",
-          className,
-        )}
-        {...props}
-      >
-        <div
-          data-sidebar="sidebar"
-          className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow"
-        >
-          {children}
-        </div>
-      </div>
+  <div
+    className={cn(
+      "relative h-svh w-[--sidebar-width] transition-[width] duration-200 ease-linear flex",
+      collapsible === "offcanvas" && state === "collapsed" && !isMobile && "w-0 overflow-hidden",
+      isMobile && collapsible === "offcanvas" && "w-0",
+      variant === "floating" || variant === "inset"
+        ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
+        : "group-data-[collapsible=icon]:w-[--sidebar-width-icon]",
+      className
+    )}
+    {...props}
+  >
+    <div
+      data-sidebar="sidebar"
+      className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow"
+    >
+      {children}
+    </div>
+  </div>
     </div>
   );
 });
