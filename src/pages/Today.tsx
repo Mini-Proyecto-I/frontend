@@ -7,8 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/features/today/compo
 import { Badge } from "@/features/today/components/badge";
 import { Button } from "@/features/today/components/button";
 import { Checkbox } from "@/features/today/components/checkbox";
-import { Popover, PopoverContent, PopoverTrigger } from "@/features/today/components/popover";
-import { Calendar as CalendarPicker } from "@/features/today/components/calendar";
 import { cn } from "@/shared/utils/utils";
 import { useTodayData } from '../features/today/hooks/useTodayData';
 
@@ -88,7 +86,6 @@ export default function Today() {
       return `${year}-${month}-${day}`;
     };
     const today = getTodayLocal();
-    const [rescheduleId, setRescheduleId] = useState<{ activityId: string; subtaskId: string } | null>(null);
 
     // Crear un mapa de cursos por ID para acceso rápido
     const coursesMap = useMemo(() => {
@@ -279,36 +276,13 @@ export default function Today() {
                             <Clock className="h-3 w-3 mr-1" />
                             {estimatedHours.toFixed(1)}h
                           </Badge>
-                          <Popover
-                            open={rescheduleId?.subtaskId === st.id}
-                            onOpenChange={(open) => !open && setRescheduleId(null)}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs h-7"
                           >
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-xs h-7"
-                                onClick={() => setRescheduleId({ activityId, subtaskId: st.id })}
-                              >
-                                Reprogramar
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="end">
-                              <CalendarPicker
-                                mode="single"
-                                selected={st.target_date ? new Date(st.target_date) : undefined}
-                                onSelect={(date) => {
-                                  if (date) {
-                                    // TODO: Implementar actualización en el backend
-                                    // Por ahora solo actualiza el estado local
-                                    updateSubtask(activityId, st.id, { targetDate: date.toISOString().split('T')[0] });
-                                    setRescheduleId(null);
-                                  }
-                                }}
-                                className="pointer-events-auto"
-                              />
-                            </PopoverContent>
-                          </Popover>
+                            Reprogramar
+                          </Button>
                         </div>
                       </div>
                     );
