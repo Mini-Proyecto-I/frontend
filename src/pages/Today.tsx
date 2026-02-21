@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
 import { es } from 'date-fns/locale';
-import { Calendar, Clock, AlertTriangle, ChevronRight, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Calendar, Clock, AlertTriangle, ChevronRight, Loader2, PlusCircle, BarChart3 } from "lucide-react";
 import { useStore } from "@/app/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/features/today/components/card";
 import { Badge } from "@/features/today/components/badge";
@@ -75,6 +76,7 @@ const getCourseColor = (courseId: string, courseName: string, index: number): st
 };
 
 export default function Today() {
+    const navigate = useNavigate();
     const { courses, activities, subtasks, logs, loading, error } = useTodayData();
     const { user, updateSubtask } = useStore();
     // Calcular fecha de hoy en zona horaria local (no UTC)
@@ -209,9 +211,21 @@ export default function Today() {
       <div className="flex gap-6 max-w-7xl">
         {/* Main content */}
         <div className="flex-1 min-w-0 space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold">¡Buenos días, {user.name.split(' ')[0]}! ☀️</h1>
-            <p className="text-muted-foreground mt-1">{format(new Date(), 'EEEE, MMMM d, yyyy', { locale: es })}</p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold">¡Buenos días, {user.name.split(' ')[0]}! ☀️</h1>
+              <p className="text-muted-foreground mt-1">{format(new Date(), 'EEEE, MMMM d, yyyy', { locale: es })}</p>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Button variant="outline" size="sm" onClick={() => navigate('/crear')}>
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Crear
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => navigate('/progreso')}>
+                <BarChart3 className="h-4 w-4 mr-2" />
+                Progreso
+              </Button>
+            </div>
           </div>
 
           {/* Overload alert */}
@@ -237,7 +251,7 @@ export default function Today() {
                 <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="font-semibold text-lg">No hay tareas para hoy 🎉</h3>
                 <p className="text-muted-foreground mt-1">¡Disfruta tu tiempo libre o planifica con anticipación!</p>
-                <Button className="mt-4" onClick={() => {}}>
+                <Button className="mt-4" onClick={() => navigate('/crear')}>
                   Crear actividad
                 </Button>
               </CardContent>
@@ -255,12 +269,18 @@ export default function Today() {
                         {group.course}
                       </Badge>
                       <CardTitle className="text-base">
-                        <span className="hover:text-primary transition-colors cursor-pointer">
+                        <span
+                          className="hover:text-primary transition-colors cursor-pointer"
+                          onClick={() => navigate(`/actividad/${activityId}`)}
+                        >
                           {group.title}
                         </span>
                       </CardTitle>
                     </div>
-                    <span className="cursor-pointer">
+                    <span
+                      className="cursor-pointer"
+                      onClick={() => navigate(`/actividad/${activityId}`)}
+                    >
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </span>
                   </div>

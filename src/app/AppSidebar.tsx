@@ -1,4 +1,4 @@
-import { CalendarDays, PlusCircle, BarChart3, GraduationCap, Settings } from 'lucide-react';
+import { CalendarDays, PlusCircle, BarChart3, GraduationCap, Settings, FileText } from 'lucide-react';
 import { NavLink } from '@/app/NavLink';
 import { useStore } from '@/app/store';
 import {
@@ -18,6 +18,9 @@ import { cn } from '@/shared/utils/utils';
 
 const navItems = [
   { title: 'Hoy', url: '/hoy', icon: CalendarDays },
+  { title: 'Crear', url: '/crear', icon: PlusCircle },
+  { title: 'Actividad', url: '/actividad/1', icon: FileText },
+  { title: 'Progreso', url: '/progreso', icon: BarChart3 },
 ];
 
 export function AppSidebar() {
@@ -52,7 +55,7 @@ export function AppSidebar() {
                   <SidebarMenuButton asChild tooltip={item.title}>
                     <NavLink
                       to={item.url}
-                      end={item.url === '/hoy'}
+                      end={!item.url.includes(':')}
                       className="hover:bg-sidebar-accent"
                       activeClassName="bg-sidebar-accent text-primary font-semibold"
                     >
