@@ -1,5 +1,11 @@
 {
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/hoy", "destination": "/index.html" },
+    { "source": "/crear", "destination": "/index.html" },
+    { "source": "/actividad/:id", "destination": "/index.html" },
+    { "source": "/progreso", "destination": "/index.html" },
+    { "source": "/", "destination": "/index.html" }
   ]
 }
