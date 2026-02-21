@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppLayout } from "./AppLayout";
 import Today from "@/pages/Today";
 
@@ -8,8 +8,8 @@ export const router = createBrowserRouter([
     element: <AppLayout />,
     children: [
       {
-        index: true, // ruta "/"
-        element: <Today />,
+        index: true,
+        element: <Navigate to="/hoy" replace />,
       },
       {
         path: "hoy",
