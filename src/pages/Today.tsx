@@ -154,6 +154,25 @@ export default function Today() {
       }, {} as Record<string, GroupedActivity>);
     }, [todaySubtasks, activitiesMap]);
 
+    // Agrupar por materia/curso (suma horas de todas las actividades del mismo curso)
+    const groupedByCourse = useMemo(() => {
+      const byCourse: Record<string, { course: string; hours: number; courseColor: string }> = {};
+      Object.values(grouped).forEach((g: GroupedActivity) => {
+        const hours = g.subtasks.reduce(
+          (sum: number, s: BackendSubtask) =>
+            sum + (s.status !== 'DONE' ? (parseFloat(String(s.estimated_hours)) || 0) : 0),
+          0
+        );
+        if (hours > 0) {
+          if (!byCourse[g.course]) {
+            byCourse[g.course] = { course: g.course, hours: 0, courseColor: g.courseColor };
+          }
+          byCourse[g.course].hours += hours;
+        }
+      });
+      return Object.values(byCourse);
+    }, [grouped]);
+
     // Estados de carga y error
     if (loading) {
       return (
@@ -201,10 +220,10 @@ export default function Today() {
               <CardContent className="flex items-start gap-3 py-4">
                 <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="font-semibold text-destructive">Daily Limit Exceeded</p>
+                  <p className="font-semibold text-destructive">Límite diario excedido</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    You have planned <strong className="text-foreground">{totalHours.toFixed(1)}h</strong> of study today, but your daily limit is{' '}
-                    <strong className="text-foreground">{user.dailyLimit}h</strong>. Consider rescheduling some tasks.
+                    Has planificado <strong className="text-foreground">{totalHours.toFixed(1)}h</strong> de estudio hoy, pero tu límite diario es{' '}
+                    <strong className="text-foreground">{user.dailyLimit}h</strong>. Considera reprogramar algunas tareas.
                   </p>
                 </div>
               </CardContent>
@@ -216,10 +235,10 @@ export default function Today() {
             <Card className="border-dashed">
               <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                 <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="font-semibold text-lg">No tasks for today 🎉</h3>
-                <p className="text-muted-foreground mt-1">Enjoy your free time or plan ahead!</p>
+                <h3 className="font-semibold text-lg">No hay tareas para hoy 🎉</h3>
+                <p className="text-muted-foreground mt-1">¡Disfruta tu tiempo libre o planifica con anticipación!</p>
                 <Button className="mt-4" onClick={() => {}}>
-                  Create Activity
+                  Crear actividad
                 </Button>
               </CardContent>
             </Card>
@@ -310,7 +329,7 @@ export default function Today() {
               <Progress value={progressPercent} className={cn('h-2', isOverloaded && '[&>div]:bg-destructive')} />
               {isOverloaded && (
                 <p className="text-xs text-destructive mt-2">
-                  {(totalHours - user.dailyLimit).toFixed(1)}h over your daily limit
+                  {(totalHours - user.dailyLimit).toFixed(1)}h por encima de tu límite diario
                 </p>
               )}
             </CardContent>
@@ -322,10 +341,8 @@ export default function Today() {
               <CardTitle className="text-sm font-medium text-muted-foreground">Enfoque por materia</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {Object.values(grouped).map((g: GroupedActivity) => {
-                const hours = g.subtasks.reduce((sum: number, s: BackendSubtask) => 
-                  sum + (s.status !== 'DONE' ? (parseFloat(String(s.estimated_hours)) || 0) : 0), 0);
-                const pct = totalHours > 0 ? Math.round((hours / totalHours) * 100) : 0;
+              {groupedByCourse.map((g) => {
+                const pct = totalHours > 0 ? Math.round((g.hours / totalHours) * 100) : 0;
                 return (
                   <div key={g.course}>
                     <div className="flex justify-between text-sm mb-1">

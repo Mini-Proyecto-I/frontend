@@ -7,7 +7,7 @@ export default function App() {
     <BrowserRouter>
         <Routes>
           <Route element={<AppLayout />}>
-            <Route path="/" element={<Today />} />
+            <Route path="/hoy" element={<Today />} />
           </Route>
         </Routes>
     </BrowserRouter>
