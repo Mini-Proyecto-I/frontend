@@ -4,7 +4,7 @@ import { VariantProps, cva } from "class-variance-authority";
 import { PanelLeft } from "lucide-react";
 
 import { cn } from "@/shared/utils/utils";
-import { Button } from "@/features/today/components/button";
+import { Button } from "@/shared/components/button";
 import { Input } from "@/shared/components/input";
 import { Separator } from "@/shared/components/separator";
 import { Sheet, SheetContent, SheetTitle } from "@/shared/components/sheet";
@@ -124,7 +124,7 @@ const SidebarProvider = React.forwardRef<
               ...style,
             } as React.CSSProperties
           }
-          className={cn("group/sidebar-wrapper flex min-h-svh w-full has-[[data-variant=inset]]:bg-sidebar", className)}
+          className={cn("group/sidebar-wrapper flex min-h-svh w-full has-[[data-variant=inset]]:bg-[#1E293B]", className)}
           ref={ref}
           {...props}
         >
@@ -149,7 +149,7 @@ const Sidebar = React.forwardRef<
   if (collapsible === "none") {
     return (
       <div
-        className={cn("flex h-full w-[--sidebar-width] flex-col bg-sidebar text-sidebar-foreground", className)}
+        className={cn("flex h-full w-[--sidebar-width] flex-col bg-[#1E293B] text-sidebar-foreground", className)}
         ref={ref}
         {...props}
       >
@@ -165,7 +165,7 @@ const Sidebar = React.forwardRef<
         <SheetContent
           data-sidebar="sidebar"
           data-mobile="true"
-          className="w-[--sidebar-width] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+          className="w-[--sidebar-width] bg-[#1E293B] p-0 text-sidebar-foreground [&>button]:hidden"
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
@@ -191,7 +191,7 @@ const Sidebar = React.forwardRef<
       {/* This is what handles the sidebar gap on desktop */}
   <div
     className={cn(
-      "relative h-svh w-[--sidebar-width] transition-[width] duration-200 ease-linear flex",
+      "fixed left-0 top-0 z-40 h-screen w-[--sidebar-width] transition-[width] duration-200 ease-linear flex",
       collapsible === "offcanvas" && state === "collapsed" && !isMobile && "w-0 overflow-hidden",
       isMobile && collapsible === "offcanvas" && "w-0",
       variant === "floating" || variant === "inset"
@@ -203,7 +203,7 @@ const Sidebar = React.forwardRef<
   >
     <div
       data-sidebar="sidebar"
-      className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow"
+      className="flex h-full w-full flex-col bg-[#1E293B] overflow-y-auto group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow"
     >
       {children}
     </div>
@@ -267,14 +267,26 @@ const SidebarRail = React.forwardRef<HTMLButtonElement, React.ComponentProps<"bu
 SidebarRail.displayName = "SidebarRail";
 
 const SidebarInset = React.forwardRef<HTMLDivElement, React.ComponentProps<"main">>(({ className, ...props }, ref) => {
+  const { state, isMobile } = useSidebar();
+  
+  // Calcular el ancho del sidebar basado en el estado
+  const getSidebarWidth = () => {
+    if (isMobile) return "0px";
+    if (state === "collapsed") return "var(--sidebar-width-icon)";
+    return "var(--sidebar-width)";
+  };
+  
   return (
     <main
       ref={ref}
       className={cn(
-        "relative flex min-h-svh flex-1 flex-col bg-background",
+        "relative flex min-h-svh flex-1 flex-col bg-[#111827] transition-[margin-left] duration-200 ease-linear",
         "peer-data-[variant=inset]:min-h-[calc(100svh-theme(spacing.4))] md:peer-data-[variant=inset]:m-2 md:peer-data-[state=collapsed]:peer-data-[variant=inset]:ml-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow",
         className,
       )}
+      style={{
+        marginLeft: getSidebarWidth(),
+      } as React.CSSProperties}
       {...props}
     />
   );
