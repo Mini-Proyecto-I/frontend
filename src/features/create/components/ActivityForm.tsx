@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Calendar, ChevronDown, ClipboardList, Save } from "lucide-react";
 import InfoTooltip from "@/features/create/components/InfoTooltip";
 import SubtaskForm, { Subtarea } from "@/features/create/components/SubtaskForm";
 import { getCourses, createCourse } from "@/api/services/course";
+import { createActivity } from "@/api/services/activity";
+import { createSubtask } from "@/api/services/subtack";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +22,15 @@ interface Course {
   name: string;
 }
 
+// Tipos de actividad alineados con el backend (choices de Activity.type)
+const activityTypes = [
+  { label: "Examen", value: "examen" },
+  { label: "Taller", value: "taller" },
+  { label: "Proyecto", value: "proyecto" },
+];
+
 const ActivityForm = () => {
+  const navigate = useNavigate();
   const [titulo, setTitulo] = useState("");
   const [curso, setCurso] = useState("");
   const [tipo, setTipo] = useState("");
@@ -48,9 +59,6 @@ const ActivityForm = () => {
   // Toast para notificaciones
   const { showToast, ToastComponent } = useToast();
   
-  // Tipos de actividad disponibles
-  const activityTypes = ["Examen", "Tarea", "Proyecto"];
-
   // Función helper para obtener la fecha de hoy en formato YYYY-MM-DD
   const getTodayDate = (): string => {
     const today = new Date();
@@ -213,11 +221,73 @@ const ActivityForm = () => {
   };
 
   // Función para manejar el guardado
-  const handleSaveActivity = () => {
+  const handleSaveActivity = async () => {
     const isValid = validateForm();
     if (isValid) {
-      // Aquí tu amigo conectará con el backend
-      showToast("Actividad creada exitosamente", "success");
+      try {
+        // TODO: reemplazar por el id del usuario autenticado cuando haya auth en el frontend
+        const userId = 1;
+
+        // Crear actividad
+        const payloadActivity = {
+          title: titulo.trim(),
+          description: descripcion || "",
+          user: userId,
+          course_id: curso || null,
+          deadline: fechaEntrega,
+          event_datetime: fechaEvento ? `${fechaEvento}T00:00:00Z` : null,
+          type: tipo, // valores: "examen", "taller", "proyecto"
+        };
+
+        const createdActivity = await createActivity(payloadActivity);
+
+        // Crear subtareas asociadas (si existen)
+        if (subtareas.length > 0) {
+          const activityId = createdActivity.id;
+
+          await Promise.all(
+            subtareas.map((sub) =>
+              createSubtask({
+                title: sub.nombre.trim(),
+                user: userId,
+                activity_id: activityId,
+                estimated_hours: parseFloat(sub.horas),
+                target_date: sub.fechaObjetivo || null,
+                status: "PENDING",
+              })
+            )
+          );
+        }
+
+        // Reset de formulario básico
+        setTitulo("");
+        setCurso("");
+        setTipo("");
+        setFechaEntrega("");
+        setFechaEvento("");
+        setDescripcion("");
+        setSubtareas([]);
+        setErrors({});
+
+        showToast("Actividad creada exitosamente", "success");
+        navigate("/hoy");
+      } catch (error: any) {
+        console.error("Error al crear la actividad o subtareas:", error);
+        let errorMessage = "Error al crear la actividad. Por favor, intenta de nuevo.";
+
+        if (error?.response?.data) {
+          const errorData = error.response.data;
+          if (typeof errorData === "string") {
+            errorMessage = errorData;
+          } else if (errorData.detail) {
+            errorMessage = errorData.detail;
+          }
+        } else if (error?.message) {
+          errorMessage = error.message;
+        }
+
+        showToast(errorMessage, "error");
+      }
     } else {
       showToast("Por favor, completa todos los campos obligatorios", "error");
       // Scroll al primer error después de que se actualicen los errores
@@ -472,19 +542,19 @@ const ActivityForm = () => {
               </label>
               <div className="flex items-center gap-5 mt-3">
                 {activityTypes.map((t) => (
-                  <label 
-                    key={t} 
+                  <label
+                    key={t.value}
                     className="flex items-center gap-2 cursor-pointer"
                     onClick={() => {
-                      setTipo(t);
+                      setTipo(t.value);
                       clearFieldError("tipo");
                     }}
                   >
                     <input
                       type="radio"
                       name="tipo"
-                      value={t}
-                      checked={tipo === t}
+                      value={t.value}
+                      checked={tipo === t.value}
                       onChange={(e) => {
                         setTipo(e.target.value);
                         clearFieldError("tipo");
@@ -493,18 +563,18 @@ const ActivityForm = () => {
                     />
                     <div
                       className={`h-4 w-4 rounded-full border-2 flex items-center justify-center transition-colors ${
-                        tipo === t
+                        tipo === t.value
                           ? "border-[#3B82F6] bg-[#3B82F6]"
                           : errors.tipo
                           ? "border-[#EF4444]"
                           : "border-muted-foreground"
                       }`}
                     >
-                      {tipo === t && (
+                      {tipo === t.value && (
                         <div className="h-1.5 w-1.5 rounded-full bg-white" />
                       )}
                     </div>
-                    <span className="text-sm text-foreground">{t}</span>
+                    <span className="text-sm text-foreground">{t.label}</span>
                   </label>
                 ))}
               </div>
