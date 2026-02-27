@@ -4,7 +4,7 @@ import { Calendar, ChevronDown, ClipboardList, Save } from "lucide-react";
 import InfoTooltip from "@/features/create/components/InfoTooltip";
 import SubtaskForm, { Subtarea } from "@/features/create/components/SubtaskForm";
 import { getCourses, createCourse } from "@/api/services/course";
-import { createActivity } from "@/api/services/activity";
+import { createActivity, getActivities } from "@/api/services/activity";
 import { createSubtask } from "@/api/services/subtack";
 import {
   Dialog,
@@ -53,6 +53,7 @@ const ActivityForm = () => {
     curso?: string;
     tipo?: string;
     fechaEntrega?: string;
+    fechaEvento?: string;
     subtareas?: { [key: number]: { nombre?: string; fechaObjetivo?: string; horas?: string } };
   }>({});
   
@@ -175,7 +176,7 @@ const ActivityForm = () => {
 
     // Validar título
     if (!titulo.trim()) {
-      newErrors.titulo = "El título es obligatorio para crear una tarea.";
+      newErrors.titulo = "El título no puede estar vacío";
     }
 
     // Validar curso
@@ -239,7 +240,52 @@ const ActivityForm = () => {
           type: tipo, // valores: "examen", "taller", "proyecto"
         };
 
-        // console.log("[ActivityForm] Enviando payload de actividad:", payloadActivity);
+        console.log("[ActivityForm] Enviando payload de actividad:", payloadActivity);
+
+        // Validación rápida en frontend: evitar duplicados (mismo curso + mismo título)
+        if (payloadActivity.course_id && payloadActivity.title) {
+          try {
+            const existing = await getActivities();
+            const normalizedTitle = payloadActivity.title.trim().toLowerCase();
+            const normalizedCourseId = String(payloadActivity.course_id);
+
+            const isDuplicate =
+              Array.isArray(existing) &&
+              existing.some((a: any) => {
+                const existingTitle = String(a?.title ?? "").trim().toLowerCase();
+                const existingCourseId =
+                  a?.course?.id != null
+                    ? String(a.course.id)
+                    : a?.course_id != null
+                    ? String(a.course_id)
+                    : "";
+
+                return (
+                  existingCourseId === normalizedCourseId &&
+                  existingTitle === normalizedTitle
+                );
+              });
+
+            if (isDuplicate) {
+              setErrors((prev) => ({
+                ...prev,
+                titulo:
+                  "Ya existe una actividad con este título en el curso seleccionado.",
+              }));
+              showToast(
+                "Ya existe una actividad con este título en el curso seleccionado.",
+                "error"
+              );
+              return;
+            }
+          } catch (e) {
+            // Si falla la verificación (red/servidor), no bloqueamos; el backend seguirá validando.
+            console.warn(
+              "[ActivityForm] No se pudo verificar duplicados en frontend:",
+              e
+            );
+          }
+        }
 
         const createdActivity = await createActivity(payloadActivity);
 
@@ -269,8 +315,14 @@ const ActivityForm = () => {
         setSubtareas([]);
         setErrors({});
 
-        showToast("Actividad creada exitosamente", "success");
-        navigate("/hoy");
+        showToast(`Actividad "${payloadActivity.title}" creada exitosamente.`, "success");
+        navigate("/crear/exito", {
+          state: {
+            activityId: createdActivity?.id,
+            title: payloadActivity.title,
+            courseId: payloadActivity.course_id,
+          },
+        });
       } catch (error: any) {
         // Logs detallados para depurar errores del backend
         const status = error?.response?.status;
@@ -288,10 +340,56 @@ const ActivityForm = () => {
         let errorMessage = "Error al crear la actividad. Por favor, intenta de nuevo.";
 
         if (errorData) {
+          const firstMsg = (val: any): string | undefined => {
+            if (!val) return undefined;
+            if (typeof val === "string") return val;
+            if (Array.isArray(val)) return val[0] ? String(val[0]) : undefined;
+            return String(val);
+          };
+
           if (typeof errorData === "string") {
             errorMessage = errorData;
           } else if (errorData.detail) {
             errorMessage = errorData.detail;
+          } else if (errorData.title) {
+            if (Array.isArray(errorData.title)) {
+              errorMessage =
+                errorData.title[0] ?? "Error de validación en el título.";
+            } else {
+              errorMessage = String(errorData.title);
+            }
+          } else if (errorData.deadline) {
+            // Caso típico: deadline anterior a fecha del evento o a la actual
+            let msg =
+              firstMsg(errorData.deadline) ??
+              "La fecha límite no es válida. Revisa la fecha de entrega.";
+
+            // Si el backend indica explícitamente que no puede ser anterior a la fecha del evento,
+            // usamos un texto claro y reutilizable.
+            if (
+              typeof msg === "string" &&
+              msg.toLowerCase().includes("fecha límite no puede ser anterior a la fecha del evento")
+            ) {
+              msg =
+                "La fecha de entrega no puede ser anterior a la fecha del evento. Ajusta ambas fechas.";
+            }
+
+            setErrors((prev) => ({
+              ...prev,
+              fechaEntrega: msg,
+              fechaEvento: msg,
+            }));
+            errorMessage = msg;
+            setTimeout(() => {
+              const el = document.querySelector('[data-field="fechaEntrega"]');
+              el?.scrollIntoView({ behavior: "smooth", block: "center" });
+            }, 0);
+          } else if (errorData.event_datetime) {
+            // Caso típico: fecha del evento anterior a la actual
+            const msg =
+              firstMsg(errorData.event_datetime) ??
+              "La fecha del evento no es válida. Revisa la fecha seleccionada.";
+            errorMessage = msg;
           } else {
             // Mostrar un resumen legible de los campos que fallaron
             try {
@@ -658,7 +756,7 @@ const ActivityForm = () => {
               )}
             </div>
 
-            <div>
+            <div data-field="fechaEvento">
               <label className="block text-sm font-medium mb-1.5">
                 <span className="text-white">Fecha del evento:</span> <span className="text-[#9CA3AF]">¿Cuándo es el evento asociado?</span>
                 <InfoTooltip text="Úsala cuando exista una fecha concreta en la que sucede el evento, por ejemplo un examen o presentación." />
@@ -670,11 +768,32 @@ const ActivityForm = () => {
                   type="date"
                   value={fechaEvento}
                   min={getTodayDate()}
-                  onChange={(e) => setFechaEvento(e.target.value)}
+                  onChange={(e) => {
+                    setFechaEvento(e.target.value);
+                    setErrors((prev) => ({ ...prev, fechaEvento: undefined }));
+                  }}
                   placeholder="mm/dd/yyyy"
-                  className={`${inputClass} pl-10 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer`}
+                  className={`${inputClass} pl-10 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors.fechaEvento ? 'border-[#EF4444] focus:ring-[#EF4444]' : ''}`}
                 />
               </div>
+              {errors.fechaEvento && (
+                <div className="mt-2 flex items-start gap-2">
+                  <div className="flex-shrink-0 mt-0.5">
+                    <svg
+                      className="h-4 w-4 text-[#EF4444]"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-[#EF4444] flex-1">{errors.fechaEvento}</p>
+                </div>
+              )}
             </div>
           </div>
 
