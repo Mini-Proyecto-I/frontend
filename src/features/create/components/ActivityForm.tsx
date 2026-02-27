@@ -239,18 +239,18 @@ const ActivityForm = () => {
           type: tipo, // valores: "examen", "taller", "proyecto"
         };
 
+        // console.log("[ActivityForm] Enviando payload de actividad:", payloadActivity);
+
         const createdActivity = await createActivity(payloadActivity);
 
-        // Crear subtareas asociadas (si existen)
+        // Crear subtareas asociadas (si existen) usando los endpoints anidados
         if (subtareas.length > 0) {
           const activityId = createdActivity.id;
 
           await Promise.all(
             subtareas.map((sub) =>
-              createSubtask({
+              createSubtask(activityId, {
                 title: sub.nombre.trim(),
-                user: userId,
-                activity_id: activityId,
                 estimated_hours: parseFloat(sub.horas),
                 target_date: sub.fechaObjetivo || null,
                 status: "PENDING",
@@ -272,15 +272,33 @@ const ActivityForm = () => {
         showToast("Actividad creada exitosamente", "success");
         navigate("/hoy");
       } catch (error: any) {
-        console.error("Error al crear la actividad o subtareas:", error);
+        // Logs detallados para depurar errores del backend
+        const status = error?.response?.status;
+        const errorData = error?.response?.data;
+
+        console.error(
+          "[ActivityForm] Error al crear la actividad o subtareas:",
+          {
+            status,
+            data: errorData,
+            message: error?.message,
+          },
+        );
+
         let errorMessage = "Error al crear la actividad. Por favor, intenta de nuevo.";
 
-        if (error?.response?.data) {
-          const errorData = error.response.data;
+        if (errorData) {
           if (typeof errorData === "string") {
             errorMessage = errorData;
           } else if (errorData.detail) {
             errorMessage = errorData.detail;
+          } else {
+            // Mostrar un resumen legible de los campos que fallaron
+            try {
+              errorMessage = `Error de validación (${status ?? "sin código"}): ${JSON.stringify(errorData)}`;
+            } catch {
+              errorMessage = "Error de validación en el backend. Revisa la consola para más detalles.";
+            }
           }
         } else if (error?.message) {
           errorMessage = error.message;
