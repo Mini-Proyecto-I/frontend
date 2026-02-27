@@ -97,16 +97,16 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
               <div key={sub.id} className="space-y-2">
                 <div
                   className="grid grid-cols-[1fr_160px_100px_48px] gap-3 bg-[#111827] rounded-lg px-2 py-1.5"
-                >
+            >
                   <div className="flex flex-col py-1.5">
-                    <input
-                      type="text"
-                      value={sub.nombre}
+              <input
+                type="text"
+                value={sub.nombre}
                       onChange={(e) => {
                         onUpdate(sub.id, "nombre", e.target.value);
                         onClearError?.(sub.id, "nombre");
                       }}
-                      placeholder="ej. Revisar apuntes de clase"
+                placeholder="ej. Revisar apuntes de clase"
                       className={`w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none px-2 py-1.5 border rounded ${subErrors.nombre ? 'border-[#EF4444]' : 'border-transparent'}`}
                     />
                     {subErrors.nombre && (
@@ -120,26 +120,26 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                             fillRule="evenodd"
                             d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
                             clipRule="evenodd"
-                          />
+              />
                         </svg>
                         <p className="text-xs text-[#EF4444] leading-tight">{subErrors.nombre}</p>
                       </div>
                     )}
                   </div>
                   <div className="flex flex-col py-1.5">
-                    <div className="relative">
-                      <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground pointer-events-none z-10" />
-                      <input
-                        type="date"
-                        value={sub.fechaObjetivo}
+              <div className="relative">
+                <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground pointer-events-none z-10" />
+                <input
+                  type="date"
+                  value={sub.fechaObjetivo}
                         min={getTodayDate()}
                         onChange={(e) => {
                           onUpdate(sub.id, "fechaObjetivo", e.target.value);
                           onClearError?.(sub.id, "fechaObjetivo");
                         }}
                         className={`w-full bg-[#111827] rounded-md text-sm text-foreground pl-7 pr-2 py-1.5 focus:outline-none border [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer ${subErrors.fechaObjetivo ? 'border-[#EF4444]' : 'border-border'}`}
-                      />
-                    </div>
+                />
+              </div>
                     {subErrors.fechaObjetivo && (
                       <div className="flex items-start gap-1.5 mt-1">
                         <svg
@@ -158,22 +158,22 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                     )}
                   </div>
                   <div className="flex flex-col py-1.5">
-                    <div className="relative">
-                      <input
-                        type="number"
-                        step="0.5"
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.5"
                         min="0"
-                        value={sub.horas}
+                  value={sub.horas}
                         onChange={(e) => {
                           onUpdate(sub.id, "horas", e.target.value);
                           onClearError?.(sub.id, "horas");
                         }}
                         className={`w-full bg-[#111827] rounded-md text-sm text-foreground text-center py-1.5 focus:outline-none border pr-7 ${subErrors.horas ? 'border-[#EF4444]' : 'border-border'}`}
-                      />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                        hr
-                      </span>
-                    </div>
+                />
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                  hr
+                </span>
+              </div>
                     {subErrors.horas && (
                       <div className="flex items-start gap-1.5 mt-1">
                         <svg
@@ -192,14 +192,14 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                     )}
                   </div>
                   <div className="flex items-start py-1.5">
-                    <button
-                      type="button"
-                      onClick={() => onRemove(sub.id)}
-                      className="group flex items-center justify-center h-8 w-8 rounded transition-colors"
-                    >
-                      <Trash2 className="h-4 w-4 text-muted-foreground group-hover:text-red-500 transition-colors" />
-                    </button>
-                  </div>
+              <button
+                type="button"
+                onClick={() => onRemove(sub.id)}
+                className="group flex items-center justify-center h-8 w-8 rounded transition-colors"
+              >
+                <Trash2 className="h-4 w-4 text-muted-foreground group-hover:text-red-500 transition-colors" />
+              </button>
+            </div>
                 </div>
               </div>
             );
