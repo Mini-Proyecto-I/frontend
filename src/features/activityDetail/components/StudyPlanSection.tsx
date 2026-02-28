@@ -22,6 +22,7 @@ interface StudyPlanSectionProps {
   activityId: string;
   onSubtaskStatusChange?: (subtaskId: string, newStatus: boolean) => void;
   onSubtaskUpdated?: () => void; // Callback para refrescar todas las subtareas después de editar
+  deadlineDate?: string; // Fecha de entrega de la actividad
 }
 
 export default function StudyPlanSection({ 
@@ -29,6 +30,7 @@ export default function StudyPlanSection({
   activityId,
   onSubtaskStatusChange,
   onSubtaskUpdated,
+  deadlineDate,
 }: StudyPlanSectionProps) {
   const [activeFilter, setActiveFilter] = useState<FilterOption>("mostrar");
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -132,6 +134,7 @@ export default function StudyPlanSection({
             todayBadge={subtask.todayBadge}
             onStatusChange={onSubtaskStatusChange}
             onSubtaskUpdated={onSubtaskUpdated}
+            deadlineDate={deadlineDate}
           />
         ))
       )}
@@ -149,6 +152,7 @@ export default function StudyPlanSection({
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
         activityId={activityId}
+        deadlineDate={deadlineDate}
         onSubtaskCreated={() => {
           setShowAddDialog(false);
           if (onSubtaskUpdated) {
