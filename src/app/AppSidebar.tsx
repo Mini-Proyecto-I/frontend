@@ -52,28 +52,17 @@ export function AppSidebar() {
             <SidebarMenu>
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  {item.title === 'Actividad' ? (
-                    <SidebarMenuButton 
-                      tooltip={item.title}
-                      onClick={(e) => e.preventDefault()}
-                      className="hover:bg-sidebar-accent cursor-default"
+                  <SidebarMenuButton asChild tooltip={item.title}>
+                    <NavLink
+                      to={item.url}
+                      end={!item.url.includes(':')}
+                      className="hover:bg-sidebar-accent"
+                      activeClassName="bg-sidebar-accent text-primary font-semibold"
                     >
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
-                    </SidebarMenuButton>
-                  ) : (
-                    <SidebarMenuButton asChild tooltip={item.title}>
-                      <NavLink
-                        to={item.url}
-                        end={!item.url.includes(':')}
-                        className="hover:bg-sidebar-accent"
-                        activeClassName="bg-sidebar-accent text-primary font-semibold"
-                      >
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  )}
+                    </NavLink>
+                  </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>

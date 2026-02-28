@@ -15,13 +15,13 @@ export function AppLayout() {
 
   return (
     <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
-      <div className="min-h-screen w-full">
+      <div className="min-h-screen flex w-full">
         <AppSidebar />
         <SidebarInset>
-          <header className="flex h-12 items-center border-b border-border px-4 sticky top-0 z-30 bg-[#111827]">
+          <header className="flex h-12 items-center border-b border-border px-4">
             <SidebarTrigger />
           </header>
-          <div className="flex-1 p-6 bg-[#111827]">
+          <div className="flex-1 overflow-auto p-6">
             <Outlet />
           </div>
         </SidebarInset>

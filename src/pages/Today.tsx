@@ -1,17 +1,15 @@
-import { useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
 import { es } from 'date-fns/locale';
 import { useNavigate } from "react-router-dom";
-import { Loader2, PlusCircle, BarChart3, AlertTriangle } from "lucide-react";
+import { Calendar, Clock, AlertTriangle, ChevronRight, Loader2, PlusCircle, BarChart3 } from "lucide-react";
 import { useStore } from "@/app/store";
-import { Card, CardContent } from "@/shared/components/card";
-import { Button } from "@/shared/components/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/features/today/components/card";
+import { Badge } from "@/features/today/components/badge";
+import { Button } from "@/features/today/components/button";
+import { Checkbox } from "@/features/today/components/checkbox";
+import { cn } from "@/shared/utils/utils";
 import { useTodayData } from '../features/today/hooks/useTodayData';
-import { OverloadAlert } from '@/features/today/components/OverloadAlert';
-import { EmptyState } from '@/features/today/components/EmptyState';
-import { ActivityCard } from '@/features/today/components/ActivityCard';
-import { CapacityCard } from '@/features/today/components/CapacityCard';
-import { SubjectFocusCard } from '@/features/today/components/SubjectFocusCard';
 
 // Tipos del backend
 interface BackendCourse {
@@ -42,6 +40,22 @@ interface GroupedActivity {
   courseColor: string;
   subtasks: BackendSubtask[];
 }
+
+// Componente Progress simple (temporal hasta que se implemente el componente completo)
+const Progress = ({ value, className }: { value: number; className?: string }) => {
+  const isDestructive = className?.includes ('[&>div]:bg-destructive');
+  return (
+    <div className={cn("w-full bg-secondary rounded-full overflow-hidden h-2", className)}>
+      <div
+        className={cn(
+          "h-full transition-all duration-300 rounded-full",
+          isDestructive ? "bg-destructive" : "bg-primary"
+        )}
+        style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+      />
+    </div>
+  );
+};
 
 const courseColorMap: Record<string, string> = {
     cyan: 'bg-cyan/20 text-cyan border-cyan/30',
@@ -216,42 +230,165 @@ export default function Today() {
 
           {/* Overload alert */}
           {isOverloaded && (
-            <OverloadAlert totalHours={totalHours} dailyLimit={user.dailyLimit} />
+            <Card className="border-destructive/50 bg-destructive/10">
+              <CardContent className="flex items-start gap-3 py-4">
+                <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-semibold text-destructive">Límite diario excedido</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Has planificado <strong className="text-foreground">{totalHours.toFixed(1)}h</strong> de estudio hoy, pero tu límite diario es{' '}
+                    <strong className="text-foreground">{user.dailyLimit}h</strong>. Considera reprogramar algunas tareas.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* Empty state */}
           {todaySubtasks.length === 0 && !loading && (
-            <EmptyState />
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="font-semibold text-lg">No hay tareas para hoy 🎉</h3>
+                <p className="text-muted-foreground mt-1">¡Disfruta tu tiempo libre o planifica con anticipación!</p>
+                <Button className="mt-4" onClick={() => navigate('/crear')}>
+                  Crear actividad
+                </Button>
+              </CardContent>
+            </Card>
           )}
 
           {/* Task cards grouped by activity */}
           <div className="space-y-4">
             {Object.entries(grouped).map(([activityId, group]) => (
-              <ActivityCard
-                key={activityId}
-                activityId={activityId}
-                group={group}
-                courseColorMap={courseColorMap}
-                onStatusChange={(activityId, subtaskId, status) => {
-                  updateSubtask(activityId, subtaskId, { status });
-                }}
-              />
+              <Card key={activityId} className="overflow-hidden">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className={cn('text-xs', courseColorMap[group.courseColor] || '')}>
+                        {group.course}
+                      </Badge>
+                      <CardTitle className="text-base">
+                        <span
+                          className="hover:text-primary transition-colors cursor-pointer"
+                          onClick={() => navigate(`/actividad/${activityId}`)}
+                        >
+                          {group.title}
+                        </span>
+                      </CardTitle>
+                    </div>
+                    <span
+                      className="cursor-pointer"
+                      onClick={() => navigate(`/actividad/${activityId}`)}
+                    >
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {group.subtasks.map((st: BackendSubtask) => {
+                    const activityId = typeof st.activity === 'object' ? st.activity.id : st.activity;
+                    const estimatedHours = parseFloat(String(st.estimated_hours)) || 0;
+                    return (
+                      <div
+                        key={st.id}
+                        className={cn(
+                          'flex items-center justify-between rounded-lg border p-3',
+                          st.status === 'DONE' && 'opacity-50'
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Checkbox
+                            checked={st.status === 'DONE'}
+                            onCheckedChange={(checked) => {
+                              // TODO: Implementar actualización en el backend
+                              // Por ahora solo actualiza el estado local
+                              updateSubtask(activityId, st.id, { status: checked ? 'done' : 'pending' });
+                            }}
+                          />
+                          <span className={cn('text-sm', st.status === 'DONE' && 'line-through text-muted-foreground')}>
+                            {st.title}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="text-xs">
+                            <Clock className="h-3 w-3 mr-1" />
+                            {estimatedHours.toFixed(1)}h
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs h-7"
+                          >
+                            Reprogramar
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
             ))}
           </div>
         </div>
 
         {/* Right panel */}
         <aside className="w-80 shrink-0 space-y-4 hidden lg:block">
-          <CapacityCard
-            totalHours={totalHours}
-            dailyLimit={user.dailyLimit}
-            progressPercent={progressPercent}
-            isOverloaded={isOverloaded}
-          />
-          <SubjectFocusCard
-            groupedByCourse={groupedByCourse}
-            totalHours={totalHours}
-          />
+          {/* Capacity */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Capacidad de estudio</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-baseline gap-1 mb-3">
+                <span className={cn('text-3xl font-bold', isOverloaded ? 'text-destructive' : 'text-primary')}>
+                  {totalHours}
+                </span>
+                <span className="text-muted-foreground text-sm">/ {user.dailyLimit}h límite</span>
+              </div>
+              <Progress value={progressPercent} className={cn('h-2', isOverloaded && '[&>div]:bg-destructive')} />
+              {isOverloaded && (
+                <p className="text-xs text-destructive mt-2">
+                  {(totalHours - user.dailyLimit).toFixed(1)}h por encima de tu límite diario
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Subject focus */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Enfoque por materia</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {groupedByCourse.map((g) => {
+                const pct = totalHours > 0 ? Math.round((g.hours / totalHours) * 100) : 0;
+                return (
+                  <div key={g.course}>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>{g.course}</span>
+                      <span className="text-muted-foreground">{pct}%</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                      <div
+                        className={cn(
+                          'h-full rounded-full',
+                          g.courseColor === 'cyan' && 'bg-cyan',
+                          g.courseColor === 'orange' && 'bg-orange',
+                          g.courseColor === 'green' && 'bg-green',
+                          g.courseColor === 'blue' && 'bg-blue',
+                          g.courseColor === 'purple' && 'bg-purple',
+                          g.courseColor === 'red' && 'bg-red',
+                          g.courseColor === 'yellow' && 'bg-yellow'
+                        )}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
         </aside>
       </div>
     );

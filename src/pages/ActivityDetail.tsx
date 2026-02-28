@@ -1,8 +1,13 @@
 import { useParams } from "react-router-dom";
-import { ActivityDetailView } from "@/features/activityDetail";
 
 export default function ActivityDetail() {
   const { id } = useParams<{ id: string }>();
-
-  return <ActivityDetailView activityId={id} />;
+  return (
+    <div>
+      <h1 className="text-2xl font-bold">Detalle de actividad</h1>
+      <p className="text-muted-foreground mt-1">
+        Actividad ID: {id || "—"} (en desarrollo).
+      </p>
+    </div>
+  );
 }
