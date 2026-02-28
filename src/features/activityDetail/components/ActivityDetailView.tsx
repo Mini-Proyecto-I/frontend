@@ -148,6 +148,19 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
     }
   };
 
+  const fetchSubtasksOnly = async () => {
+    if (!activityId) return;
+
+    try {
+      const subtasksData = await getSubtasksForActivity(activityId).catch(() => []);
+      if (isMountedRef.current) {
+        setSubtasks(Array.isArray(subtasksData) ? subtasksData : []);
+      }
+    } catch (err) {
+      console.error("Error al refrescar solo las subtareas:", err);
+    }
+  };
+
   useEffect(() => {
     if (!activityId) {
       setError("ID de actividad no proporcionado");
@@ -354,7 +367,7 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
               subtasks={formattedSubtasks}
               activityId={activityId || ""}
               onSubtaskStatusChange={handleSubtaskStatusChange}
-              onSubtaskUpdated={fetchActivityData}
+              onSubtaskUpdated={fetchSubtasksOnly}
             />
         </div>
       </div>

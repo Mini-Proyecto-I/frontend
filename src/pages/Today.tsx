@@ -1,7 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { format } from "date-fns";
 import { es } from 'date-fns/locale';
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Loader2, PlusCircle, BarChart3, AlertTriangle } from "lucide-react";
 import { useStore } from "@/app/store";
 import { Card, CardContent } from "@/shared/components/card";
@@ -12,6 +12,7 @@ import { EmptyState } from '@/features/today/components/EmptyState';
 import { ActivityCard } from '@/features/today/components/ActivityCard';
 import { CapacityCard } from '@/features/today/components/CapacityCard';
 import { SubjectFocusCard } from '@/features/today/components/SubjectFocusCard';
+import ActivityDeletedSuccessDialog from '@/features/activityDetail/components/ActivityDeletedSuccessDialog';
 
 // Tipos del backend
 interface BackendCourse {
@@ -63,8 +64,24 @@ const getCourseColor = (courseId: string, courseName: string, index: number): st
 
 export default function Today() {
     const navigate = useNavigate();
+    const location = useLocation();
     const { courses, activities, subtasks, logs, loading, error } = useTodayData();
     const { user, updateSubtask } = useStore();
+    
+    // Estado para el modal de éxito de actividad eliminada
+    const [showActivityDeletedSuccess, setShowActivityDeletedSuccess] = useState(false);
+    const [deletedActivityName, setDeletedActivityName] = useState("");
+    
+    // Verificar si hay un estado de navegación que indique mostrar el modal de éxito
+    useEffect(() => {
+      const state = location.state as { showActivityDeletedSuccess?: boolean; deletedActivityName?: string } | null;
+      if (state?.showActivityDeletedSuccess && state?.deletedActivityName) {
+        setShowActivityDeletedSuccess(true);
+        setDeletedActivityName(state.deletedActivityName);
+        // Limpiar el state de navegación para evitar que se muestre de nuevo al recargar
+        window.history.replaceState({}, document.title);
+      }
+    }, [location.state]);
     // Calcular fecha de hoy en zona horaria local (no UTC)
     const getTodayLocal = () => {
       const now = new Date();
@@ -253,6 +270,13 @@ export default function Today() {
             totalHours={totalHours}
           />
         </aside>
+
+        {/* Modal de éxito de actividad eliminada */}
+        <ActivityDeletedSuccessDialog
+          open={showActivityDeletedSuccess}
+          onOpenChange={setShowActivityDeletedSuccess}
+          activityName={deletedActivityName}
+        />
       </div>
     );
   }

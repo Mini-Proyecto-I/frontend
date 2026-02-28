@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Pencil, Trash2, Calendar, Clock } from "lucide-react";
+import { Pencil, Trash2, Calendar, Clock, Loader2, CheckCircle2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/shared/components/dialog";
 import EditSubtaskDialog from "./EditSubtaskDialog";
-import { patchSubtask, updateSubtask } from "@/api/services/subtack";
+import { patchSubtask, updateSubtask, deleteSubtask } from "@/api/services/subtack";
 import { useToast } from "@/shared/components/toast";
 
 interface SubtaskItemProps {
@@ -42,9 +42,14 @@ export default function SubtaskItem({
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [showEditSuccessDialog, setShowEditSuccessDialog] = useState(false);
   const { showToast, ToastComponent } = useToast();
   const localChangeRef = useRef(false); // Ref para rastrear si el cambio fue iniciado localmente
   const lastLocalStateRef = useRef<boolean | null>(null); // Ref para rastrear el último estado establecido localmente
+  const deleteArmTimeoutRef = useRef<number | null>(null);
   
   const borderClass = isActive
     ? "border-l-4 border-l-primary hover:border-primary/50"
@@ -59,6 +64,14 @@ export default function SubtaskItem({
       lastLocalStateRef.current = null; // Resetear el ref cuando recibimos datos del backend
     }
   }, [completed]);
+
+  useEffect(() => {
+    return () => {
+      if (deleteArmTimeoutRef.current) {
+        window.clearTimeout(deleteArmTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleCheckChange = async (checked: boolean) => {
     // Actualización optimista: cambiar el estado visual inmediatamente
@@ -105,9 +118,64 @@ export default function SubtaskItem({
       });
   };
 
-  const handleDelete = () => {
-    // Aquí iría la lógica para eliminar la subtarea
-    console.log("Eliminar subtarea:", title);
+  const handleDelete = async () => {
+    if (!activityId || !id) {
+      showToast("Error: ID de actividad o subtarea no disponible.", "error");
+      return;
+    }
+
+    setIsDeleting(true);
+
+    try {
+      // Llamar al backend para eliminar la subtarea
+      await deleteSubtask(activityId, id);
+      
+      // Recargar solo las subtareas (no toda la actividad)
+      if (onSubtaskUpdated) {
+        onSubtaskUpdated();
+      }
+    } catch (error: any) {
+      console.error("Error al eliminar subtarea:", error);
+      
+      let errorMessage = "Error al eliminar la subtarea. Intenta de nuevo.";
+      
+      if (error?.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      showToast(errorMessage, "error");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    // Si ya estamos "eliminando", ignorar más clics
+    if (isDeleting) return;
+
+    // Primer click: armar confirmación
+    if (!deleteArmed) {
+      setDeleteArmed(true);
+      if (deleteArmTimeoutRef.current) {
+        window.clearTimeout(deleteArmTimeoutRef.current);
+      }
+      deleteArmTimeoutRef.current = window.setTimeout(() => {
+        setDeleteArmed(false);
+      }, 2500);
+      return;
+    }
+
+    // Segundo click: confirmar (solo UI por ahora)
+    setDeleteArmed(false);
+    if (deleteArmTimeoutRef.current) {
+      window.clearTimeout(deleteArmTimeoutRef.current);
+      deleteArmTimeoutRef.current = null;
+    }
+    handleDelete();
   };
 
   const handleEdit = (e: React.MouseEvent) => {
@@ -131,6 +199,8 @@ export default function SubtaskItem({
         return;
       }
 
+      setIsSavingEdit(true);
+
       // Preparar los datos para el backend
       const subtaskUpdateData: any = {
         title: data.nombre.trim(),
@@ -143,17 +213,18 @@ export default function SubtaskItem({
 
       // Mostrar mensaje de éxito primero
       showToast("¡Todo salió bien! La subtarea se actualizó correctamente.", "success");
-
-      // Cerrar el modal después de un breve delay para que el usuario vea el mensaje
+      
+      // Cerrar el modal de editar
+      setShowEditDialog(false);
+      
+      // Mostrar el modal de éxito después de un breve delay
       setTimeout(() => {
-        setShowEditDialog(false);
+        setShowEditSuccessDialog(true);
       }, 200);
 
-      // Refrescar todos los datos de las subtareas después de cerrar el modal
+      // Refrescar solo las subtareas mediante el callback
       if (onSubtaskUpdated) {
-        setTimeout(() => {
-          onSubtaskUpdated();
-        }, 500);
+        onSubtaskUpdated();
       }
     } catch (error: any) {
       console.error("Error al actualizar subtarea:", error);
@@ -184,6 +255,8 @@ export default function SubtaskItem({
       }
       
       showToast(errorMessage, "error");
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -270,11 +343,24 @@ export default function SubtaskItem({
         </button>
         <button
           type="button"
-          onClick={handleDelete}
-          className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-slate-500 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+          onClick={handleDeleteClick}
+          disabled={isDeleting}
+          className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+            isDeleting
+              ? "text-red-600 bg-red-50 dark:bg-red-900/20 cursor-wait"
+              : deleteArmed
+              ? "text-white bg-red-600 hover:bg-red-500"
+              : "text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+          }`}
         >
-          <Trash2 className="size-4" />
-          <span className="text-sm font-medium">Eliminar</span>
+          {isDeleting ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <Trash2 className="size-4" />
+          )}
+          <span className="text-sm font-medium">
+            {isDeleting ? "Eliminando..." : deleteArmed ? "¿Seguro?" : "Eliminar"}
+          </span>
         </button>
       </div>
     </article>
@@ -346,7 +432,30 @@ export default function SubtaskItem({
         horas: hours.replace("h", ""), // Remover la "h" para el input
       }}
       onSave={handleSaveEdit}
+      isSaving={isSavingEdit}
     />
+
+    <Dialog open={showEditSuccessDialog} onOpenChange={setShowEditSuccessDialog}>
+      <DialogContent className="sm:max-w-[420px]">
+        <DialogHeader>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-full">
+              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+            </div>
+            <DialogTitle className="text-lg font-semibold text-slate-900 dark:text-white">
+              Subtarea actualizada
+            </DialogTitle>
+          </div>
+          <DialogDescription className="text-sm text-slate-600 dark:text-slate-400 pt-2">
+            Tu subtarea{" "}
+            <span className="font-semibold text-slate-900 dark:text-white">
+              {title}
+            </span>{" "}
+            se ha editado correctamente.
+          </DialogDescription>
+        </DialogHeader>
+      </DialogContent>
+    </Dialog>
     </>
   );
 }
