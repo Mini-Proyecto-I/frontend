@@ -26,6 +26,7 @@ interface ActivityDetailHeaderProps {
   onActivityUpdated?: () => void;
 }
 
+
 export default function ActivityDetailHeader({
   activityId,
   typeLabel = "Examen parcial",
