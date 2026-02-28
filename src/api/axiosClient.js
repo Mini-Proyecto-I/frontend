@@ -13,4 +13,23 @@ const apiClient = axios.create({
     },
 });
 
+// Interceptor para manejar errores de respuesta
+apiClient.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        // Si es un error 500 del servidor, mostrar mensaje amigable
+        if (error.response && error.response.status === 500) {
+            // Crear un error personalizado con mensaje amigable
+            const friendlyError = new Error("Ups! Hubo un error en la red, intenta más tarde!");
+            friendlyError.response = error.response;
+            friendlyError.request = error.request;
+            friendlyError.config = error.config;
+            friendlyError.isAxiosError = true;
+            return Promise.reject(friendlyError);
+        }
+        // Para otros errores, devolver el error original
+        return Promise.reject(error);
+    }
+);
+
 export default apiClient;

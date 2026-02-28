@@ -109,8 +109,10 @@ const ActivityForm = () => {
       console.error("Error al crear curso:", error);
       let errorMessage = "Error al crear el curso. Por favor, intenta de nuevo.";
       
-      // Mostrar mensaje más específico si está disponible
-      if (error?.response?.data) {
+      // Si es un error 500, usar el mensaje del interceptor
+      if (error?.response?.status === 500) {
+        errorMessage = error?.message || "Ups! Hubo un error en la red, intenta más tarde!";
+      } else if (error?.response?.data) {
         const errorData = error.response.data;
         if (errorData.name && Array.isArray(errorData.name)) {
           const nameError = errorData.name[0];
