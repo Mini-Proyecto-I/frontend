@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Calendar, Clock } from "lucide-react";
+import { Calendar, Clock, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,7 @@ interface EditSubtaskDialogProps {
     horas?: string;
   };
   onSave: (data: { nombre: string; fechaObjetivo: string; horas: string }) => void;
+  isSaving?: boolean;
 }
 
 export default function EditSubtaskDialog({
@@ -27,6 +28,7 @@ export default function EditSubtaskDialog({
   onOpenChange,
   subtaskData = {},
   onSave,
+  isSaving = false,
 }: EditSubtaskDialogProps) {
   const [nombre, setNombre] = useState("");
   const [fechaObjetivo, setFechaObjetivo] = useState("");
@@ -101,7 +103,6 @@ export default function EditSubtaskDialog({
         fechaObjetivo,
         horas: horas.trim(),
       });
-      onOpenChange(false);
     }
   };
 
@@ -248,9 +249,11 @@ export default function EditSubtaskDialog({
           <Button
             type="button"
             onClick={handleSave}
-            className="cursor-pointer bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white"
+            disabled={isSaving}
+            className="cursor-pointer bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            Guardar cambios
+            {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isSaving ? "Guardando..." : "Guardar cambios"}
           </Button>
         </DialogFooter>
       </DialogContent>
