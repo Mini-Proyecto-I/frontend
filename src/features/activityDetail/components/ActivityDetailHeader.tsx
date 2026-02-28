@@ -3,6 +3,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import EditActivityDialog from "./EditActivityDialog";
 
 interface ActivityDetailHeaderProps {
+  activityId?: string;
   typeLabel?: string;
   dueDate?: string;
   title?: string;
@@ -10,15 +11,18 @@ interface ActivityDetailHeaderProps {
   courseId?: string;
   courseName?: string;
   eventDate?: string;
+  deadlineDate?: string;
   subtasks?: Array<{
     id: number;
     nombre: string;
     fechaObjetivo: string;
     horas: string;
   }>;
+  onActivityUpdated?: () => void;
 }
 
 export default function ActivityDetailHeader({
+  activityId,
   typeLabel = "Examen parcial",
   dueDate = "Entrega 15 nov",
   title = "Examen de Cálculo",
@@ -26,7 +30,9 @@ export default function ActivityDetailHeader({
   courseId,
   courseName,
   eventDate,
+  deadlineDate,
   subtasks,
+  onActivityUpdated,
 }: ActivityDetailHeaderProps) {
   const [showEditDialog, setShowEditDialog] = useState(false);
 
@@ -73,16 +79,18 @@ export default function ActivityDetailHeader({
       <EditActivityDialog
         open={showEditDialog}
         onOpenChange={setShowEditDialog}
+        activityId={activityId}
         activityData={{
           title,
           typeLabel,
-          dueDate,
+          dueDate: deadlineDate || dueDate,
           description,
           courseId,
           courseName,
           eventDate,
-          subtasks,
+          subtasks: subtasks || [],
         }}
+        onActivityUpdated={onActivityUpdated}
       />
     </div>
   );

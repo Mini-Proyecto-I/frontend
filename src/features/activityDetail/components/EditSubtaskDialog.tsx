@@ -53,6 +53,26 @@ export default function EditSubtaskDialog({
     }
   }, [open, subtaskData]);
 
+  // Validar que las horas sean múltiplos de 0.5 (1, 1.5, 2, 2.5, etc.)
+  const validateHours = (hoursStr: string): boolean => {
+    if (!hoursStr.trim()) return false;
+    
+    // Remover "h" si está presente
+    const cleanHours = hoursStr.trim().replace(/h/gi, "").trim();
+    
+    // Convertir a número
+    const hours = parseFloat(cleanHours);
+    
+    // Verificar que sea un número válido
+    if (isNaN(hours) || hours <= 0) {
+      return false;
+    }
+    
+    // Verificar que sea múltiplo de 0.5
+    const remainder = hours % 0.5;
+    return Math.abs(remainder) < 0.001; // Tolerancia para errores de punto flotante
+  };
+
   const validateForm = () => {
     const newErrors: typeof errors = {};
 
@@ -66,6 +86,8 @@ export default function EditSubtaskDialog({
 
     if (!horas.trim()) {
       newErrors.horas = "Las horas estimadas son obligatorias.";
+    } else if (!validateHours(horas)) {
+      newErrors.horas = "Las horas deben ser múltiplos de 0.5 (ej: 1, 1.5, 2, 2.5, etc.).";
     }
 
     setErrors(newErrors);
@@ -219,14 +241,14 @@ export default function EditSubtaskDialog({
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="bg-[#1E293B] border-border text-muted-foreground hover:bg-[#1E293B]/80"
+            className="cursor-pointer bg-[#1E293B] border-border text-muted-foreground hover:bg-[#1E293B]/80"
           >
             Cancelar
           </Button>
           <Button
             type="button"
             onClick={handleSave}
-            className="bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white"
+            className="cursor-pointer bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white"
           >
             Guardar cambios
           </Button>

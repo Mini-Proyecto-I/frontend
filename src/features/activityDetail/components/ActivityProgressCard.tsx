@@ -1,13 +1,11 @@
 interface ActivityProgressCardProps {
   progressPercent?: number;
-  status?: string;
   timeLeft?: string;
   totalEffort?: string;
 }
 
 export default function ActivityProgressCard({
   progressPercent = 43,
-  status = "En progreso",
   timeLeft = "12 días",
   totalEffort = "15 horas",
 }: ActivityProgressCardProps) {
@@ -50,16 +48,7 @@ export default function ActivityProgressCard({
           </div>
         </div>
 
-        <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-6 text-center sm:text-left w-full">
-          <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">
-              Estado
-            </p>
-            <p className="text-lg font-medium text-amber-400 flex items-center justify-center sm:justify-start gap-2">
-              <span className="w-2 h-2 rounded-full bg-amber-400" />
-              {status}
-            </p>
-          </div>
+        <div className="flex-1 grid grid-cols-2 gap-6 text-center sm:text-left w-full">
           <div>
             <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">
               Tiempo restante

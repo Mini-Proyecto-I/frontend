@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Pencil, Trash2, Calendar, Clock } from "lucide-react";
 import {
   Dialog,
@@ -8,30 +8,102 @@ import {
   DialogTitle,
 } from "@/shared/components/dialog";
 import EditSubtaskDialog from "./EditSubtaskDialog";
+import { patchSubtask, updateSubtask } from "@/api/services/subtack";
+import { useToast } from "@/shared/components/toast";
 
 interface SubtaskItemProps {
+  id: string;
+  activityId: string;
   title: string;
   date: string;
+  dateOriginal?: string; // Fecha original en formato YYYY-MM-DD para el modal de edición
   hours: string;
   completed?: boolean;
   isActive?: boolean;
   todayBadge?: boolean;
+  onStatusChange?: (subtaskId: string, newStatus: boolean) => void; // Callback con ID y nuevo estado para actualización optimista
+  onSubtaskUpdated?: () => void; // Callback para refrescar todas las subtareas después de editar
 }
 
 export default function SubtaskItem({
+  id,
+  activityId,
   title,
   date,
+  dateOriginal,
   hours,
   completed = false,
   isActive = false,
   todayBadge = false,
+  onStatusChange,
+  onSubtaskUpdated,
 }: SubtaskItemProps) {
   const [isChecked, setIsChecked] = useState(completed);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const { showToast, ToastComponent } = useToast();
+  const localChangeRef = useRef(false); // Ref para rastrear si el cambio fue iniciado localmente
+  const lastLocalStateRef = useRef<boolean | null>(null); // Ref para rastrear el último estado establecido localmente
+  
   const borderClass = isActive
     ? "border-l-4 border-l-primary hover:border-primary/50"
     : "hover:border-primary/30";
+
+  // Sincronizar el estado del checkbox cuando cambie el prop completed
+  // Solo si el cambio NO fue iniciado localmente y el estado es diferente
+  useEffect(() => {
+    // Si el cambio no fue iniciado localmente, sincronizar con el prop
+    if (!localChangeRef.current) {
+      setIsChecked(completed);
+      lastLocalStateRef.current = null; // Resetear el ref cuando recibimos datos del backend
+    }
+  }, [completed]);
+
+  const handleCheckChange = async (checked: boolean) => {
+    // Actualización optimista: cambiar el estado visual inmediatamente
+    const previousChecked = isChecked;
+    localChangeRef.current = true; // Marcar que el cambio fue iniciado localmente
+    lastLocalStateRef.current = checked; // Guardar el estado local
+    setIsChecked(checked);
+    setIsUpdating(true);
+    
+    // Notificar al padre inmediatamente para actualizar gráfico y estado
+    if (onStatusChange) {
+      onStatusChange(id, checked);
+    }
+    
+    // Actualizar en segundo plano sin bloquear la UI
+    patchSubtask(activityId, id, { status: checked ? "DONE" : "PENDING" })
+      .then(() => {
+        // Esperar un momento antes de permitir sincronización para que el refresh del backend complete
+        setTimeout(() => {
+          localChangeRef.current = false;
+          lastLocalStateRef.current = null;
+        }, 1000);
+      })
+      .catch((error: any) => {
+        console.error("Error al actualizar estado de subtarea:", error);
+        // Revertir el cambio si falla
+        setIsChecked(previousChecked);
+        localChangeRef.current = false;
+        lastLocalStateRef.current = null;
+        
+        // Revertir también en el padre
+        if (onStatusChange) {
+          onStatusChange(id, previousChecked);
+        }
+        
+        const errorMessage = 
+          error?.response?.data?.detail ||
+          error?.message ||
+          "Error al actualizar el estado de la subtarea";
+        showToast(errorMessage, "error");
+      })
+      .finally(() => {
+        setIsUpdating(false);
+      });
+  };
 
   const handleDelete = () => {
     // Aquí iría la lógica para eliminar la subtarea
@@ -43,11 +115,76 @@ export default function SubtaskItem({
     setShowEditDialog(true);
   };
 
-  const handleSaveEdit = (data: { nombre: string; fechaObjetivo: string; horas: string }) => {
-    // Aquí iría la lógica para guardar los cambios de la subtarea
-    console.log("Guardar cambios de subtarea:", data);
-    // Por ahora solo actualizamos el estado local para mostrar los cambios
-    // Cuando se conecte al backend, aquí se haría la llamada API
+  const handleSaveEdit = async (data: { nombre: string; fechaObjetivo: string; horas: string }) => {
+    if (!activityId || !id) {
+      showToast("Error: ID de actividad o subtarea no disponible.", "error");
+      return;
+    }
+
+    try {
+      // Convertir horas de string a número (remover "h" si está presente)
+      const cleanHours = data.horas.trim().replace(/h/gi, "").trim();
+      const estimatedHours = parseFloat(cleanHours);
+
+      if (isNaN(estimatedHours) || estimatedHours <= 0) {
+        showToast("Las horas estimadas deben ser un número válido mayor a 0.", "error");
+        return;
+      }
+
+      // Preparar los datos para el backend
+      const subtaskUpdateData: any = {
+        title: data.nombre.trim(),
+        estimated_hours: estimatedHours.toString(),
+        target_date: data.fechaObjetivo || null,
+      };
+
+      // Llamar a la API para actualizar la subtarea
+      await updateSubtask(activityId, id, subtaskUpdateData);
+
+      // Mostrar mensaje de éxito primero
+      showToast("¡Todo salió bien! La subtarea se actualizó correctamente.", "success");
+
+      // Cerrar el modal después de un breve delay para que el usuario vea el mensaje
+      setTimeout(() => {
+        setShowEditDialog(false);
+      }, 200);
+
+      // Refrescar todos los datos de las subtareas después de cerrar el modal
+      if (onSubtaskUpdated) {
+        setTimeout(() => {
+          onSubtaskUpdated();
+        }, 500);
+      }
+    } catch (error: any) {
+      console.error("Error al actualizar subtarea:", error);
+      
+      let errorMessage = "Error al actualizar la subtarea. Intenta de nuevo.";
+      
+      if (error?.response?.data) {
+        if (error.response.data.title) {
+          errorMessage = Array.isArray(error.response.data.title)
+            ? error.response.data.title[0]
+            : error.response.data.title;
+        } else if (error.response.data.estimated_hours) {
+          errorMessage = Array.isArray(error.response.data.estimated_hours)
+            ? error.response.data.estimated_hours[0]
+            : error.response.data.estimated_hours;
+        } else if (error.response.data.detail) {
+          errorMessage = error.response.data.detail;
+        } else if (typeof error.response.data === 'object') {
+          const firstError = Object.values(error.response.data)[0];
+          if (Array.isArray(firstError) && firstError.length > 0) {
+            errorMessage = firstError[0];
+          } else if (typeof firstError === 'string') {
+            errorMessage = firstError;
+          }
+        }
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      showToast(errorMessage, "error");
+    }
   };
 
   const handleSubtaskClick = (e: React.MouseEvent) => {
@@ -65,6 +202,7 @@ export default function SubtaskItem({
 
   return (
     <>
+      <ToastComponent />
       <article
         onClick={handleSubtaskClick}
         className={`group cursor-pointer bg-white dark:bg-[#1e2433] border border-slate-200 dark:border-slate-800 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 transition-all hover:shadow-md hover:border-primary/50 relative overflow-hidden ${borderClass}`}
@@ -74,7 +212,8 @@ export default function SubtaskItem({
           type="checkbox"
           className="peer sr-only"
           checked={isChecked}
-          onChange={(e) => setIsChecked(e.target.checked)}
+          disabled={isUpdating}
+          onChange={(e) => handleCheckChange(e.target.checked)}
         />
         <div className={`w-6 h-6 border-2 rounded flex items-center justify-center transition-all group-hover:border-primary ${
           isChecked 
@@ -203,8 +342,8 @@ export default function SubtaskItem({
       onOpenChange={setShowEditDialog}
       subtaskData={{
         nombre: title,
-        fechaObjetivo: date.includes("nov") ? (date.includes("10") ? "2024-11-10" : date.includes("12") ? "2024-11-12" : date.includes("14") ? "2024-11-14" : "") : "",
-        horas: hours,
+        fechaObjetivo: dateOriginal || "", // Usar la fecha original en formato YYYY-MM-DD
+        horas: hours.replace("h", ""), // Remover la "h" para el input
       }}
       onSave={handleSaveEdit}
     />

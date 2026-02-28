@@ -3,6 +3,8 @@ import { Calendar, ChevronDown, ClipboardList, Save } from "lucide-react";
 import InfoTooltip from "@/features/create/components/InfoTooltip";
 import SubtaskForm, { Subtarea } from "@/features/create/components/SubtaskForm";
 import { getCourses, createCourse } from "@/api/services/course";
+import { updateActivity } from "@/api/services/activity";
+import { getSubtasksForActivity, createSubtask, updateSubtask, deleteSubtask } from "@/api/services/subtack";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +24,7 @@ interface Course {
 interface EditActivityDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  activityId?: string;
   activityData?: {
     title?: string;
     typeLabel?: string;
@@ -37,6 +40,7 @@ interface EditActivityDialogProps {
       horas: string;
     }>;
   };
+  onActivityUpdated?: () => void;
 }
 
 const activityTypes = [
@@ -48,7 +52,9 @@ const activityTypes = [
 export default function EditActivityDialog({
   open,
   onOpenChange,
+  activityId,
   activityData = {},
+  onActivityUpdated,
 }: EditActivityDialogProps) {
   const [titulo, setTitulo] = useState("");
   const [curso, setCurso] = useState("");
@@ -57,6 +63,7 @@ export default function EditActivityDialog({
   const [fechaEvento, setFechaEvento] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [subtareas, setSubtareas] = useState<Subtarea[]>([]);
+  const [originalSubtasks, setOriginalSubtasks] = useState<Array<{ id: string | number; title: string; target_date?: string; estimated_hours?: number }>>([]);
 
   // Estados para cursos
   const [courses, setCourses] = useState<Course[]>([]);
@@ -65,6 +72,7 @@ export default function EditActivityDialog({
   const [newCourseName, setNewCourseName] = useState("");
   const [creatingCourse, setCreatingCourse] = useState(false);
   const [courseError, setCourseError] = useState<string>("");
+  const [isSaving, setIsSaving] = useState(false);
 
   // Estados de errores de validación
   const [errors, setErrors] = useState<{
@@ -94,11 +102,29 @@ export default function EditActivityDialog({
 
   // Parsear fecha desde formato "Entrega 15 nov" a YYYY-MM-DD
   const parseDate = (dateStr: string): string => {
-    // Por ahora retornamos una fecha de ejemplo, cuando se conecte al backend será real
-    if (dateStr.includes("15 nov")) return "2024-11-15";
-    if (dateStr.includes("14 nov")) return "2024-11-14";
-    if (dateStr.includes("12 nov")) return "2024-11-12";
-    if (dateStr.includes("10 nov")) return "2024-11-10";
+    if (!dateStr || dateStr === "Sin fecha") return "";
+    
+    // Si ya viene en formato YYYY-MM-DD, retornarlo directamente
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return dateStr;
+    }
+    
+    // Intentar parsear formato "Entrega DD MMM"
+    const months: { [key: string]: string } = {
+      ene: "01", feb: "02", mar: "03", abr: "04", may: "05", jun: "06",
+      jul: "07", ago: "08", sep: "09", oct: "10", nov: "11", dic: "12"
+    };
+    
+    const match = dateStr.match(/(\d{1,2})\s+(\w{3})/i);
+    if (match) {
+      const day = match[1].padStart(2, "0");
+      const month = months[match[2].toLowerCase()];
+      if (month) {
+        const currentYear = new Date().getFullYear();
+        return `${currentYear}-${month}-${day}`;
+      }
+    }
+    
     return getTodayDate();
   };
 
@@ -112,11 +138,121 @@ export default function EditActivityDialog({
       setFechaEvento(activityData.eventDate || "");
       setDescripcion(activityData.description || "");
       
-      if (activityData.subtasks && activityData.subtasks.length > 0) {
-        setSubtareas(activityData.subtasks);
-      } else {
-        setSubtareas([]);
-      }
+      // Limpiar errores al abrir
+      setErrors({});
+      
+      // Función async para cargar subtareas originales y formatear
+      const loadSubtasks = async () => {
+        if (activityId) {
+          try {
+            const backendSubtasks = await getSubtasksForActivity(activityId);
+            const formattedBackendSubtasks = Array.isArray(backendSubtasks) 
+              ? backendSubtasks.map((s: any) => ({
+                  id: s.id,
+                  title: s.title || "",
+                  target_date: s.target_date || "",
+                  estimated_hours: s.estimated_hours || 0,
+                }))
+              : [];
+            setOriginalSubtasks(formattedBackendSubtasks);
+
+            // Usar directamente las subtareas del backend en lugar de activityData
+            // Esto asegura que siempre tengamos los IDs correctos del backend
+            if (formattedBackendSubtasks.length > 0) {
+              const formattedSubtasks = formattedBackendSubtasks.map((bs: any) => {
+                let horasValue = "";
+                if (bs.estimated_hours) {
+                  horasValue = String(bs.estimated_hours);
+                }
+                
+                return {
+                  id: bs.id, // Siempre usar el ID del backend
+                  nombre: bs.title || "",
+                  fechaObjetivo: bs.target_date || "",
+                  horas: horasValue,
+                };
+              });
+              setSubtareas(formattedSubtasks);
+            } else if (activityData.subtasks && activityData.subtasks.length > 0) {
+              // Fallback: si no hay subtareas del backend, usar activityData
+              const formattedSubtasks = activityData.subtasks.map((subtask, index) => {
+                let horasValue = "";
+                if (subtask.horas) {
+                  const cleanHours = subtask.horas.replace(/h/gi, "").trim();
+                  horasValue = cleanHours && !isNaN(parseFloat(cleanHours)) ? cleanHours : "";
+                }
+                
+                return {
+                  id: typeof subtask.id === 'number' && subtask.id < 1000000000000
+                    ? subtask.id 
+                    : Date.now() + index,
+                  nombre: subtask.nombre || "",
+                  fechaObjetivo: subtask.fechaObjetivo || "",
+                  horas: horasValue,
+                };
+              });
+              setSubtareas(formattedSubtasks);
+            } else {
+              setSubtareas([]);
+            }
+          } catch (error) {
+            console.error("Error al cargar subtareas originales:", error);
+            setOriginalSubtasks([]);
+            
+            // Si falla, usar los datos de activityData directamente
+            if (activityData.subtasks && activityData.subtasks.length > 0) {
+              const formattedSubtasks = activityData.subtasks.map((subtask, index) => {
+                let horasValue = "";
+                if (subtask.horas) {
+                  const cleanHours = subtask.horas.replace(/h/gi, "").trim();
+                  horasValue = cleanHours && !isNaN(parseFloat(cleanHours)) ? cleanHours : "";
+                }
+                
+                return {
+                  id: typeof subtask.id === 'number' ? subtask.id : (parseInt(String(subtask.id)) || Date.now() + index),
+                  nombre: subtask.nombre || "",
+                  fechaObjetivo: subtask.fechaObjetivo || "",
+                  horas: horasValue,
+                };
+              });
+              setSubtareas(formattedSubtasks);
+            } else {
+              setSubtareas([]);
+            }
+          }
+        } else if (activityData.subtasks && activityData.subtasks.length > 0) {
+          // Si no hay activityId, usar los datos directamente
+          const formattedSubtasks = activityData.subtasks.map((subtask, index) => {
+            let horasValue = "";
+            if (subtask.horas) {
+              const cleanHours = subtask.horas.replace(/h/gi, "").trim();
+              horasValue = cleanHours && !isNaN(parseFloat(cleanHours)) ? cleanHours : "";
+            }
+            
+            return {
+              id: typeof subtask.id === 'number' ? subtask.id : (parseInt(String(subtask.id)) || Date.now() + index),
+              nombre: subtask.nombre || "",
+              fechaObjetivo: subtask.fechaObjetivo || "",
+              horas: horasValue,
+            };
+          });
+          setSubtareas(formattedSubtasks);
+        } else {
+          setSubtareas([]);
+        }
+      };
+
+      loadSubtasks();
+    } else if (!open) {
+      // Limpiar el estado cuando se cierra el modal
+      setTitulo("");
+      setCurso("");
+      setTipo("");
+      setFechaEntrega("");
+      setFechaEvento("");
+      setDescripcion("");
+      setSubtareas([]);
+      setErrors({});
     }
   }, [open, activityData]);
 
@@ -214,43 +350,216 @@ export default function EditActivityDialog({
       newErrors.fechaEntrega = "La fecha de entrega es obligatoria para crear una tarea.";
     }
 
-    const subtaskErrors: { [key: number]: { nombre?: string; fechaObjetivo?: string; horas?: string } } = {};
-    subtareas.forEach((subtask, index) => {
-      if (!subtask.nombre.trim()) {
-        subtaskErrors[subtask.id] = { ...subtaskErrors[subtask.id], nombre: "El nombre de la subtarea es obligatorio." };
+    // Validar subtareas (igual que ActivityForm)
+    if (subtareas.length > 0) {
+      const subtaskErrors: { [key: number]: { nombre?: string; fechaObjetivo?: string; horas?: string } } = {};
+      subtareas.forEach((sub) => {
+        const subErrors: { nombre?: string; fechaObjetivo?: string; horas?: string } = {};
+        if (!sub.nombre.trim()) {
+          subErrors.nombre = "El nombre de la subtarea es obligatorio.";
+        }
+        if (!sub.fechaObjetivo) {
+          subErrors.fechaObjetivo = "La fecha objetivo es obligatoria.";
+        }
+        if (!sub.horas || parseFloat(sub.horas) <= 0) {
+          subErrors.horas = "Las horas estimadas son obligatorias y deben ser mayores a 0.";
+        }
+        if (Object.keys(subErrors).length > 0) {
+          subtaskErrors[sub.id] = subErrors;
+        }
+      });
+      if (Object.keys(subtaskErrors).length > 0) {
+        newErrors.subtareas = subtaskErrors;
       }
-      if (!subtask.fechaObjetivo) {
-        subtaskErrors[subtask.id] = { ...subtaskErrors[subtask.id], fechaObjetivo: "La fecha objetivo es obligatoria." };
-      }
-      if (!subtask.horas.trim()) {
-        subtaskErrors[subtask.id] = { ...subtaskErrors[subtask.id], horas: "Las horas estimadas son obligatorias." };
-      }
-    });
-
-    if (Object.keys(subtaskErrors).length > 0) {
-      newErrors.subtareas = subtaskErrors;
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSave = () => {
-    if (validateForm()) {
-      // Aquí iría la lógica para guardar los cambios
-      console.log("Guardar cambios:", {
-        titulo,
-        curso,
-        tipo,
-        fechaEntrega,
-        fechaEvento,
-        descripcion,
-        subtareas,
-      });
-      showToast("Actividad actualizada exitosamente", "success");
-      onOpenChange(false);
-    } else {
+  const handleSave = async () => {
+    if (!validateForm()) {
       showToast("Por favor, completa todos los campos obligatorios", "error");
+      return;
+    }
+
+    if (!activityId) {
+      showToast("Error: ID de actividad no disponible", "error");
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      // Preparar los datos para el backend
+      const activityUpdateData: any = {
+        title: titulo.trim(),
+        type: tipo,
+        course_id: curso ? String(curso) : null, // Asegurar que course_id sea string
+        deadline: fechaEntrega || null,
+      };
+
+      // Manejar description: solo incluir si tiene contenido
+      if (descripcion && descripcion.trim()) {
+        activityUpdateData.description = descripcion.trim();
+      } else {
+        activityUpdateData.description = "";
+      }
+
+      // Si hay fecha de evento, convertirla a formato datetime
+      if (fechaEvento) {
+        // Crear un datetime con hora por defecto (por ejemplo, mediodía)
+        const eventDateTime = new Date(fechaEvento);
+        eventDateTime.setHours(12, 0, 0, 0);
+        activityUpdateData.event_datetime = eventDateTime.toISOString();
+      } else {
+        activityUpdateData.event_datetime = null;
+      }
+
+      console.log("Datos a enviar al backend:", activityUpdateData);
+
+      // Llamar a la API para actualizar la actividad
+      await updateActivity(activityId, activityUpdateData);
+
+      // Actualizar subtareas: crear nuevas, actualizar existentes, eliminar eliminadas
+      if (activityId && originalSubtasks.length > 0) {
+        // Obtener IDs de subtareas originales del backend (normalizados a string)
+        const originalBackendIds = new Set(originalSubtasks.map(s => String(s.id)));
+
+        // Separar subtareas en nuevas y existentes
+        // Una subtarea es nueva si su ID no está en originalBackendIds O si es un ID temporal (muy grande)
+        const newSubtasks: Subtarea[] = [];
+        const existingSubtasks: Array<{ subtask: Subtarea; originalId: string }> = [];
+
+        subtareas.forEach((sub) => {
+          const idStr = String(sub.id);
+          const isOriginalId = originalBackendIds.has(idStr);
+          
+          // Verificar si es un ID temporal (Date.now() genera números de 13+ dígitos)
+          // Los UUIDs del backend son strings de 36 caracteres, los números son más pequeños
+          const isTemporaryId = !isOriginalId && (
+            (typeof sub.id === 'number' && sub.id > 1000000000000) || // Números muy grandes
+            (idStr.length > 15 && !idStr.includes('-')) // Strings largos sin guiones (no UUIDs)
+          );
+
+          if (isTemporaryId || !isOriginalId) {
+            newSubtasks.push(sub);
+          } else {
+            existingSubtasks.push({ subtask: sub, originalId: idStr });
+          }
+        });
+
+        // Crear nuevas subtareas
+        if (newSubtasks.length > 0) {
+          await Promise.all(
+            newSubtasks.map((sub) =>
+              createSubtask(activityId, {
+                title: sub.nombre.trim(),
+                estimated_hours: parseFloat(sub.horas) || 0,
+                target_date: sub.fechaObjetivo || null,
+                status: "PENDING",
+              })
+            )
+          );
+        }
+
+        // Actualizar subtareas existentes
+        if (existingSubtasks.length > 0) {
+          await Promise.all(
+            existingSubtasks.map(({ subtask, originalId }) => {
+              const originalSubtask = originalSubtasks.find(os => String(os.id) === originalId);
+              if (originalSubtask) {
+                // Actualizar siempre para asegurar sincronización
+                return updateSubtask(activityId, originalId, {
+                  title: subtask.nombre.trim(),
+                  estimated_hours: parseFloat(subtask.horas) || 0,
+                  target_date: subtask.fechaObjetivo || null,
+                });
+              }
+              return Promise.resolve();
+            })
+          );
+        }
+
+        // Eliminar subtareas que ya no están en la lista
+        const currentIds = new Set(subtareas.map(s => String(s.id)));
+        const subtasksToDelete = originalSubtasks.filter(
+          os => !currentIds.has(String(os.id))
+        );
+
+        if (subtasksToDelete.length > 0) {
+          await Promise.all(
+            subtasksToDelete.map((sub) => deleteSubtask(activityId, String(sub.id)))
+          );
+        }
+      } else if (activityId && subtareas.length > 0) {
+        // Si no hay subtareas originales pero hay subtareas nuevas, crear todas
+        await Promise.all(
+          subtareas.map((sub) =>
+            createSubtask(activityId, {
+              title: sub.nombre.trim(),
+              estimated_hours: parseFloat(sub.horas) || 0,
+              target_date: sub.fechaObjetivo || null,
+              status: "PENDING",
+            })
+          )
+        );
+      }
+
+      // Mostrar mensaje de éxito inmediatamente
+      showToast("¡Todo salió bien! La actividad se actualizó correctamente.", "success");
+      
+      // Esperar un momento para que el usuario vea el mensaje antes de cerrar
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Cerrar el modal
+      onOpenChange(false);
+      
+      // Recargar la página después de un breve delay
+      setTimeout(() => {
+        window.location.reload();
+      }, 200);
+    } catch (error: any) {
+      console.error("Error al actualizar actividad:", error);
+      console.error("Datos del error:", error?.response?.data);
+      
+      let errorMessage = "Error al actualizar la actividad. Intenta de nuevo.";
+      
+      if (error?.response?.data) {
+        // Si el backend devuelve errores de validación
+        if (error.response.data.title) {
+          const titleError = Array.isArray(error.response.data.title) 
+            ? error.response.data.title[0] 
+            : error.response.data.title;
+          errorMessage = titleError || errorMessage;
+        } else if (error.response.data.detail) {
+          errorMessage = error.response.data.detail;
+        } else if (error.response.data.deadline) {
+          const deadlineError = Array.isArray(error.response.data.deadline) 
+            ? error.response.data.deadline[0] 
+            : error.response.data.deadline;
+          errorMessage = deadlineError || errorMessage;
+        } else if (error.response.data.event_datetime) {
+          const eventError = Array.isArray(error.response.data.event_datetime) 
+            ? error.response.data.event_datetime[0] 
+            : error.response.data.event_datetime;
+          errorMessage = eventError || errorMessage;
+        } else if (typeof error.response.data === 'object') {
+          // Intentar obtener el primer mensaje de error
+          const firstError = Object.values(error.response.data)[0];
+          if (Array.isArray(firstError) && firstError.length > 0) {
+            errorMessage = firstError[0];
+          } else if (typeof firstError === 'string') {
+            errorMessage = firstError;
+          }
+        }
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      showToast(errorMessage, "error");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -266,7 +575,9 @@ export default function EditActivityDialog({
   };
 
   const updateSubtarea = (id: number, field: keyof Subtarea, value: string) => {
-    setSubtareas(subtareas.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
+    setSubtareas((prevSubtareas) => 
+      prevSubtareas.map((s) => (s.id === id ? { ...s, [field]: value } : s))
+    );
   };
 
   const inputClass =
@@ -455,7 +766,7 @@ export default function EditActivityDialog({
                             setNewCourseName("");
                             setCourseError("");
                           }}
-                          className="bg-[#111827] border-border text-foreground hover:bg-[#111827]/80"
+                          className="cursor-pointer bg-[#111827] border-border text-foreground hover:bg-[#111827]/80"
                         >
                           Cancelar
                         </Button>
@@ -463,7 +774,7 @@ export default function EditActivityDialog({
                           type="button"
                           onClick={handleCreateCourse}
                           disabled={!newCourseName.trim() || creatingCourse}
-                          className="bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white"
+                          className="cursor-pointer bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {creatingCourse ? "Creando..." : "Crear curso"}
                         </Button>
@@ -670,17 +981,18 @@ export default function EditActivityDialog({
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="bg-[#1E293B] border-border text-muted-foreground hover:bg-[#1E293B]/80"
+              className="cursor-pointer bg-[#1E293B] border-border text-muted-foreground hover:bg-[#1E293B]/80"
             >
               Cancelar
             </Button>
             <Button
               type="button"
               onClick={handleSave}
-              className="flex items-center gap-2 bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white"
+              disabled={isSaving}
+              className="cursor-pointer flex items-center gap-2 bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className="h-4 w-4" />
-              Guardar cambios
+              {isSaving ? "Guardando..." : "Guardar cambios"}
             </Button>
           </DialogFooter>
         </DialogContent>
