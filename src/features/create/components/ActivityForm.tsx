@@ -15,7 +15,7 @@ import {
   DialogFooter,
 } from "@/shared/components/dialog";
 import { Button } from "@/shared/components/button";
-import { useToast } from "@/shared/components/toast";
+import { MessageModal } from "@/shared/components/MessageModal";
 
 interface Course {
   id: string;
@@ -41,6 +41,11 @@ const ActivityForm = () => {
   const [descripcion, setDescripcion] = useState("");
   const [subtareas, setSubtareas] = useState<Subtarea[]>([]);
   const [isSavingActivity, setIsSavingActivity] = useState(false);
+  const [isSavingSubtasks, setIsSavingSubtasks] = useState(false);
+  
+  // Estados para controlar los pasos del formulario
+  const [currentStep, setCurrentStep] = useState<1 | 2>(1); // 1: actividad, 2: subtareas
+  const [createdActivityId, setCreatedActivityId] = useState<number | null>(null);
   
   // Estados para cursos
   const [courses, setCourses] = useState<Course[]>([]);
@@ -60,8 +65,11 @@ const ActivityForm = () => {
     subtareas?: { [key: number]: { nombre?: string; fechaObjetivo?: string; horas?: string } };
   }>({});
   
-  // Toast para notificaciones
-  const { showToast, ToastComponent } = useToast();
+  // Estados para el modal de mensajes
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalType, setModalType] = useState<"success" | "error" | "warning">("success");
+  const [modalTitle, setModalTitle] = useState("");
+  const [modalMessage, setModalMessage] = useState("");
   
   // Función helper para obtener la fecha de hoy en formato YYYY-MM-DD
   const getTodayDate = (): string => {
@@ -104,7 +112,10 @@ const ActivityForm = () => {
       setNewCourseName("");
       setCourseError("");
       setIsDialogOpen(false);
-      showToast("Curso añadido exitosamente", "success");
+      setModalType("success");
+      setModalTitle("Curso creado");
+      setModalMessage("El curso ha sido añadido exitosamente. Ya puedes seleccionarlo en la lista.");
+      setModalOpen(true);
     } catch (error: any) {
       console.error("Error al crear curso:", error);
       let errorMessage = "Error al crear el curso. Por favor, intenta de nuevo.";
@@ -140,8 +151,11 @@ const ActivityForm = () => {
       
       // Mostrar error en el formulario
       setCourseError(errorMessage);
-      // También mostrar toast para feedback adicional
-      showToast(errorMessage, "error");
+      // También mostrar modal para feedback adicional
+      setModalType("error");
+      setModalTitle("Error al crear curso");
+      setModalMessage(errorMessage);
+      setModalOpen(true);
     } finally {
       setCreatingCourse(false);
     }
@@ -175,8 +189,8 @@ const ActivityForm = () => {
     }
   };
 
-  // Función de validación
-  const validateForm = (): boolean => {
+  // Función de validación para el paso 1 (actividad)
+  const validateActivityForm = (): boolean => {
     const newErrors: typeof errors = {};
 
     // Validar título
@@ -199,223 +213,115 @@ const ActivityForm = () => {
       newErrors.fechaEntrega = "La fecha de entrega es obligatoria para crear una tarea.";
     }
 
-    // Validar subtareas
-    if (subtareas.length > 0) {
-      const subtaskErrors: { [key: number]: { nombre?: string; fechaObjetivo?: string; horas?: string } } = {};
-      subtareas.forEach((sub) => {
-        const subErrors: { nombre?: string; fechaObjetivo?: string; horas?: string } = {};
-        if (!sub.nombre.trim()) {
-          subErrors.nombre = "El nombre de la subtarea es obligatorio.";
-        }
-        if (!sub.fechaObjetivo) {
-          subErrors.fechaObjetivo = "La fecha objetivo es obligatoria.";
-        }
-        if (!sub.horas || parseFloat(sub.horas) <= 0) {
-          subErrors.horas = "Las horas estimadas son obligatorias y deben ser mayores a 0.";
-        }
-        if (Object.keys(subErrors).length > 0) {
-          subtaskErrors[sub.id] = subErrors;
-        }
-      });
-      if (Object.keys(subtaskErrors).length > 0) {
-        newErrors.subtareas = subtaskErrors;
-      }
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // Función para manejar el guardado
-  const handleSaveActivity = async () => {
-    const isValid = validateForm();
-    if (isValid) {
-      setIsSavingActivity(true);
-      try {
-        // TODO: reemplazar por el id del usuario autenticado cuando haya auth en el frontend
-        const userId = 1;
+  // Función de validación para el paso 2 (subtareas)
+  const validateSubtasksForm = (): boolean => {
+    const newErrors: typeof errors = { ...errors };
+    const subtaskErrors: { [key: number]: { nombre?: string; fechaObjetivo?: string; horas?: string } } = {};
 
-        // Crear actividad
-        const payloadActivity = {
-          title: titulo.trim(),
-          description: descripcion || "",
-          user: userId,
-          course_id: curso || null,
-          deadline: fechaEntrega,
-          event_datetime: fechaEvento ? `${fechaEvento}T00:00:00Z` : null,
-          type: tipo, // valores: "examen", "taller", "proyecto"
-        };
-
-        console.log("[ActivityForm] Enviando payload de actividad:", payloadActivity);
-
-        // Validación rápida en frontend: evitar duplicados (mismo curso + mismo título)
-        if (payloadActivity.course_id && payloadActivity.title) {
-          try {
-            const existing = await getActivities();
-            const normalizedTitle = payloadActivity.title.trim().toLowerCase();
-            const normalizedCourseId = String(payloadActivity.course_id);
-
-            const isDuplicate =
-              Array.isArray(existing) &&
-              existing.some((a: any) => {
-                const existingTitle = String(a?.title ?? "").trim().toLowerCase();
-                const existingCourseId =
-                  a?.course?.id != null
-                    ? String(a.course.id)
-                    : a?.course_id != null
-                    ? String(a.course_id)
-                    : "";
-
-                return (
-                  existingCourseId === normalizedCourseId &&
-                  existingTitle === normalizedTitle
-                );
-              });
-
-            if (isDuplicate) {
-              setErrors((prev) => ({
-                ...prev,
-                titulo:
-                  "Ya existe una actividad con este título en el curso seleccionado.",
-              }));
-              showToast(
-                "Ya existe una actividad con este título en el curso seleccionado.",
-                "error"
-              );
-              setIsSavingActivity(false);
-              return;
-            }
-          } catch (e) {
-            // Si falla la verificación (red/servidor), no bloqueamos; el backend seguirá validando.
-            console.warn(
-              "[ActivityForm] No se pudo verificar duplicados en frontend:",
-              e
-            );
-          }
+    if (subtareas.length > 0) {
+      subtareas.forEach((sub) => {
+        const subErrors: { nombre?: string; fechaObjetivo?: string; horas?: string } = {};
+        
+        if (!sub.nombre.trim()) {
+          subErrors.nombre = "El nombre de la subtarea es obligatorio.";
         }
-
-        const createdActivity = await createActivity(payloadActivity);
-
-        // Crear subtareas asociadas (si existen) usando los endpoints anidados
-        if (subtareas.length > 0) {
-          const activityId = createdActivity.id;
-
-          await Promise.all(
-            subtareas.map((sub) =>
-              createSubtask(activityId, {
-                title: sub.nombre.trim(),
-                estimated_hours: parseFloat(sub.horas),
-                target_date: sub.fechaObjetivo || null,
-                status: "PENDING",
-              })
-            )
-          );
+        
+        if (!sub.fechaObjetivo) {
+          subErrors.fechaObjetivo = "La fecha objetivo es obligatoria.";
+        } else if (fechaEntrega && sub.fechaObjetivo > fechaEntrega) {
+          subErrors.fechaObjetivo = "La fecha objetivo no puede ser posterior a la fecha de entrega de la actividad.";
         }
-
-        // Reset de formulario básico
-        setTitulo("");
-        setCurso("");
-        setTipo("");
-        setFechaEntrega("");
-        setFechaEvento("");
-        setDescripcion("");
-        setSubtareas([]);
-        setErrors({});
-
-        showToast(`Actividad "${payloadActivity.title}" creada exitosamente.`, "success");
-        navigate("/crear/exito", {
-          state: {
-            activityId: createdActivity?.id,
-            title: payloadActivity.title,
-            courseId: payloadActivity.course_id,
-          },
-        });
-      } catch (error: any) {
-        // Logs detallados para depurar errores del backend
-        const status = error?.response?.status;
-        const errorData = error?.response?.data;
-
-        console.error(
-          "[ActivityForm] Error al crear la actividad o subtareas:",
-          {
-            status,
-            data: errorData,
-            message: error?.message,
-          },
-        );
-
-        let errorMessage = "Error al crear la actividad. Por favor, intenta de nuevo.";
-
-        if (errorData) {
-          const firstMsg = (val: any): string | undefined => {
-            if (!val) return undefined;
-            if (typeof val === "string") return val;
-            if (Array.isArray(val)) return val[0] ? String(val[0]) : undefined;
-            return String(val);
-          };
-
-          if (typeof errorData === "string") {
-            errorMessage = errorData;
-          } else if (errorData.detail) {
-            errorMessage = errorData.detail;
-          } else if (errorData.title) {
-            if (Array.isArray(errorData.title)) {
-              errorMessage =
-                errorData.title[0] ?? "Error de validación en el título.";
-            } else {
-              errorMessage = String(errorData.title);
-            }
-          } else if (errorData.deadline) {
-            // Caso típico: deadline anterior a fecha del evento o a la actual
-            let msg =
-              firstMsg(errorData.deadline) ??
-              "La fecha límite no es válida. Revisa la fecha de entrega.";
-
-            // Si el backend indica explícitamente que no puede ser anterior a la fecha del evento,
-            // usamos un texto claro y reutilizable.
-            if (
-              typeof msg === "string" &&
-              msg.toLowerCase().includes("fecha límite no puede ser anterior a la fecha del evento")
-            ) {
-              msg =
-                "La fecha de entrega no puede ser anterior a la fecha del evento. Ajusta ambas fechas.";
-            }
-
-            setErrors((prev) => ({
-              ...prev,
-              fechaEntrega: msg,
-              fechaEvento: msg,
-            }));
-            errorMessage = msg;
-            setTimeout(() => {
-              const el = document.querySelector('[data-field="fechaEntrega"]');
-              el?.scrollIntoView({ behavior: "smooth", block: "center" });
-            }, 0);
-          } else if (errorData.event_datetime) {
-            // Caso típico: fecha del evento anterior a la actual
-            const msg =
-              firstMsg(errorData.event_datetime) ??
-              "La fecha del evento no es válida. Revisa la fecha seleccionada.";
-            errorMessage = msg;
-          } else {
-            // Mostrar un resumen legible de los campos que fallaron
-            try {
-              errorMessage = `Error de validación (${status ?? "sin código"}): ${JSON.stringify(errorData)}`;
-            } catch {
-              errorMessage = "Error de validación en el backend. Revisa la consola para más detalles.";
-            }
-          }
-        } else if (error?.message) {
-          errorMessage = error.message;
+        
+        if (!sub.horas || parseFloat(sub.horas) <= 0) {
+          subErrors.horas = "Las horas estimadas son obligatorias y deben ser mayores a 0.";
         }
-
-        showToast(errorMessage, "error");
-      } finally {
-        setIsSavingActivity(false);
+        
+        if (Object.keys(subErrors).length > 0) {
+          subtaskErrors[sub.id] = subErrors;
+        }
+      });
+      
+      if (Object.keys(subtaskErrors).length > 0) {
+        newErrors.subtareas = subtaskErrors;
+      } else {
+        delete newErrors.subtareas;
       }
-    } else {
-      showToast("Por favor, completa todos los campos obligatorios", "error");
-      // Scroll al primer error después de que se actualicen los errores
+    }
+
+    setErrors(newErrors);
+    return Object.keys(subtaskErrors).length === 0;
+  };
+
+  // Función para obtener mensajes de error más claros
+  const getErrorMessage = (error: any): string => {
+    const status = error?.response?.status;
+    const errorData = error?.response?.data;
+
+    if (!errorData && !error?.message) {
+      return "Ocurrió un error inesperado. Por favor, intenta de nuevo.";
+    }
+
+    if (typeof errorData === "string") {
+      return errorData;
+    }
+
+    if (errorData?.detail) {
+      return errorData.detail;
+    }
+
+    if (errorData?.title) {
+      const titleError = Array.isArray(errorData.title) ? errorData.title[0] : errorData.title;
+      if (titleError?.toLowerCase().includes("already exists") || 
+          titleError?.toLowerCase().includes("unique") ||
+          titleError?.toLowerCase().includes("ya existe")) {
+        return "Ya existe una actividad con este título en el curso seleccionado. Por favor, usa un título diferente.";
+      }
+      return String(titleError);
+    }
+
+    if (errorData?.deadline) {
+      const deadlineError = Array.isArray(errorData.deadline) ? errorData.deadline[0] : errorData.deadline;
+      if (deadlineError?.toLowerCase().includes("anterior")) {
+        return "La fecha de entrega no puede ser anterior a la fecha del evento. Por favor, ajusta las fechas.";
+      }
+      return String(deadlineError) || "La fecha de entrega no es válida. Por favor, revisa la fecha seleccionada.";
+    }
+
+    if (errorData?.event_datetime) {
+      const eventError = Array.isArray(errorData.event_datetime) ? errorData.event_datetime[0] : errorData.event_datetime;
+      return String(eventError) || "La fecha del evento no es válida. Por favor, revisa la fecha seleccionada.";
+    }
+
+    if (error?.message) {
+      if (error.message.includes("Network Error") || error.message.includes("Failed to fetch")) {
+        return "No se pudo conectar con el servidor. Verifica tu conexión a internet e intenta de nuevo.";
+      }
+      return error.message;
+    }
+
+    if (status === 500) {
+      return "Ocurrió un error en el servidor. Por favor, intenta más tarde.";
+    }
+
+    if (status === 400) {
+      return "Los datos ingresados no son válidos. Por favor, revisa el formulario.";
+    }
+
+    return "Ocurrió un error al procesar tu solicitud. Por favor, intenta de nuevo.";
+  };
+
+  // Función para manejar el guardado de la actividad (Paso 1)
+  const handleSaveActivity = async () => {
+    const isValid = validateActivityForm();
+    if (!isValid) {
+      setModalType("error");
+      setModalTitle("Campos incompletos");
+      setModalMessage("Por favor, completa todos los campos obligatorios marcados con *.");
+      setModalOpen(true);
       setTimeout(() => {
         const errorFields = ["titulo", "curso", "tipo", "fechaEntrega"];
         for (const field of errorFields) {
@@ -425,14 +331,187 @@ const ActivityForm = () => {
             break;
           }
         }
-        // Si hay errores en subtareas, hacer scroll a ellas
-        if (errors.subtareas && Object.keys(errors.subtareas).length > 0) {
-          const subtaskSection = document.querySelector('[data-field="subtareas"]');
-          if (subtaskSection) {
-            subtaskSection.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 200);
+      return;
+    }
+
+    setIsSavingActivity(true);
+    try {
+      const userId = 1;
+
+      const payloadActivity = {
+        title: titulo.trim(),
+        description: descripcion || "",
+        user: userId,
+        course_id: curso || null,
+        deadline: fechaEntrega,
+        event_datetime: fechaEvento ? `${fechaEvento}T00:00:00Z` : null,
+        type: tipo,
+      };
+
+      // Validación de duplicados
+      if (payloadActivity.course_id && payloadActivity.title) {
+        try {
+          const existing = await getActivities();
+          const normalizedTitle = payloadActivity.title.trim().toLowerCase();
+          const normalizedCourseId = String(payloadActivity.course_id);
+
+          const isDuplicate =
+            Array.isArray(existing) &&
+            existing.some((a: any) => {
+              const existingTitle = String(a?.title ?? "").trim().toLowerCase();
+              const existingCourseId =
+                a?.course?.id != null
+                  ? String(a.course.id)
+                  : a?.course_id != null
+                  ? String(a.course_id)
+                  : "";
+
+              return (
+                existingCourseId === normalizedCourseId &&
+                existingTitle === normalizedTitle
+              );
+            });
+
+          if (isDuplicate) {
+            setErrors((prev) => ({
+              ...prev,
+              titulo: "Ya existe una actividad con este título en el curso seleccionado.",
+            }));
+            setModalType("error");
+            setModalTitle("Actividad duplicada");
+            setModalMessage("Ya existe una actividad con este título en el curso seleccionado. Por favor, usa un título diferente.");
+            setModalOpen(true);
+            setIsSavingActivity(false);
+            return;
           }
+        } catch (e) {
+          console.warn("[ActivityForm] No se pudo verificar duplicados:", e);
+        }
+      }
+
+      const createdActivity = await createActivity(payloadActivity);
+      setCreatedActivityId(createdActivity.id);
+
+      // Cambiar al paso 2 (subtareas)
+      setCurrentStep(2);
+      setModalType("success");
+      setModalTitle("Actividad creada");
+      setModalMessage(`La actividad "${payloadActivity.title}" ha sido creada exitosamente. Ahora puedes agregar las subtareas.`);
+      setModalOpen(true);
+    } catch (error: any) {
+      console.error("[ActivityForm] Error al crear la actividad:", error);
+      
+      const errorMessage = getErrorMessage(error);
+      
+      // Actualizar errores en el formulario si hay errores específicos de campos
+      if (error?.response?.data) {
+        const errorData = error.response.data;
+        const newErrors: typeof errors = {};
+        
+        if (errorData.deadline) {
+          const deadlineError = Array.isArray(errorData.deadline) ? errorData.deadline[0] : errorData.deadline;
+          newErrors.fechaEntrega = String(deadlineError);
+        }
+        if (errorData.event_datetime) {
+          const eventError = Array.isArray(errorData.event_datetime) ? errorData.event_datetime[0] : errorData.event_datetime;
+          newErrors.fechaEvento = String(eventError);
+        }
+        if (errorData.title) {
+          const titleError = Array.isArray(errorData.title) ? errorData.title[0] : errorData.title;
+          newErrors.titulo = String(titleError);
+        }
+        
+        if (Object.keys(newErrors).length > 0) {
+          setErrors((prev) => ({ ...prev, ...newErrors }));
+        }
+      }
+
+      setModalType("error");
+      setModalTitle("Error al crear actividad");
+      setModalMessage(errorMessage);
+      setModalOpen(true);
+    } finally {
+      setIsSavingActivity(false);
+    }
+  };
+
+  // Función para manejar el guardado de las subtareas (Paso 2)
+  const handleSaveSubtasks = async () => {
+    if (!createdActivityId) {
+      setModalType("error");
+      setModalTitle("Error");
+      setModalMessage("No se encontró la actividad. Por favor, intenta crear la actividad nuevamente.");
+      setModalOpen(true);
+      return;
+    }
+
+    // Si no hay subtareas, ir directamente a la página de éxito
+    if (subtareas.length === 0) {
+      navigate("/crear/exito", {
+        state: {
+          activityId: createdActivityId,
+          title: titulo,
+          courseId: curso,
+        },
+      });
+      return;
+    }
+
+    const isValid = validateSubtasksForm();
+    if (!isValid) {
+      setModalType("error");
+      setModalTitle("Errores en las subtareas");
+      setModalMessage("Por favor, corrige los errores en las subtareas antes de continuar.");
+      setModalOpen(true);
+      setTimeout(() => {
+        const subtaskSection = document.querySelector('[data-field="subtareas"]');
+        if (subtaskSection) {
+          subtaskSection.scrollIntoView({ behavior: "smooth", block: "center" });
         }
       }, 200);
+      return;
+    }
+
+    setIsSavingSubtasks(true);
+    try {
+      await Promise.all(
+        subtareas.map((sub) =>
+          createSubtask(createdActivityId, {
+            title: sub.nombre.trim(),
+            estimated_hours: parseFloat(sub.horas),
+            target_date: sub.fechaObjetivo || null,
+            status: "PENDING",
+          })
+        )
+      );
+
+      setModalType("success");
+      setModalTitle("Subtareas guardadas");
+      setModalMessage(`Se han guardado ${subtareas.length} subtarea${subtareas.length > 1 ? 's' : ''} exitosamente.`);
+      setModalOpen(true);
+      
+      // Navegar a la página de éxito después de cerrar el modal
+      setTimeout(() => {
+        navigate("/crear/exito", {
+          state: {
+            activityId: createdActivityId,
+            title: titulo,
+            courseId: curso,
+          },
+        });
+      }, 1500);
+    } catch (error: any) {
+      console.error("[ActivityForm] Error al crear las subtareas:", error);
+      
+      const errorMessage = getErrorMessage(error);
+      
+      setModalType("error");
+      setModalTitle("Error al guardar subtareas");
+      setModalMessage(errorMessage);
+      setModalOpen(true);
+    } finally {
+      setIsSavingSubtasks(false);
     }
   };
 
@@ -456,8 +535,14 @@ const ActivityForm = () => {
 
   return (
     <>
-      <ToastComponent />
-      {isSavingActivity && (
+      <MessageModal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        type={modalType}
+        title={modalTitle}
+        message={modalMessage}
+      />
+      {(isSavingActivity || isSavingSubtasks) && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="relative flex flex-col items-center gap-4">
             <div className="relative h-16 w-16">
@@ -467,10 +552,12 @@ const ActivityForm = () => {
             </div>
             <div className="flex flex-col items-center text-center">
               <p className="text-sm font-medium text-foreground">
-                Guardando tu actividad...
+                {currentStep === 1 ? "Guardando tu actividad..." : "Guardando las subtareas..."}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                Estamos creando la actividad y sus subtareas. Esto puede tardar unos segundos.
+                {currentStep === 1 
+                  ? "Estamos creando la actividad. Esto puede tardar unos segundos."
+                  : "Estamos guardando las subtareas. Esto puede tardar unos segundos."}
               </p>
             </div>
           </div>
@@ -488,12 +575,35 @@ const ActivityForm = () => {
         </div>
 
         {/* Header */}
-        <h1 className="text-2xl font-bold text-foreground">Crear nueva actividad</h1>
+        <h1 className="text-2xl font-bold text-foreground">
+          {currentStep === 1 ? "Crear nueva actividad" : "Agregar subtareas"}
+        </h1>
         <p className="text-muted-foreground text-sm mt-1 mb-6">
-          Añade un nuevo examen, tarea, o proyecto a tu plan de estudio.
+          {currentStep === 1 
+            ? "Añade un nuevo examen, tarea, o proyecto a tu plan de estudio."
+            : "Divide tu actividad en subtareas más manejables para organizarte mejor."}
         </p>
 
-        {/* Detalles de la actividad */}
+        {/* Indicador de pasos */}
+        <div className="flex items-center gap-2 mb-6">
+          <div className={`flex items-center gap-2 ${currentStep >= 1 ? 'text-[#3B82F6]' : 'text-muted-foreground'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep >= 1 ? 'bg-[#3B82F6] text-white' : 'bg-[#1E293B] border border-border'}`}>
+              {currentStep > 1 ? '✓' : '1'}
+            </div>
+            <span className="text-sm font-medium">Actividad</span>
+          </div>
+          <div className={`h-0.5 flex-1 ${currentStep >= 2 ? 'bg-[#3B82F6]' : 'bg-[#1E293B]'}`} />
+          <div className={`flex items-center gap-2 ${currentStep >= 2 ? 'text-[#3B82F6]' : 'text-muted-foreground'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep >= 2 ? 'bg-[#3B82F6] text-white' : 'bg-[#1E293B] border border-border'}`}>
+              2
+            </div>
+            <span className="text-sm font-medium">Subtareas</span>
+          </div>
+        </div>
+
+        {/* Paso 1: Detalles de la actividad */}
+        {currentStep === 1 && (
+        <>
         <div className="rounded-xl border border-border bg-[#1E293B] p-6 mb-4">
           <div className="flex items-center gap-3 mb-5">
             <div className="h-9 w-9 rounded-lg bg-primary/20 flex items-center justify-center">
@@ -841,7 +951,12 @@ const ActivityForm = () => {
           </div>
         </div>
 
-        {/* Plan de estudio / Subtareas */}
+        </>
+        )}
+
+        {/* Paso 2: Plan de estudio / Subtareas */}
+        {currentStep === 2 && (
+        <>
         <div data-field="subtareas">
         <SubtaskForm
           subtareas={subtareas}
@@ -849,6 +964,7 @@ const ActivityForm = () => {
           onRemove={removeSubtarea}
           onUpdate={updateSubtarea}
           errors={errors.subtareas}
+          fechaEntrega={fechaEntrega}
           onClearError={(subtaskId, field) => {
             if (errors.subtareas?.[subtaskId]?.[field as keyof typeof errors.subtareas[number]]) {
               setErrors((prev) => {
@@ -870,40 +986,77 @@ const ActivityForm = () => {
           }}
         />
         </div>
+        </>
+        )}
 
         {/* Actions */}
         <div className="flex items-center justify-end gap-3 pb-8">
           <button
             type="button"
+            onClick={() => {
+              if (currentStep === 2) {
+                setCurrentStep(1);
+              } else {
+                navigate("/hoy");
+              }
+            }}
             className="px-6 py-2.5 rounded-lg bg-[#1E293B] border border-border text-muted-foreground text-sm font-medium hover:bg-[#1E293B]/80 transition-colors"
           >
-            Cancelar
+            {currentStep === 2 ? "Volver" : "Cancelar"}
           </button>
-          <button
-            type="button"
-            onClick={handleSaveActivity}
-            disabled={isSavingActivity}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-              isSavingActivity
-                ? "bg-[#3B82F6]/70 text-white cursor-not-allowed"
-                : "bg-[#3B82F6] text-white hover:bg-[#3B82F6]/90"
-            }`}
-          >
-            {isSavingActivity ? (
-              <>
-                <span className="relative flex h-4 w-4">
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-white/30 opacity-75 animate-ping" />
-                  <span className="relative inline-flex h-4 w-4 rounded-full bg-white" />
-                </span>
-                Guardando...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4" />
-                Guardar actividad
-              </>
-            )}
-          </button>
+          {currentStep === 1 ? (
+            <button
+              type="button"
+              onClick={handleSaveActivity}
+              disabled={isSavingActivity}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                isSavingActivity
+                  ? "bg-[#3B82F6]/70 text-white cursor-not-allowed"
+                  : "bg-[#3B82F6] text-white hover:bg-[#3B82F6]/90"
+              }`}
+            >
+              {isSavingActivity ? (
+                <>
+                  <span className="relative flex h-4 w-4">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-white/30 opacity-75 animate-ping" />
+                    <span className="relative inline-flex h-4 w-4 rounded-full bg-white" />
+                  </span>
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  Guardar actividad
+                </>
+              )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSaveSubtasks}
+              disabled={isSavingSubtasks}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                isSavingSubtasks
+                  ? "bg-[#3B82F6]/70 text-white cursor-not-allowed"
+                  : "bg-[#3B82F6] text-white hover:bg-[#3B82F6]/90"
+              }`}
+            >
+              {isSavingSubtasks ? (
+                <>
+                  <span className="relative flex h-4 w-4">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-white/30 opacity-75 animate-ping" />
+                    <span className="relative inline-flex h-4 w-4 rounded-full bg-white" />
+                  </span>
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  Guardar subtareas
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>
