@@ -42,9 +42,11 @@ export default function SubtaskItem({
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [deleteArmed, setDeleteArmed] = useState(false);
   const { showToast, ToastComponent } = useToast();
   const localChangeRef = useRef(false); // Ref para rastrear si el cambio fue iniciado localmente
   const lastLocalStateRef = useRef<boolean | null>(null); // Ref para rastrear el último estado establecido localmente
+  const deleteArmTimeoutRef = useRef<number | null>(null);
   
   const borderClass = isActive
     ? "border-l-4 border-l-primary hover:border-primary/50"
@@ -59,6 +61,14 @@ export default function SubtaskItem({
       lastLocalStateRef.current = null; // Resetear el ref cuando recibimos datos del backend
     }
   }, [completed]);
+
+  useEffect(() => {
+    return () => {
+      if (deleteArmTimeoutRef.current) {
+        window.clearTimeout(deleteArmTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleCheckChange = async (checked: boolean) => {
     // Actualización optimista: cambiar el estado visual inmediatamente
@@ -108,6 +118,30 @@ export default function SubtaskItem({
   const handleDelete = () => {
     // Aquí iría la lógica para eliminar la subtarea
     console.log("Eliminar subtarea:", title);
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    // Primer click: armar confirmación
+    if (!deleteArmed) {
+      setDeleteArmed(true);
+      if (deleteArmTimeoutRef.current) {
+        window.clearTimeout(deleteArmTimeoutRef.current);
+      }
+      deleteArmTimeoutRef.current = window.setTimeout(() => {
+        setDeleteArmed(false);
+      }, 2500);
+      return;
+    }
+
+    // Segundo click: confirmar (solo UI por ahora)
+    setDeleteArmed(false);
+    if (deleteArmTimeoutRef.current) {
+      window.clearTimeout(deleteArmTimeoutRef.current);
+      deleteArmTimeoutRef.current = null;
+    }
+    handleDelete();
   };
 
   const handleEdit = (e: React.MouseEvent) => {
@@ -270,11 +304,15 @@ export default function SubtaskItem({
         </button>
         <button
           type="button"
-          onClick={handleDelete}
-          className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-slate-500 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+          onClick={handleDeleteClick}
+          className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+            deleteArmed
+              ? "text-white bg-red-600 hover:bg-red-500"
+              : "text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+          }`}
         >
           <Trash2 className="size-4" />
-          <span className="text-sm font-medium">Eliminar</span>
+          <span className="text-sm font-medium">{deleteArmed ? "¿Seguro?" : "Eliminar"}</span>
         </button>
       </div>
     </article>

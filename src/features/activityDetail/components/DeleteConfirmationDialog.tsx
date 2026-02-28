@@ -44,10 +44,19 @@ export default function DeleteConfirmationDialog({
           <DialogDescription className="text-sm text-slate-600 dark:text-slate-400 pt-2">
             {isActivity ? (
               <>
-                Se eliminará la actividad <span className="font-semibold text-slate-900 dark:text-white">{itemName || "esta actividad"}</span> de forma definitiva.
+                ¿Estás seguro de que quieres eliminar esta actividad
+                {itemName ? (
+                  <>
+                    {" "}
+                    <span className="font-semibold text-slate-900 dark:text-white">
+                      {itemName}
+                    </span>
+                  </>
+                ) : null}
+                ?
                 <br />
                 <br />
-                Esta acción no se puede deshacer.
+                Esto no se puede rehacer.
               </>
             ) : (
               <>

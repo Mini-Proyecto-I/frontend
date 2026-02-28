@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import EditActivityDialog from "./EditActivityDialog";
+import DeleteConfirmationDialog from "./DeleteConfirmationDialog";
 
 interface ActivityDetailHeaderProps {
   activityId?: string;
@@ -35,10 +36,15 @@ export default function ActivityDetailHeader({
   onActivityUpdated,
 }: ActivityDetailHeaderProps) {
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  const handleDelete = () => {
-    // Aquí iría la lógica para eliminar la actividad
-    console.log("Eliminar actividad:", title);
+  const handleDeleteClick = () => {
+    setShowDeleteDialog(true);
+  };
+
+  const handleConfirmDelete = () => {
+    // Solo UI por ahora (sin implementación backend)
+    console.log("Confirmar eliminar actividad:", { activityId, title });
   };
   return (
     <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
@@ -68,7 +74,7 @@ export default function ActivityDetailHeader({
         </button>
         <button
           type="button"
-          onClick={handleDelete}
+          onClick={handleDeleteClick}
           className="cursor-pointer inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 border-2 border-red-500 hover:border-red-400 text-white font-semibold text-sm shadow-lg shadow-red-900/40 hover:shadow-xl hover:shadow-red-500/30 transition-all duration-200 ease-out hover:scale-[1.02] active:scale-[0.98]"
         >
           <Trash2 className="size-4" />
@@ -91,6 +97,14 @@ export default function ActivityDetailHeader({
           subtasks: subtasks || [],
         }}
         onActivityUpdated={onActivityUpdated}
+      />
+
+      <DeleteConfirmationDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        onConfirm={handleConfirmDelete}
+        itemName={title}
+        isActivity
       />
     </div>
   );
