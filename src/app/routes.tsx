@@ -4,6 +4,7 @@ import Today from "@/pages/Today";
 import Create from "@/pages/Create";
 import ActivityDetail from "@/pages/ActivityDetail";
 import Progress from "@/pages/Progress";
+import CreateSuccess from "@/pages/CreateSuccess";
 
 export const router = createBrowserRouter([
   {
@@ -21,6 +22,10 @@ export const router = createBrowserRouter([
       {
         path: "crear",
         element: <Create />,
+      },
+      {
+        path: "crear/exito",
+        element: <CreateSuccess />,
       },
       {
         path: "actividad/:id",
