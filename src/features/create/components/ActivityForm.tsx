@@ -38,6 +38,7 @@ const ActivityForm = () => {
   const [fechaEvento, setFechaEvento] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [subtareas, setSubtareas] = useState<Subtarea[]>([]);
+  const [isSavingActivity, setIsSavingActivity] = useState(false);
   
   // Estados para cursos
   const [courses, setCourses] = useState<Course[]>([]);
@@ -225,6 +226,7 @@ const ActivityForm = () => {
   const handleSaveActivity = async () => {
     const isValid = validateForm();
     if (isValid) {
+      setIsSavingActivity(true);
       try {
         // TODO: reemplazar por el id del usuario autenticado cuando haya auth en el frontend
         const userId = 1;
@@ -276,6 +278,7 @@ const ActivityForm = () => {
                 "Ya existe una actividad con este título en el curso seleccionado.",
                 "error"
               );
+              setIsSavingActivity(false);
               return;
             }
           } catch (e) {
@@ -403,6 +406,8 @@ const ActivityForm = () => {
         }
 
         showToast(errorMessage, "error");
+      } finally {
+        setIsSavingActivity(false);
       }
     } else {
       showToast("Por favor, completa todos los campos obligatorios", "error");
@@ -448,6 +453,25 @@ const ActivityForm = () => {
   return (
     <>
       <ToastComponent />
+      {isSavingActivity && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="relative flex flex-col items-center gap-4">
+            <div className="relative h-16 w-16">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#3B82F6] via-[#22C55E] to-[#EAB308] opacity-80 animate-spin" />
+              <div className="absolute inset-[6px] rounded-full bg-[#020617]" />
+              <div className="absolute inset-[10px] rounded-full border-2 border-dashed border-[#3B82F6]/70 animate-spin-slow" />
+            </div>
+            <div className="flex flex-col items-center text-center">
+              <p className="text-sm font-medium text-foreground">
+                Guardando tu actividad...
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Estamos creando la actividad y sus subtareas. Esto puede tardar unos segundos.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex-1 min-h-screen overflow-y-auto bg-[#111827]">
         <div className="max-w-[880px] mx-auto px-8 py-6">
         {/* Breadcrumb */}
@@ -854,10 +878,27 @@ const ActivityForm = () => {
           <button
             type="button"
             onClick={handleSaveActivity}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-[#3B82F6] text-white text-sm font-medium hover:bg-[#3B82F6]/90 transition-colors"
+            disabled={isSavingActivity}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              isSavingActivity
+                ? "bg-[#3B82F6]/70 text-white cursor-not-allowed"
+                : "bg-[#3B82F6] text-white hover:bg-[#3B82F6]/90"
+            }`}
           >
-            <Save className="h-4 w-4" />
-            Guardar actividad
+            {isSavingActivity ? (
+              <>
+                <span className="relative flex h-4 w-4">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-white/30 opacity-75 animate-ping" />
+                  <span className="relative inline-flex h-4 w-4 rounded-full bg-white" />
+                </span>
+                Guardando...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                Guardar actividad
+              </>
+            )}
           </button>
         </div>
       </div>
