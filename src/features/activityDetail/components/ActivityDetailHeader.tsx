@@ -90,6 +90,20 @@ export default function ActivityDetailHeader({
       showToast(errorMessage, "error");
     }
   };
+
+    const handleActivityUpdated = () => {
+    // Aquí puedes recargar los datos de la actividad
+    // Por ahora, simplemente cerramos el diálogo y mostramos un mensaje
+    setShowEditDialog(false);
+    showToast("Actividad actualizada correctamente", "success");
+    
+    // Si necesitas recargar los datos, puedes hacer una llamada a la API
+    // o usar el onActivityUpdated del padre si existe
+    if (onActivityUpdated) {
+      onActivityUpdated();
+    }
+  };
+
   return (
     <>
       <ToastComponent />
@@ -142,7 +156,7 @@ export default function ActivityDetailHeader({
           eventDate,
           subtasks: subtasks || [],
         }}
-        onActivityUpdated={onActivityUpdated}
+        onActivityUpdated={handleActivityUpdated}
       />
 
       <DeleteConfirmationDialog

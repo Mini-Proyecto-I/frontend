@@ -46,11 +46,10 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
           type="button"
           onClick={onAdd}
           style={{
-            backgroundColor: '#3B82F6',
             border: '1px solidrgb(79, 138, 232)',
             color: 'white'
           }}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#2563EB] transition-colors"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#2563EB] bg-[#3B82F6]/80 transition-colors cursor-pointer"
         >
           <Plus className="h-4 w-4" />
           Añadir subtarea

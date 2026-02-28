@@ -45,8 +45,10 @@ interface EditActivityDialogProps {
 
 const activityTypes = [
   { label: "Examen", value: "examen" },
+  { label: "Quiz", value: "quiz" },
   { label: "Taller", value: "taller" },
   { label: "Proyecto", value: "proyecto" },
+  { label: "Otro", value: "otro" },
 ];
 
 export default function EditActivityDialog({
@@ -395,7 +397,7 @@ export default function EditActivityDialog({
       const activityUpdateData: any = {
         title: titulo.trim(),
         type: tipo,
-        course_id: curso ? String(curso) : null, // Asegurar que course_id sea string
+        course_id: curso ? String(curso) : null,
         deadline: fechaEntrega || null,
       };
 
@@ -408,7 +410,6 @@ export default function EditActivityDialog({
 
       // Si hay fecha de evento, convertirla a formato datetime
       if (fechaEvento) {
-        // Crear un datetime con hora por defecto (por ejemplo, mediodía)
         const eventDateTime = new Date(fechaEvento);
         eventDateTime.setHours(12, 0, 0, 0);
         activityUpdateData.event_datetime = eventDateTime.toISOString();
@@ -427,7 +428,6 @@ export default function EditActivityDialog({
         const originalBackendIds = new Set(originalSubtasks.map(s => String(s.id)));
 
         // Separar subtareas en nuevas y existentes
-        // Una subtarea es nueva si su ID no está en originalBackendIds O si es un ID temporal (muy grande)
         const newSubtasks: Subtarea[] = [];
         const existingSubtasks: Array<{ subtask: Subtarea; originalId: string }> = [];
 
@@ -436,10 +436,9 @@ export default function EditActivityDialog({
           const isOriginalId = originalBackendIds.has(idStr);
           
           // Verificar si es un ID temporal (Date.now() genera números de 13+ dígitos)
-          // Los UUIDs del backend son strings de 36 caracteres, los números son más pequeños
           const isTemporaryId = !isOriginalId && (
-            (typeof sub.id === 'number' && sub.id > 1000000000000) || // Números muy grandes
-            (idStr.length > 15 && !idStr.includes('-')) // Strings largos sin guiones (no UUIDs)
+            (typeof sub.id === 'number' && sub.id > 1000000000000) ||
+            (idStr.length > 15 && !idStr.includes('-'))
           );
 
           if (isTemporaryId || !isOriginalId) {
@@ -469,7 +468,6 @@ export default function EditActivityDialog({
             existingSubtasks.map(({ subtask, originalId }) => {
               const originalSubtask = originalSubtasks.find(os => String(os.id) === originalId);
               if (originalSubtask) {
-                // Actualizar siempre para asegurar sincronización
                 return updateSubtask(activityId, originalId, {
                   title: subtask.nombre.trim(),
                   estimated_hours: parseFloat(subtask.horas) || 0,
@@ -506,19 +504,19 @@ export default function EditActivityDialog({
         );
       }
 
-      // Mostrar mensaje de éxito inmediatamente
+      // Mostrar mensaje de éxito
       showToast("¡Todo salió bien! La actividad se actualizó correctamente.", "success");
       
-      // Esperar un momento para que el usuario vea el mensaje antes de cerrar
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Llamar al callback para actualizar los datos en el componente padre
+      if (onActivityUpdated) {
+        onActivityUpdated();
+      }
       
-      // Cerrar el modal
-      onOpenChange(false);
-      
-      // Recargar la página después de un breve delay
+      // Cerrar el modal después de un breve delay
       setTimeout(() => {
-        window.location.reload();
-      }, 200);
+        onOpenChange(false);
+      }, 1500);
+      
     } catch (error: any) {
       console.error("Error al actualizar actividad:", error);
       console.error("Datos del error:", error?.response?.data);
@@ -526,7 +524,6 @@ export default function EditActivityDialog({
       let errorMessage = "Error al actualizar la actividad. Intenta de nuevo.";
       
       if (error?.response?.data) {
-        // Si el backend devuelve errores de validación
         if (error.response.data.title) {
           const titleError = Array.isArray(error.response.data.title) 
             ? error.response.data.title[0] 
@@ -545,7 +542,6 @@ export default function EditActivityDialog({
             : error.response.data.event_datetime;
           errorMessage = eventError || errorMessage;
         } else if (typeof error.response.data === 'object') {
-          // Intentar obtener el primer mensaje de error
           const firstError = Object.values(error.response.data)[0];
           if (Array.isArray(firstError) && firstError.length > 0) {
             errorMessage = firstError[0];
@@ -788,7 +784,7 @@ export default function EditActivityDialog({
                     <span className="text-white">Tipo:</span> <span className="text-[#9CA3AF]">¿Qué tipo de actividad es?</span> <span className="text-primary">*</span>
                     <InfoTooltip text="Selecciona si es un examen, tarea o proyecto." />
                   </label>
-                  <div className="flex items-center gap-5 mt-3">
+                  <div className="flex items-center flex-wrap gap-x-5 gap-y-3 mt-3">
                     {activityTypes.map((t) => (
                       <label
                         key={t.value}
@@ -849,9 +845,9 @@ export default function EditActivityDialog({
 
               {/* Fechas */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-                <div className="mt-5.5" data-field="fechaEntrega">
+                <div className="flex flex-col justify-between" data-field="fechaEntrega">
                   <label className="block text-sm font-medium mb-1">
-                    <span className="text-white">Fecha de entrega:</span> <span className="text-[#9CA3AF]">¿Cuándo la tienes que entregar?</span> <span className="text-primary">*</span>
+                    <span className="text-white">Fecha de entrega:</span> <span className="text-[#9CA3AF]">¿Cuándo debes entregar o presentar?</span> <span className="text-primary">*</span>
                     <InfoTooltip text="Indica la fecha máxima o límite de entrega de esta actividad." />
                   </label>
                   <div className="relative">
@@ -890,7 +886,7 @@ export default function EditActivityDialog({
 
                 <div data-field="fechaEvento">
                   <label className="block text-sm font-medium mb-1.5">
-                    <span className="text-white">Fecha del evento:</span> <span className="text-[#9CA3AF]">¿Cuándo es el evento asociado?</span>
+                    <span className="text-white">Fecha adicional:</span> <span className="text-[#9CA3AF]">Si hay otra fecha importante (ej: sustentación)</span>
                     <InfoTooltip text="Úsala cuando exista una fecha concreta en la que sucede el evento, por ejemplo un examen o presentación." />
                   </label>
                   <div className="text-[#9CA3AF] text-xs mb-1">(Opcional)</div>
@@ -943,36 +939,6 @@ export default function EditActivityDialog({
                   className={`${inputClass} resize-none`}
                 />
               </div>
-            </div>
-
-            {/* Plan de estudio / Subtareas */}
-            <div data-field="subtareas">
-              <SubtaskForm
-                subtareas={subtareas}
-                onAdd={addSubtarea}
-                onRemove={removeSubtarea}
-                onUpdate={updateSubtarea}
-                errors={errors.subtareas}
-                onClearError={(subtaskId, field) => {
-                  if (errors.subtareas?.[subtaskId]?.[field as keyof typeof errors.subtareas[number]]) {
-                    setErrors((prev) => {
-                      const newErrors = { ...prev };
-                      if (newErrors.subtareas?.[subtaskId]) {
-                        const subErrors = { ...newErrors.subtareas[subtaskId] };
-                        delete subErrors[field as keyof typeof subErrors];
-                        if (Object.keys(subErrors).length === 0) {
-                          const newSubtaskErrors = { ...newErrors.subtareas };
-                          delete newSubtaskErrors[subtaskId];
-                          newErrors.subtareas = Object.keys(newSubtaskErrors).length > 0 ? newSubtaskErrors : undefined;
-                        } else {
-                          newErrors.subtareas = { ...newErrors.subtareas, [subtaskId]: subErrors };
-                        }
-                      }
-                      return newErrors;
-                    });
-                  }
-                }}
-              />
             </div>
           </div>
 

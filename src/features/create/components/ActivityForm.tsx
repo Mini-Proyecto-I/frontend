@@ -25,8 +25,10 @@ interface Course {
 // Tipos de actividad alineados con el backend (choices de Activity.type)
 const activityTypes = [
   { label: "Examen", value: "examen" },
+  { label: "Quiz", value: "quiz" },
   { label: "Taller", value: "taller" },
   { label: "Proyecto", value: "proyecto" },
+  { label: "Otro", value: "otro" },
 ];
 
 const ActivityForm = () => {
@@ -658,7 +660,7 @@ const ActivityForm = () => {
                         setNewCourseName("");
                         setCourseError("");
                       }}
-                      className="bg-[#111827] border-border text-foreground hover:bg-[#111827]/80"
+                      className="bg-[#111827] border-border text-foreground hover:bg-[#111827]/80 cursor-pointer"
                     >
                       Cancelar
                     </Button>
@@ -680,7 +682,7 @@ const ActivityForm = () => {
                 <span className="text-white">Tipo:</span> <span className="text-[#9CA3AF]">¿Qué tipo de actividad es?</span> <span className="text-primary">*</span>
                 <InfoTooltip text="Selecciona si es un examen, tarea o proyecto." />
               </label>
-              <div className="flex items-center gap-5 mt-3">
+              <div className="flex items-center flex-wrap gap-x-5 gap-y-3 mt-3">
                 {activityTypes.map((t) => (
                   <label
                     key={t.value}
@@ -741,9 +743,9 @@ const ActivityForm = () => {
 
           {/* Fechas */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-            <div className="mt-5.5" data-field="fechaEntrega">
+            <div className="flex flex-col justify-between" data-field="fechaEntrega">
               <label className="block text-sm font-medium mb-1">
-                <span className="text-white">Fecha de entrega:</span> <span className="text-[#9CA3AF]">¿Cuándo la tienes que entregar?</span> <span className="text-primary">*</span>
+                <span className="text-white">Fecha de entrega o del evento:</span> <span className="text-[#9CA3AF]">¿Cuándo debes entregar o presentar?</span> <span className="text-primary">*</span>
                 <InfoTooltip text="Indica la fecha máxima o límite de entrega de esta actividad." />
               </label>
               <div className="relative">
@@ -782,7 +784,7 @@ const ActivityForm = () => {
 
             <div data-field="fechaEvento">
               <label className="block text-sm font-medium mb-1.5">
-                <span className="text-white">Fecha del evento:</span> <span className="text-[#9CA3AF]">¿Cuándo es el evento asociado?</span>
+                <span className="text-white">Fecha adicional:</span> <span className="text-[#9CA3AF]">Si hay otra fecha importante (ej: sustentación)</span>
                 <InfoTooltip text="Úsala cuando exista una fecha concreta en la que sucede el evento, por ejemplo un examen o presentación." />
               </label>
               <div className="text-[#9CA3AF] text-xs mb-1">(Opcional)</div>
@@ -879,7 +881,7 @@ const ActivityForm = () => {
             type="button"
             onClick={handleSaveActivity}
             disabled={isSavingActivity}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
               isSavingActivity
                 ? "bg-[#3B82F6]/70 text-white cursor-not-allowed"
                 : "bg-[#3B82F6] text-white hover:bg-[#3B82F6]/90"
