@@ -27,7 +27,10 @@ import { Input } from '@/shared/components/input';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from '@/shared/components/select';
@@ -324,19 +327,61 @@ export default function ProgressPage() {
             <p className="text-slate-500 dark:text-slate-400">Haz seguimiento de tus actividades y gestiona las fechas límite pendientes.</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Select value={filter} onValueChange={setFilter}>
-              <SelectTrigger className="w-48 bg-white dark:bg-[#1a2230] border-slate-200 dark:border-slate-700">
-                <SelectValue placeholder="Filtrar por curso" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos los cursos</SelectItem>
-                {courses.map((c: Course) => (
-                  <SelectItem key={c.id} value={c.name}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="filter-by-course" className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                Agrupar por curso
+              </label>
+              <Select value={filter} onValueChange={setFilter}>
+                <SelectTrigger
+                  id="filter-by-course"
+                  className="min-w-[220px] h-11 rounded-xl bg-white dark:bg-[#1a2230] border-slate-200 dark:border-slate-700 cursor-pointer transition-all duration-200 hover:border-primary/40 hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:ring-2 focus:ring-primary/20 [&>svg]:transition-transform data-[state=open]:[&>svg]:rotate-180"
+                >
+                  <SelectValue placeholder="Filtrar por curso" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl shadow-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1a2230] py-1.5 min-w-[var(--radix-select-trigger-width)]">
+                  <SelectGroup>
+                    <SelectLabel className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-3 py-2">
+                      Ver tareas de
+                    </SelectLabel>
+                    <SelectItem
+                      value="all"
+                      className="cursor-pointer rounded-lg mx-1.5 py-2.5 pl-9 pr-3 focus:bg-primary/10 focus:text-primary data-[highlighted]:bg-primary/10 data-[highlighted]:text-primary transition-colors"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <BarChart3 className="h-4 w-4 text-primary shrink-0" />
+                        <span>Todos los cursos</span>
+                      </span>
+                    </SelectItem>
+                  </SelectGroup>
+                  <SelectSeparator className="my-1.5 bg-slate-200 dark:bg-slate-700" />
+                  <SelectGroup>
+                    {courses.map((c: Course) => {
+                      const CourseIcon = getCourseIcon(c.name);
+                      const colorKey = getCourseColor(c);
+                      return (
+                        <SelectItem
+                          key={c.id}
+                          value={c.name}
+                          className="cursor-pointer rounded-lg mx-1.5 py-2.5 pl-9 pr-3 focus:bg-primary/10 focus:text-primary data-[highlighted]:bg-primary/10 data-[highlighted]:text-primary transition-colors"
+                        >
+                          <span className="flex items-center gap-2.5">
+                            <span
+                              className={cn(
+                                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+                                courseColorClasses[colorKey] || courseColorClasses.cyan
+                              )}
+                            >
+                              <CourseIcon className={cn("h-4 w-4", courseColorClasses[colorKey]?.split(' ')[1] || 'text-cyan-500')} />
+                            </span>
+                            <span className="font-medium">{c.name}</span>
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
             <Button asChild className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/30">
               <Link to="/crear">
                 <Zap className="h-4 w-4 mr-2" />

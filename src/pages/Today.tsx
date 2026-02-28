@@ -14,6 +14,40 @@ import { CapacityCard } from '@/features/today/components/CapacityCard';
 import { SubjectFocusCard } from '@/features/today/components/SubjectFocusCard';
 import ActivityDeletedSuccessDialog from '@/features/activityDetail/components/ActivityDeletedSuccessDialog';
 
+/** Devuelve saludo e icono según la hora: mañana (5-11), tarde (12-18), noche (19-4) */
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return { text: 'Buenos días', emoji: '☀️' };
+  if (hour >= 12 && hour < 19) return { text: 'Buenas tardes', emoji: '🌤️' };
+  return { text: 'Buenas noches', emoji: '🌙' };
+}
+
+/** Frases motivadoras del día: rotan según el día del año (misma frase todo el día) */
+const FRASES_MOTIVADORAS = [
+  "Cada pequeño paso te acerca a tu meta.",
+  "Tu esfuerzo de hoy es el éxito de mañana.",
+  "La constancia vence lo que el talento no conquista.",
+  "Hoy es un buen día para aprender algo nuevo.",
+  "El progreso no es perfecto, pero es real.",
+  "Tu actitud determina tu dirección.",
+  "Pequeñas mejoras diarias llevan a grandes resultados.",
+  "Lo que practicas mejora. Sigue adelante.",
+  "El conocimiento es la mejor inversión.",
+  "Cada sesión de estudio cuenta.",
+  "Tu futuro self te agradecerá este momento.",
+  "La disciplina es elegir entre lo que quieres ahora y lo que quieres más.",
+  "No es sobre ser el mejor, es sobre ser mejor que ayer.",
+  "El aprendizaje es un tesoro que te acompaña siempre.",
+  "Haz de hoy un día productivo.",
+];
+
+function getFraseMotivadoraDelDia(): string {
+  const start = new Date(new Date().getFullYear(), 0, 0);
+  const now = new Date();
+  const dayOfYear = Math.floor((now.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+  return FRASES_MOTIVADORAS[dayOfYear % FRASES_MOTIVADORAS.length];
+}
+
 // Tipos del backend
 interface BackendCourse {
   id: string;
@@ -181,7 +215,7 @@ export default function Today() {
     // Estados de carga y error
     if (loading) {
       return (
-        <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex items-center justify-center min-h-[400px] rounded-xl bg-gradient-to-br from-primary/5 to-transparent border border-primary/10">
           <div className="flex flex-col items-center gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="text-muted-foreground">Cargando datos...</p>
@@ -194,7 +228,7 @@ export default function Today() {
       const errorMessage = (error as any)?.message || String(error) || 'Error desconocido';
       return (
         <div className="flex items-center justify-center min-h-[400px]">
-          <Card className="border-destructive">
+          <Card className="border-destructive bg-destructive/5">
             <CardContent className="flex flex-col items-center gap-4 py-8">
               <AlertTriangle className="h-8 w-8 text-destructive" />
               <div className="text-center">
@@ -203,33 +237,54 @@ export default function Today() {
                   {errorMessage}
                 </p>
               </div>
-              <Button onClick={() => window.location.reload()}>Reintentar</Button>
+              <Button onClick={() => window.location.reload()} className="cursor-pointer transition-all duration-200 hover:scale-105 hover:bg-primary/90 hover:text-primary-foreground">
+                Reintentar
+              </Button>
             </CardContent>
           </Card>
         </div>
       );
     }
   
+    const greeting = getGreeting();
+
     return (
       <div className="flex gap-6 max-w-7xl">
         {/* Main content */}
         <div className="flex-1 min-w-0 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold">¡Buenos días, {user.name.split(' ')[0]}! ☀️</h1>
-              <p className="text-muted-foreground mt-1">{format(new Date(), 'EEEE, MMMM d, yyyy', { locale: es })}</p>
+              <h1 className="text-2xl font-bold text-foreground">
+                ¡{greeting.text}, {user.name.split(' ')[0]}! {greeting.emoji}
+              </h1>
+              <p className="text-muted-foreground mt-1 capitalize">{format(new Date(), 'EEEE, d \'de\' MMMM, yyyy', { locale: es })}</p>
             </div>
             <div className="flex gap-2 shrink-0">
-              <Button variant="outline" size="sm" onClick={() => navigate('/crear')}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/crear')}
+                className="cursor-pointer transition-all duration-200 hover:scale-105 hover:border-primary hover:bg-primary/15 hover:text-primary"
+              >
                 <PlusCircle className="h-4 w-4 mr-2" />
                 Crear
               </Button>
-              <Button variant="outline" size="sm" onClick={() => navigate('/progreso')}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/progreso')}
+                className="cursor-pointer transition-all duration-200 hover:scale-105 hover:border-primary hover:bg-primary/15 hover:text-primary"
+              >
                 <BarChart3 className="h-4 w-4 mr-2" />
                 Progreso
               </Button>
             </div>
           </div>
+
+          {/* Frase motivadora del día */}
+          <p className="text-muted-foreground/90 text-center italic text-sm sm:text-base py-2">
+            "{getFraseMotivadoraDelDia()}"
+          </p>
 
           {/* Overload alert */}
           {isOverloaded && (
@@ -259,6 +314,7 @@ export default function Today() {
 
         {/* Right panel */}
         <aside className="w-80 shrink-0 space-y-4 hidden lg:block">
+          <div className="rounded-xl border border-primary/10 bg-gradient-to-b from-primary/5 to-transparent p-1">
           <CapacityCard
             totalHours={totalHours}
             dailyLimit={user.dailyLimit}
@@ -269,6 +325,7 @@ export default function Today() {
             groupedByCourse={groupedByCourse}
             totalHours={totalHours}
           />
+          </div>
         </aside>
 
         {/* Modal de éxito de actividad eliminada */}

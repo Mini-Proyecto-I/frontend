@@ -8,7 +8,7 @@ interface OverloadAlertProps {
 
 export const OverloadAlert = ({ totalHours, dailyLimit }: OverloadAlertProps) => {
   return (
-    <Card className="border-destructive/50 bg-destructive/10">
+    <Card className="border-destructive/60 bg-gradient-to-r from-destructive/10 to-destructive/5 shadow-sm">
       <CardContent className="flex items-start gap-3 py-4">
         <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
         <div className="flex-1">

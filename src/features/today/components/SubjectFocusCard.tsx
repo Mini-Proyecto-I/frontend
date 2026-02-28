@@ -14,7 +14,7 @@ interface SubjectFocusCardProps {
 
 export const SubjectFocusCard = ({ groupedByCourse, totalHours }: SubjectFocusCardProps) => {
   return (
-    <Card>
+    <Card className="border-primary/10">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">Enfoque por materia</CardTitle>
       </CardHeader>
@@ -22,12 +22,12 @@ export const SubjectFocusCard = ({ groupedByCourse, totalHours }: SubjectFocusCa
         {groupedByCourse.map((g) => {
           const pct = totalHours > 0 ? Math.round((g.hours / totalHours) * 100) : 0;
           return (
-            <div key={g.course}>
+            <div key={g.course} className="transition-opacity hover:opacity-90">
               <div className="flex justify-between text-sm mb-1">
-                <span>{g.course}</span>
-                <span className="text-muted-foreground">{pct}%</span>
+                <span className="font-medium text-foreground">{g.course}</span>
+                <span className="text-muted-foreground tabular-nums">{pct}%</span>
               </div>
-              <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+              <div className="h-2 rounded-full bg-secondary overflow-hidden">
                 <div
                   className={cn(
                     'h-full rounded-full',

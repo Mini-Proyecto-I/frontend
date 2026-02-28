@@ -50,7 +50,7 @@ export const TaskItem = ({ subtask, activityId, onStatusChange }: TaskItemProps)
         <Button
           variant="ghost"
           size="sm"
-          className="text-xs h-7"
+          className="text-xs h-7 cursor-pointer transition-all duration-200 hover:scale-105 hover:bg-primary/15 hover:text-primary"
         >
           Reprogramar
         </Button>
