@@ -21,6 +21,7 @@ interface EditSubtaskDialogProps {
   };
   onSave: (data: { nombre: string; fechaObjetivo: string; horas: string }) => void;
   isSaving?: boolean;
+  deadlineDate?: string; // Fecha de entrega de la actividad para validar
 }
 
 export default function EditSubtaskDialog({
@@ -29,6 +30,7 @@ export default function EditSubtaskDialog({
   subtaskData = {},
   onSave,
   isSaving = false,
+  deadlineDate,
 }: EditSubtaskDialogProps) {
   const [nombre, setNombre] = useState("");
   const [fechaObjetivo, setFechaObjetivo] = useState("");
@@ -43,6 +45,13 @@ export default function EditSubtaskDialog({
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return today.toISOString().split('T')[0];
+  };
+
+  const getMaxDate = (): string | undefined => {
+    if (deadlineDate) {
+      return deadlineDate;
+    }
+    return undefined;
   };
 
   // Cargar datos cuando se abre el modal
@@ -84,6 +93,8 @@ export default function EditSubtaskDialog({
 
     if (!fechaObjetivo) {
       newErrors.fechaObjetivo = "La fecha objetivo es obligatoria.";
+    } else if (deadlineDate && fechaObjetivo > deadlineDate) {
+      newErrors.fechaObjetivo = "La fecha objetivo no puede ser posterior a la fecha de entrega de la actividad.";
     }
 
     if (!horas.trim()) {
@@ -170,6 +181,7 @@ export default function EditSubtaskDialog({
                 type="date"
                 value={fechaObjetivo}
                 min={getTodayDate()}
+                max={getMaxDate()}
                 onChange={(e) => {
                   setFechaObjetivo(e.target.value);
                   setErrors((prev) => ({ ...prev, fechaObjetivo: undefined }));
