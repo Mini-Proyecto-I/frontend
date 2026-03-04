@@ -33,7 +33,7 @@ export function AppSidebar() {
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary shadow-sm transition-transform duration-200 hover:scale-105">
             <GraduationCap className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span 
+          <span
             className={cn(
               "text-lg font-bold tracking-tight text-foreground",
               "group-data-[collapsible=icon]:hidden"
@@ -53,7 +53,7 @@ export function AppSidebar() {
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   {item.title === 'Actividad' ? (
-                    <SidebarMenuButton 
+                    <SidebarMenuButton
                       tooltip={item.title}
                       onClick={(e) => e.preventDefault()}
                       className="hover:bg-sidebar-accent hover:translate-x-0.5 cursor-default transition-all duration-200"

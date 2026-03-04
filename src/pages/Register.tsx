@@ -36,10 +36,10 @@ export default function Register() {
     const navigate = useNavigate();
 
     React.useEffect(() => {
-        if (!authLoading && isAuthenticated) {
+        if (!authLoading && isAuthenticated && !isLoading && !showSuccessModal) {
             navigate("/hoy", { replace: true });
         }
-    }, [isAuthenticated, authLoading, navigate]);
+    }, [isAuthenticated, authLoading, navigate, isLoading, showSuccessModal]);
 
     const validate = () => {
         const newErrors: typeof errors = {};
@@ -320,7 +320,7 @@ export default function Register() {
                             Ya puedes iniciar a planear tu vida académica con StudyFlow.
                         </p>
                         <Button
-                            onClick={() => navigate("/")}
+                            onClick={() => navigate("/hoy", { state: { justRegistered: true } })}
                             className="w-full bg-blue-600 hover:bg-blue-700 text-white h-12 rounded-xl text-base font-bold shadow-lg shadow-blue-600/20"
                         >
                             Empezar ahora
