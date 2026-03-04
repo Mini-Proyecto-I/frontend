@@ -368,6 +368,7 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
               activityId={activityId || ""}
               onSubtaskStatusChange={handleSubtaskStatusChange}
               onSubtaskUpdated={fetchSubtasksOnly}
+              deadlineDate={activity.deadline}
             />
         </div>
       </div>

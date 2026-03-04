@@ -15,14 +15,23 @@ interface SubtaskFormProps {
   onUpdate: (id: number, field: keyof Subtarea, value: string) => void;
   errors?: { [key: number]: { nombre?: string; fechaObjetivo?: string; horas?: string } };
   onClearError?: (subtaskId: number, field: string) => void;
+  fechaEntrega?: string; // Fecha de entrega de la actividad para validar
 }
 
-const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearError }: SubtaskFormProps) => {
+const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearError, fechaEntrega }: SubtaskFormProps) => {
   // Función helper para obtener la fecha de hoy en formato YYYY-MM-DD
   const getTodayDate = (): string => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return today.toISOString().split('T')[0];
+  };
+
+  // Función helper para obtener la fecha máxima (fecha de entrega o hoy)
+  const getMaxDate = (): string => {
+    if (fechaEntrega) {
+      return fechaEntrega;
+    }
+    return getTodayDate();
   };
 
   return (
@@ -132,6 +141,7 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                   type="date"
                   value={sub.fechaObjetivo}
                         min={getTodayDate()}
+                        max={getMaxDate()}
                         onChange={(e) => {
                           onUpdate(sub.id, "fechaObjetivo", e.target.value);
                           onClearError?.(sub.id, "fechaObjetivo");

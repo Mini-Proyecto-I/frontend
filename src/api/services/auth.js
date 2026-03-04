@@ -2,7 +2,7 @@ import apiClient from "../axiosClient";
 
 // POST /api/auth/register/
 export const register = async (payload) => {
-  const { data } = await apiClient.post("auth/register/", payload);
+  const { data } = await apiClient.post("auth/users/", payload);
   return data;
 };
 

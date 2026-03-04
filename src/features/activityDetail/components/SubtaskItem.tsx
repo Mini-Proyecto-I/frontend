@@ -23,6 +23,7 @@ interface SubtaskItemProps {
   todayBadge?: boolean;
   onStatusChange?: (subtaskId: string, newStatus: boolean) => void; // Callback con ID y nuevo estado para actualización optimista
   onSubtaskUpdated?: () => void; // Callback para refrescar todas las subtareas después de editar
+  deadlineDate?: string; // Fecha de entrega de la actividad
 }
 
 export default function SubtaskItem({
@@ -37,6 +38,7 @@ export default function SubtaskItem({
   todayBadge = false,
   onStatusChange,
   onSubtaskUpdated,
+  deadlineDate,
 }: SubtaskItemProps) {
   const [isChecked, setIsChecked] = useState(completed);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
@@ -433,6 +435,7 @@ export default function SubtaskItem({
       }}
       onSave={handleSaveEdit}
       isSaving={isSavingEdit}
+      deadlineDate={deadlineDate}
     />
 
     <Dialog open={showEditSuccessDialog} onOpenChange={setShowEditSuccessDialog}>

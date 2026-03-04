@@ -1,7 +1,8 @@
-import axios from 'axios';
+import axios from "axios";
 
-// Django expone las rutas bajo /api/ (course, activity, subtask, reprogramming_log)
+// Django expone las rutas bajo /api/
 let API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+
 if (API_BASE_URL && !API_BASE_URL.endsWith("/api")) {
   API_BASE_URL = API_BASE_URL.replace(/\/?$/, "") + "/api";
 }
@@ -9,11 +10,13 @@ if (API_BASE_URL && !API_BASE_URL.endsWith("/api")) {
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
-// Adjuntar automáticamente el token de acceso JWT si existe en localStorage
+// =============================
+// REQUEST INTERCEPTOR (JWT)
+// =============================
 apiClient.interceptors.request.use((config) => {
   const token = window.localStorage.getItem("accessToken");
   if (token) {
@@ -23,7 +26,11 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Interceptor de respuesta para refrescar el token si expira (401)
+// =============================
+// RESPONSE INTERCEPTOR
+// (Refresh + manejo de errores)
+// =============================
+
 let isRefreshing = false;
 let pendingQueue = [];
 
@@ -44,7 +51,23 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config || {};
     const status = error.response?.status;
 
-    // Si no es 401, o ya intentamos refrescar para esta request, devolvemos el error
+    // =============================
+    // Manejo error 500 amigable
+    // =============================
+    if (status === 500) {
+      const friendlyError = new Error(
+        "Ups! Hubo un error en el servidor, intenta más tarde."
+      );
+      friendlyError.response = error.response;
+      friendlyError.request = error.request;
+      friendlyError.config = error.config;
+      friendlyError.isAxiosError = true;
+      return Promise.reject(friendlyError);
+    }
+
+    // =============================
+    // Si no es 401 o ya reintentamos
+    // =============================
     if (status !== 401 || originalRequest._retry) {
       return Promise.reject(error);
     }
@@ -54,11 +77,12 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // Marcar la request para no entrar en bucle
     originalRequest._retry = true;
 
+    // =============================
+    // Si ya hay refresh en curso
+    // =============================
     if (isRefreshing) {
-      // Si ya hay un refresh en curso, encolamos la promesa y esperamos el nuevo token
       return new Promise((resolve, reject) => {
         pendingQueue.push({
           resolve: (token) => {
@@ -79,13 +103,15 @@ apiClient.interceptors.response.use(
 
     try {
       const base = API_BASE_URL.replace(/\/api\/?$/, "");
+
       const { data } = await axios.post(
         `${base}/api/auth/token/refresh/`,
         { refresh: refreshToken },
-        { headers: { 'Content-Type': 'application/json' } },
+        { headers: { "Content-Type": "application/json" } }
       );
 
       const newAccess = data.access;
+
       window.localStorage.setItem("accessToken", newAccess);
 
       processQueue(null, newAccess);
@@ -96,13 +122,15 @@ apiClient.interceptors.response.use(
       return apiClient(originalRequest);
     } catch (refreshError) {
       processQueue(refreshError, null);
+
       window.localStorage.removeItem("accessToken");
       window.localStorage.removeItem("refreshToken");
+
       return Promise.reject(refreshError);
     } finally {
       isRefreshing = false;
     }
-  },
+  }
 );
 
 export default apiClient;

@@ -17,6 +17,7 @@ interface AddSubtaskDialogProps {
   onOpenChange: (open: boolean) => void;
   activityId: string;
   onSubtaskCreated?: () => void;
+  deadlineDate?: string; // Fecha de entrega de la actividad para validar
 }
 
 export default function AddSubtaskDialog({
@@ -24,6 +25,7 @@ export default function AddSubtaskDialog({
   onOpenChange,
   activityId,
   onSubtaskCreated,
+  deadlineDate,
 }: AddSubtaskDialogProps) {
   const [nombre, setNombre] = useState("");
   const [fechaObjetivo, setFechaObjetivo] = useState("");
@@ -42,6 +44,13 @@ export default function AddSubtaskDialog({
     return today.toISOString().split('T')[0];
   };
 
+  const getMaxDate = (): string | undefined => {
+    if (deadlineDate) {
+      return deadlineDate;
+    }
+    return undefined;
+  };
+
   const validateForm = (): boolean => {
     const newErrors: typeof errors = {};
 
@@ -51,6 +60,8 @@ export default function AddSubtaskDialog({
 
     if (!fechaObjetivo) {
       newErrors.fechaObjetivo = "La fecha objetivo es obligatoria.";
+    } else if (deadlineDate && fechaObjetivo > deadlineDate) {
+      newErrors.fechaObjetivo = "La fecha objetivo no puede ser posterior a la fecha de entrega de la actividad.";
     }
 
     if (!horas || parseFloat(horas) <= 0) {
@@ -218,6 +229,7 @@ export default function AddSubtaskDialog({
                   type="date"
                   value={fechaObjetivo}
                   min={getTodayDate()}
+                  max={getMaxDate()}
                   onChange={(e) => {
                     setFechaObjetivo(e.target.value);
                     if (errors.fechaObjetivo) {
