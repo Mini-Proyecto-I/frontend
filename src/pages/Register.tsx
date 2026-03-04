@@ -89,7 +89,7 @@ export default function Register() {
     };
 
     return (
-        <div className="min-h-screen w-full flex text-slate-100 bg-[#0A0F1C]">
+        <div className="flex-1 w-full flex text-slate-100 bg-[#0A0F1C]">
             {/* Panel Izquierdo */}
             <div className="hidden lg:flex w-[40%] relative flex-col justify-between p-12 overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 border-r border-[#1E293B]">
                 <div

@@ -132,7 +132,7 @@ export default function Today() {
   const pendingTodayCount = filteredParaHoy.filter((t: any) => t.status !== "DONE").length;
 
   return (
-    <div className="flex flex-col gap-8 max-w-[1400px] mx-auto pb-10">
+    <div className="flex flex-col gap-8 max-w-[1400px] w-full mx-auto px-4 sm:px-6 lg:px-10 pb-10 mt-6 lg:mt-10">
       {/* HEADER SECTION */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Welcome Card */}

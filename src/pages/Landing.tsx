@@ -15,7 +15,7 @@ export default function Landing() {
     }, [isAuthenticated, loading, navigate]);
 
     return (
-        <div className="min-h-screen bg-[#0F172A] text-slate-100 flex flex-col font-sans selection:bg-blue-500/30">
+        <div className="flex-1 w-full flex flex-col bg-[#0A0F1C] text-slate-100 font-sans selection:bg-blue-500/30">
             {/* Header / Navbar? (opcional si hay, el diseño no muestra navbar arriba de esto) */}
 
             <main className="flex-1 flex flex-col items-center">
