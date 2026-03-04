@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { format, differenceInDays, startOfDay } from "date-fns";
+import { parseISO, startOfDay, differenceInDays, format } from "date-fns";
 import { es } from "date-fns/locale";
 import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, Info } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import { useAuth } from "@/app/authContext";
 import { patchSubtask } from "@/api/services/subtack";
@@ -26,7 +26,7 @@ function formatHours(hoursStr: string | number) {
 
 function getRelativeDateLabel(targetDateStr: string) {
   if (!targetDateStr) return "";
-  const date = startOfDay(new Date(targetDateStr));
+  const date = startOfDay(parseISO(targetDateStr));
   const today = startOfDay(new Date());
   const diffDays = differenceInDays(date, today);
 
@@ -85,16 +85,46 @@ export default function Today() {
     courses,
     loading,
     error,
-    refetch
+    refetch,
+    setData,
+    tiempoData,
+    refetchTiempo
   } = useHoy(filters);
 
   const handleToggleSubtask = async (activityId: string, subtaskId: string, currentStatus: string) => {
     const newStatus = currentStatus === "DONE" ? "PENDING" : "DONE";
+
+    // Optimistic UI Update
+    setData((prev: any) => {
+      const updateList = (list: any[]) =>
+        list.map(item => item.id === subtaskId ? { ...item, status: newStatus } : item);
+
+      return {
+        ...prev,
+        vencidas: updateList(prev.vencidas),
+        para_hoy: updateList(prev.para_hoy),
+        proximas: updateList(prev.proximas),
+      };
+    });
+
     try {
       await patchSubtask(activityId, subtaskId, { status: newStatus });
-      refetch();
+      // Call lightweight endpoint to update time card values using the new endpoint
+      refetchTiempo();
     } catch (err) {
       console.error(err);
+      // Revert if API fails
+      setData((prev: any) => {
+        const revertList = (list: any[]) =>
+          list.map(item => item.id === subtaskId ? { ...item, status: currentStatus } : item);
+
+        return {
+          ...prev,
+          vencidas: revertList(prev.vencidas),
+          para_hoy: revertList(prev.para_hoy),
+          proximas: revertList(prev.proximas),
+        };
+      });
     }
   };
 
@@ -104,16 +134,18 @@ export default function Today() {
   };
 
   const doneHours = useMemo(() => {
-    return para_hoy
+    if (!tiempoData) return 0;
+    return tiempoData
       .filter((t: any) => t.status === "DONE")
       .reduce((acc: number, t: any) => acc + parseFloat(t.estimated_hours || 0), 0);
-  }, [para_hoy]);
+  }, [tiempoData]);
 
   const pendingHours = useMemo(() => {
-    return para_hoy
+    if (!tiempoData) return 0;
+    return tiempoData
       .filter((t: any) => t.status !== "DONE")
       .reduce((acc: number, t: any) => acc + parseFloat(t.estimated_hours || 0), 0);
-  }, [para_hoy]);
+  }, [tiempoData]);
 
   const totalHours = doneHours + pendingHours;
   const isOverloaded = totalHours > limitHours;
@@ -418,7 +450,9 @@ function TaskCard({ item, badge, theme, onToggle }: { item: any, badge: string |
       <div className="flex justify-between items-start pt-2">
         <div className="space-y-1 pr-6 flex-1 min-w-0">
           <p className={`font-black text-xs tracking-widest uppercase truncate ${colors.text} filter drop-shadow-md`}>
-            {courseName}
+            <Link to={`/actividad/${item.activity.id}`} className="hover:underline">
+              {courseName}
+            </Link>
           </p>
           <h4 className={`text-lg font-bold ${isDone ? 'text-slate-400 line-through' : 'text-slate-100'} leading-tight tracking-tight pr-4`}>
             {title}
@@ -427,7 +461,7 @@ function TaskCard({ item, badge, theme, onToggle }: { item: any, badge: string |
 
         <button
           onClick={onToggle}
-          className={`flex-shrink-0 mt-1 w-6 h-6 border-2 rounded ${colors.checkbox} flex items-center justify-center transition-colors shadow-inner`}
+          className={`flex-shrink-0 mt-1 w-6 h-6 border-2 rounded cursor-pointer ${colors.checkbox} flex items-center justify-center transition-colors shadow-inner`}
         >
           {isDone && <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
         </button>

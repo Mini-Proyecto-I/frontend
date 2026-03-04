@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useState } from 'react';
 import { NavLink } from '@/app/NavLink';
 import { useAuth } from '@/app/authContext';
-import { GraduationCap, Plus, Menu, X } from 'lucide-react';
+import { GraduationCap, Plus, Menu, X, LogOut } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/avatar';
 import { Button } from '@/shared/components/button';
 import { useNavigate } from 'react-router-dom';
@@ -12,6 +12,7 @@ export function AppHeader() {
     const navigate = useNavigate();
     const displayName = user?.name || "Estudiante";
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
 
     const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
 
@@ -56,15 +57,48 @@ export function AppHeader() {
                                 className="bg-blue-600 hover:bg-blue-700 text-white rounded-full font-bold px-3 sm:px-5 py-2 shadow-lg shadow-blue-600/20 gap-1.5 sm:gap-2 h-auto hidden sm:flex shrink-0"
                             >
                                 <Plus className="w-4 h-4" />
-                                <span>Nueva Tarea</span>
+                                <span>Nueva Actividad</span>
                             </Button>
 
-                            <Avatar className="h-8 w-8 sm:h-10 sm:w-10 shrink-0 border border-slate-800 bg-orange-200/20 hidden sm:flex">
-                                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${displayName}&backgroundColor=d97706`} />
-                                <AvatarFallback className="bg-[#1E293B] text-slate-300 font-semibold text-xs sm:text-base">
-                                    {displayName.split(' ').map((n) => n[0]).join('')}
-                                </AvatarFallback>
-                            </Avatar>
+                            <div className="relative z-50 hidden sm:block">
+                                <Avatar
+                                    className="h-10 w-10 shrink-0 border border-slate-800 bg-orange-200/20 flex cursor-pointer transition-transform hover:scale-105"
+                                    onClick={() => setIsAvatarMenuOpen(!isAvatarMenuOpen)}
+                                    title="Mi perfil"
+                                >
+                                    <AvatarImage src={`https://upload.wikimedia.org/wikipedia/commons/7/7c/Profile_avatar_placeholder_large.png`} />
+                                    <AvatarFallback className="bg-[#1E293B] text-slate-300 font-semibold text-base">
+                                        {displayName.split(' ').map((n) => n[0]).join('')}
+                                    </AvatarFallback>
+                                </Avatar>
+
+                                {isAvatarMenuOpen && (
+                                    <>
+                                        {/* Overlay para cerrar al hacer clic afuera */}
+                                        <div
+                                            className="fixed inset-0 z-[-1]"
+                                            onClick={() => setIsAvatarMenuOpen(false)}
+                                        />
+
+                                        <div className="absolute right-0 mt-3 w-56 bg-[#111827] border border-slate-800 rounded-xl shadow-2xl overflow-hidden py-1">
+                                            <div className="px-4 py-3 border-b border-slate-800/60 mb-1">
+                                                <p className="text-sm font-bold text-white truncate">{displayName}</p>
+                                                <p className="text-[11px] text-slate-400 font-medium tracking-wide uppercase mt-0.5">ESTUDIANTE</p>
+                                            </div>
+                                            <button
+                                                className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-slate-800/50 flex items-center gap-2.5 font-medium transition-colors cursor-pointer"
+                                                onClick={() => {
+                                                    setIsAvatarMenuOpen(false);
+                                                    navigate('/logout');
+                                                }}
+                                            >
+                                                <LogOut className="w-4 h-4" />
+                                                Cerrar sesión
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
                         </>
                     ) : (
                         <>
@@ -161,7 +195,18 @@ export function AppHeader() {
                                 className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold px-5 py-3 shadow-lg shadow-blue-600/20 gap-2 h-auto w-full flex justify-center mt-2"
                             >
                                 <Plus className="w-5 h-5" />
-                                Nueva Tarea
+                                Nueva Actividad
+                            </Button>
+
+                            <Button
+                                onClick={() => {
+                                    setIsMenuOpen(false);
+                                    navigate('/logout');
+                                }}
+                                className="bg-transparent border border-slate-800 hover:bg-red-500/10 text-red-500 hover:border-red-500/50 rounded-xl font-bold px-5 py-3 gap-2 h-auto w-full flex justify-center mt-2 shadow-none"
+                            >
+                                <LogOut className="w-5 h-5" />
+                                Cerrar sesión
                             </Button>
                         </>
                     ) : (

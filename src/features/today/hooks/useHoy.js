@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getHoyTasks } from '../../../api/services/hoy';
+import { getHoyTasks, getHoyTiempo } from '../../../api/services/hoy';
 import { getCourses } from '../../../api/services/course';
 
 export const useHoy = (filters = {}) => {
@@ -11,6 +11,7 @@ export const useHoy = (filters = {}) => {
         total_para_hoy: 0,
         total_proximas: 0
     });
+    const [tiempoData, setTiempoData] = useState([]);
     const [courses, setCourses] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -18,12 +19,14 @@ export const useHoy = (filters = {}) => {
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const [hoyData, coursesData] = await Promise.all([
+            const [hoyData, coursesData, tiempoResponse] = await Promise.all([
                 getHoyTasks(filters),
-                getCourses()
+                getCourses(),
+                getHoyTiempo()
             ]);
             setData(hoyData);
             setCourses(coursesData);
+            setTiempoData(tiempoResponse);
             setError(null);
         } catch (err) {
             setError(err);
@@ -32,9 +35,18 @@ export const useHoy = (filters = {}) => {
         }
     }, [filters.status, filters.course, filters.days_ahead]);
 
+    const refetchTiempo = async () => {
+        try {
+            const tiempoResponse = await getHoyTiempo();
+            setTiempoData(tiempoResponse);
+        } catch (err) {
+            console.error("Error refreshing tiempo", err);
+        }
+    };
+
     useEffect(() => {
         fetchData();
     }, [fetchData]);
 
-    return { ...data, courses, loading, error, refetch: fetchData };
+    return { ...data, tiempoData, courses, loading, error, refetch: fetchData, setData, setTiempoData, refetchTiempo };
 };
