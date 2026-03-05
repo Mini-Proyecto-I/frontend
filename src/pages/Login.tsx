@@ -13,7 +13,8 @@ export default function Login() {
     // UI states
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState(false);
+    const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+    const [authError, setAuthError] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
 
     const { login, isAuthenticated, loading } = useAuth();
@@ -25,14 +26,31 @@ export default function Login() {
         }
     }, [isAuthenticated, loading, navigate, isLoading, showSuccessModal]);
 
+    const validate = () => {
+    const newErrors: { email?: string; password?: string } = {};
+
+    if (!email.trim()) {
+        newErrors.email = "El correo es obligatorio.";
+    } else if (!/^\S+@\S+\.\S+$/.test(email)) {
+        newErrors.email = "Ingresa un correo válido.";
+    }
+
+    if (!password.trim()) {
+        newErrors.password = "La contraseña es obligatoria.";
+    } else if (password.length < 6) {
+        newErrors.password = "Debe tener al menos 6 caracteres.";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError(false);
 
-        if (!email || !password) {
-            setError(true);
-            return;
-        }
+        setAuthError(false);
+
+        if(!validate()) return;
 
         try {
             setIsLoading(true);
@@ -43,7 +61,7 @@ export default function Login() {
                 navigate("/hoy", { replace: true });
             }, 2000);
         } catch (err: any) {
-            setError(true);
+            setAuthError(true);
             setIsLoading(false);
         }
     };
@@ -95,7 +113,7 @@ export default function Login() {
                     </div>
 
                     <form className="space-y-6" onSubmit={handleSubmit} noValidate>
-                        {error && (
+                        {authError && (
                             <div className="bg-red-500/10 border border-red-900/50 text-slate-200 px-4 py-4 rounded-xl text-sm flex gap-3 shadow-lg shadow-red-500/5 items-start">
                                 <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
                                 <p className="leading-relaxed">
@@ -115,10 +133,24 @@ export default function Login() {
                                     id="email"
                                     type="email"
                                     value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    onChange={(e) => {
+                                        setEmail(e.target.value);
+                                        if (errors.email) {
+                                            setErrors((prev) => ({ ...prev, email: undefined }));
+                                        }
+                                    }}
                                     placeholder="usuario@ejemplo.com"
-                                    className={`bg-[#0F172A] border ${error ? 'border-red-500/50' : 'border-slate-800 focus-visible:ring-blue-500'} text-slate-100 placeholder:text-slate-500 h-12 rounded-xl`}
-                                />
+                                    className={`bg-[#0F172A] border ${errors.email ? "border-red-500/50"
+                                        : "border-slate-800 focus-visible:ring-blue-500"
+                                    } text-slate-100 placeholder:text-slate-500 h-12 rounded-xl`}
+                                    aria-invalid={!!errors.email}
+                                    aria-describedby="email-error"
+                                    />
+                                    {errors.email && (
+                                        <p id="email-error" className="text-red-500 text-xs mt-1">
+                                            {errors.email}
+                                            </p>
+                                    )}
                             </div>
 
                             {/* Contraseña */}
@@ -133,13 +165,25 @@ export default function Login() {
                                 </div>
                                 <div className="relative">
                                     <Input
-                                        id="password"
-                                        type={showPassword ? "text" : "password"}
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        placeholder="fakepassword"
-                                        className={`bg-[#0F172A] border ${error ? 'border-red-500/50' : 'border-slate-800 focus-visible:ring-blue-500'} text-slate-100 placeholder:text-slate-500 h-12 rounded-xl pr-10`}
+                                    id="password"
+                                    type={showPassword ? "text" : "password"}
+                                    value={password}
+                                    onChange={(e) => {
+                                        setPassword(e.target.value);
+                                        if (errors.password) {
+                                            setErrors(prev => ({ ...prev, password: undefined }));
+                                        }
+                                    }}
+                                    placeholder="fakepassword"
+                                    className={`bg-[#0F172A] border ${errors.password ? "border-red-500/50"
+                                        : "border-slate-800 focus-visible:ring-blue-500"
+                                    } text-slate-100 placeholder:text-slate-500 h-12 rounded-xl pr-10`}
+                                    aria-invalid={!!errors.password}
+                                    aria-describedby="password-error"
                                     />
+                                    {errors.password && ( <p id="password-error" className="text-red-500 text-xs mt-1">
+                                        {errors.password} </p> 
+                                        )}
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
