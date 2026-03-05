@@ -69,7 +69,7 @@ export default function Today() {
   }, [location.state, navigate]);
 
   const [filters, setFilters] = useState({
-    status: "PENDING",
+    status: "",
     course: "",
     days_ahead: 7
   });
