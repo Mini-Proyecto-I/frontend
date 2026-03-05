@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useProgressData, Activity, Subtask, Course } from '@/features/progress/hooks/useProgressData';
 import { patchSubtask } from '@/api/services/subtack';
+import { queryCache } from '@/lib/queryCache';
 import { Card, CardContent } from '@/shared/components/card';
 import { Badge } from '@/shared/components/badge';
 import { Button } from '@/shared/components/button';
@@ -162,21 +163,21 @@ function CircularProgress({ value, size = 160, strokeWidth = 8 }: { value: numbe
 
 export default function ProgressPage() {
   const { activities, courses, loading, error, refresh, updateSubtask } = useProgressData();
-  
+
   const { showToast, ToastComponent } = useToast();
-  
+
   const [courseFilter, setCourseFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
 
   const hasActiveFilters =
-  courseFilter !== "all" || statusFilter !== "all";
+    courseFilter !== "all" || statusFilter !== "all";
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [noteValues, setNoteValues] = useState<Record<number, string>>({});
   const [processingTasks, setProcessingTasks] = useState<Set<number>>(new Set());
 
 
   const filteredActivities = activities.filter((activity: Activity) => {
-  
+
     const courseMatch =
       courseFilter === "all" ||
       getCourseName(activity.course) === courseFilter;
@@ -194,13 +195,18 @@ export default function ProgressPage() {
   );
   const totalAll = activities.reduce((sum: number, a: Activity) => sum + a.subtasks.length, 0);
   const overallProgress = totalAll > 0 ? Math.round((totalDone / totalAll) * 100) : 0;
-  
+
   const totalHoursDone = activities.reduce(
     (sum: number, a: Activity) =>
       sum +
       a.subtasks
         .filter((st: Subtask) => st.status === STATUS.DONE)
-        .reduce((h: number, st: Subtask) => h + (st.estimated_hours || 0), 0),
+        .reduce((h: number, st: Subtask) => {
+          const hours = typeof st.estimated_hours === 'string' 
+            ? parseFloat(st.estimated_hours) 
+            : (st.estimated_hours || 0);
+          return h + (isNaN(hours) ? 0 : hours);
+        }, 0),
     0
   );
 
@@ -225,12 +231,14 @@ export default function ProgressPage() {
   ) => {
     if (processingTasks.has(subtaskId)) return;
 
+    queryCache.invalidateByPrefix('hoy:');
+
     const note = noteValues[subtaskId];
-    
+
     const updateData: Partial<Subtask> = {
       status: STATUS.DONE,
     };
-    
+
     if (note && note.trim().length > 0) {
       updateData.note = note.trim();
     }
@@ -251,7 +259,7 @@ export default function ProgressPage() {
 
     } catch (err: any) {
       console.error('❌ PATCH Error:', err);
-      
+
       showToast('No se pudo completar la tarea. Verifica tu conexión e intenta de nuevo.', 'error');
       refresh();
     } finally {
@@ -270,11 +278,13 @@ export default function ProgressPage() {
   ) => {
     if (processingTasks.has(subtaskId)) return;
 
+    queryCache.invalidateByPrefix('hoy:');
+
     setProcessingTasks((prev) => new Set(prev).add(subtaskId));
 
     try {
       const updateData = { status: STATUS.POSTPONED };
-      
+
       await patchSubtask(activityId, subtaskId, updateData);
       await updateSubtask(activityId, subtaskId, updateData);
 
@@ -282,7 +292,7 @@ export default function ProgressPage() {
 
     } catch (err: any) {
       console.error('❌ PATCH Error:', err);
-      
+
       showToast('No se pudo posponer la tarea. Verifica tu conexión e intenta de nuevo.', 'error');
       refresh();
     } finally {
@@ -322,7 +332,7 @@ export default function ProgressPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-[#101622] p-6 lg:p-8">
       {/* ✅ CAMBIO 10: Renderizar ToastComponent en la raíz */}
       <ToastComponent />
-      
+
       <div className="max-w-7xl mx-auto">
         {/* Header Section */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
@@ -338,14 +348,14 @@ export default function ProgressPage() {
                 setCourseFilter={setCourseFilter}
                 setStatusFilter={setStatusFilter}
                 courses={courses}
-                />
-                {hasActiveFilters && (
-                  <span className="text-xs text-blue-500 font-medium">
-                    Filtrado por:
-                    {courseFilter !== "all" && ` Curso`}
-                    {statusFilter !== "all" && ` Estado`}
-                    </span>
-                    )}
+              />
+              {hasActiveFilters && (
+                <span className="text-xs text-blue-500 font-medium">
+                  Filtrado por:
+                  {courseFilter !== "all" && ` Curso`}
+                  {statusFilter !== "all" && ` Estado`}
+                </span>
+              )}
 
             </div>
             <Button asChild className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/30">
@@ -381,16 +391,16 @@ export default function ProgressPage() {
                 const courseName = getCourseName(activity.course);
                 const courseColor = getCourseColor(activity.course);
                 const CourseIcon = getCourseIcon(courseName);
-                
+
                 const done = activity.subtasks.filter((s: Subtask) => s.status === STATUS.DONE).length;
                 const total = activity.subtasks.length;
                 const pct = total > 0 ? Math.round((done / total) * 100) : 0;
                 const isOpen = expanded[activity.id] ?? true;
-                
+
                 const pending = activity.subtasks.filter((s: Subtask) => s.status !== STATUS.DONE);
-                
+
                 const allCompleted = total > 0 && done === total;
-                
+
                 const isBehind = pct < 50 && getDaysLeft(activity.deadline) !== null && getDaysLeft(activity.deadline)! <= 5;
 
                 return (
@@ -409,12 +419,12 @@ export default function ProgressPage() {
                             <CourseIcon className={cn("h-6 w-6", courseColorClasses[courseColor]?.split(' ')[1] || 'text-cyan-500')} />
                           </div>
                           <div>
-                              <Link
-                                to={`/actividad/${activity.id}`}
-                                className="text-xl font-semibold text-slate-900 dark:text-white hover:text-primary transition-colors"
-                              >
-                                {activity.title}
-                              </Link>
+                            <Link
+                              to={`/actividad/${activity.id}`}
+                              className="text-xl font-semibold text-slate-900 dark:text-white hover:text-primary transition-colors"
+                            >
+                              {activity.title}
+                            </Link>
                             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                               Próxima fecha límite:{' '}
                               <span className={cn("font-medium", getDeadlineColor(activity.deadline, pct))}>
@@ -428,11 +438,11 @@ export default function ProgressPage() {
                             variant={isBehind ? 'destructive' : 'secondary'}
                             className={cn(
                               "text-xs font-semibold",
-                              isBehind 
+                              isBehind
                                 ? 'bg-red-500/10 text-red-500 border-red-500/20'
                                 : pct === 100
-                                ? 'bg-green-500/10 text-green-500 border-green-500/20'
-                                : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
+                                  ? 'bg-green-500/10 text-green-500 border-green-500/20'
+                                  : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
                             )}
                           >
                             {isBehind ? 'Retrasado' : pct === 100 ? 'Completado' : 'En curso'}
@@ -503,7 +513,9 @@ export default function ProgressPage() {
                                     {st.estimated_hours && (
                                       <Badge variant="secondary" className="text-[10px]">
                                         <Clock className="h-3 w-3 mr-1" />
-                                        {st.estimated_hours}h
+                                        {typeof st.estimated_hours === 'string' 
+                                          ? parseFloat(st.estimated_hours).toFixed(1)
+                                          : (st.estimated_hours || 0).toFixed(1)}h
                                       </Badge>
                                     )}
                                   </div>
@@ -580,7 +592,7 @@ export default function ProgressPage() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500 dark:text-slate-400">Tiempo de estudio</span>
-                    <span className="font-semibold text-slate-900 dark:text-white">{totalHoursDone}h</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">{totalHoursDone.toFixed(1)}h</span>
                   </div>
                 </div>
               </CardContent>
@@ -600,8 +612,8 @@ export default function ProgressPage() {
                         <div className={cn(
                           "mt-1 w-2 h-2 rounded-full",
                           recentWins.indexOf(w) === 0 ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' :
-                          recentWins.indexOf(w) === 1 ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]' :
-                          'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.6)]'
+                            recentWins.indexOf(w) === 1 ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]' :
+                              'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.6)]'
                         )} />
                         <div>
                           <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{w.name}</p>
