@@ -68,6 +68,7 @@ export default function Today() {
     days_ahead: 7
   });
   const [search, setSearch] = useState("");
+  const hasActiveFilters = filters.course || filters.status || search;
 
   const {
     vencidas,
@@ -123,7 +124,7 @@ export default function Today() {
   };
 
   const handleClearFilters = () => {
-    setFilters({ status: "PENDING", course: "", days_ahead: 7 });
+    setFilters({ status: "", course: "", days_ahead: 7 });
     setSearch("");
   };
 
@@ -230,6 +231,15 @@ export default function Today() {
         <div className="flex items-center gap-2 px-1">
           <Search className="w-5 h-5 text-blue-500" />
           <h2 className="text-white font-bold text-lg">Filtros</h2>
+          {hasActiveFilters && (
+            <span className="ml-2 text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded-lg font-semibold">
+            Filtrado por:
+            {filters.course && " Curso"}
+            {filters.status && " Estado"}
+            {search && " Busqueda"}
+            </span>
+          )
+          }
         </div>
 
         <div className="flex flex-col md:flex-row gap-4 items-end">

@@ -167,6 +167,9 @@ export default function ProgressPage() {
   
   const [courseFilter, setCourseFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  const hasActiveFilters =
+  courseFilter !== "all" || statusFilter !== "all";
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [noteValues, setNoteValues] = useState<Record<number, string>>({});
   const [processingTasks, setProcessingTasks] = useState<Set<number>>(new Set());
@@ -336,6 +339,14 @@ export default function ProgressPage() {
                 setStatusFilter={setStatusFilter}
                 courses={courses}
                 />
+                {hasActiveFilters && (
+                  <span className="text-xs text-blue-500 font-medium">
+                    Filtrado por:
+                    {courseFilter !== "all" && ` Curso`}
+                    {statusFilter !== "all" && ` Estado`}
+                    </span>
+                    )}
+
             </div>
             <Button asChild className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/30">
               <Link to="/crear">
