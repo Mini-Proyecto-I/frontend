@@ -354,9 +354,11 @@ export default function ProgressPage() {
               <Card className="border-dashed border-slate-200 dark:border-slate-700">
                 <CardContent className="flex flex-col items-center py-16 text-center">
                   <BarChart3 className="h-12 w-12 text-slate-400 mb-4" />
-                  <h3 className="font-semibold text-lg text-slate-900 dark:text-white">Aún no hay actividades</h3>
+                  <h3 className="font-semibold text-lg text-slate-900 dark:text-white">
+                    Sin resultados
+                  </h3>
                   <p className="text-slate-500 dark:text-slate-400 mt-1">
-                    Crea tu primera actividad para comenzar a seguir tu progreso.
+                    No hay actividades que coincidan con los filtros seleccionados.
                   </p>
                   <Button asChild className="mt-4">
                     <Link to="/crear">Crear actividad</Link>
