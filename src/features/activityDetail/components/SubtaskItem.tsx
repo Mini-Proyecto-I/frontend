@@ -52,7 +52,7 @@ export default function SubtaskItem({
   const localChangeRef = useRef(false); // Ref para rastrear si el cambio fue iniciado localmente
   const lastLocalStateRef = useRef<boolean | null>(null); // Ref para rastrear el último estado establecido localmente
   const deleteArmTimeoutRef = useRef<number | null>(null);
-  
+
   const borderClass = isActive
     ? "border-l-4 border-l-primary hover:border-primary/50"
     : "hover:border-primary/30";
@@ -82,12 +82,12 @@ export default function SubtaskItem({
     lastLocalStateRef.current = checked; // Guardar el estado local
     setIsChecked(checked);
     setIsUpdating(true);
-    
+
     // Notificar al padre inmediatamente para actualizar gráfico y estado
     if (onStatusChange) {
       onStatusChange(id, checked);
     }
-    
+
     // Actualizar en segundo plano sin bloquear la UI
     patchSubtask(activityId, id, { status: checked ? "DONE" : "PENDING" })
       .then(() => {
@@ -103,13 +103,13 @@ export default function SubtaskItem({
         setIsChecked(previousChecked);
         localChangeRef.current = false;
         lastLocalStateRef.current = null;
-        
+
         // Revertir también en el padre
         if (onStatusChange) {
           onStatusChange(id, previousChecked);
         }
-        
-        const errorMessage = 
+
+        const errorMessage =
           error?.response?.data?.detail ||
           error?.message ||
           "Error al actualizar el estado de la subtarea";
@@ -131,22 +131,22 @@ export default function SubtaskItem({
     try {
       // Llamar al backend para eliminar la subtarea
       await deleteSubtask(activityId, id);
-      
+
       // Recargar solo las subtareas (no toda la actividad)
       if (onSubtaskUpdated) {
         onSubtaskUpdated();
       }
     } catch (error: any) {
       console.error("Error al eliminar subtarea:", error);
-      
+
       let errorMessage = "Error al eliminar la subtarea. Intenta de nuevo.";
-      
+
       if (error?.response?.data?.detail) {
         errorMessage = error.response.data.detail;
       } else if (error?.message) {
         errorMessage = error.message;
       }
-      
+
       showToast(errorMessage, "error");
     } finally {
       setIsDeleting(false);
@@ -215,10 +215,10 @@ export default function SubtaskItem({
 
       // Mostrar mensaje de éxito primero
       showToast("¡Todo salió bien! La subtarea se actualizó correctamente.", "success");
-      
+
       // Cerrar el modal de editar
       setShowEditDialog(false);
-      
+
       // Mostrar el modal de éxito después de un breve delay
       setTimeout(() => {
         setShowEditSuccessDialog(true);
@@ -230,9 +230,9 @@ export default function SubtaskItem({
       }
     } catch (error: any) {
       console.error("Error al actualizar subtarea:", error);
-      
+
       let errorMessage = "Error al actualizar la subtarea. Intenta de nuevo.";
-      
+
       if (error?.response?.data) {
         if (error.response.data.title) {
           errorMessage = Array.isArray(error.response.data.title)
@@ -255,7 +255,7 @@ export default function SubtaskItem({
       } else if (error?.message) {
         errorMessage = error.message;
       }
-      
+
       showToast(errorMessage, "error");
     } finally {
       setIsSavingEdit(false);
@@ -280,185 +280,183 @@ export default function SubtaskItem({
       <ToastComponent />
       <article
         onClick={handleSubtaskClick}
-        className={`group cursor-pointer bg-white dark:bg-[#1e2433] border border-slate-200 dark:border-slate-800 rounded-lg p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 transition-all hover:shadow-md hover:border-primary/50 relative overflow-hidden ${borderClass}`}
+        className={`group cursor-pointer bg-[#111827] border border-slate-700/50 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 transition-all hover:bg-slate-800 hover:border-slate-600 relative overflow-hidden ${borderClass}`}
       >
-      <label className="checkbox-wrapper relative flex items-center cursor-pointer">
-        <input
-          type="checkbox"
-          className="peer sr-only"
-          checked={isChecked}
-          disabled={isUpdating}
-          onChange={(e) => handleCheckChange(e.target.checked)}
-        />
-        <div className={`w-6 h-6 border-2 rounded flex items-center justify-center transition-all group-hover:border-primary ${
-          isChecked 
-            ? "bg-blue-600 border-blue-600" 
+        <label className="checkbox-wrapper relative flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            className="peer sr-only"
+            checked={isChecked}
+            disabled={isUpdating}
+            onChange={(e) => handleCheckChange(e.target.checked)}
+          />
+          <div className={`w-6 h-6 border-2 rounded flex items-center justify-center transition-all group-hover:border-primary ${isChecked
+            ? "bg-blue-600 border-blue-600"
             : "border-slate-400 dark:border-slate-600"
-        }`}>
-          {isChecked && (
-            <svg
-              className="w-4 h-4 text-white transition-opacity pointer-events-none"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                d="M5 13l4 4L19 7"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
-        </div>
-      </label>
-      <div className={`flex-1 min-w-0 ${isChecked ? "line-through text-slate-500 dark:text-slate-400" : ""}`}>
-        <div className="flex items-center gap-2 mb-2">
-          <h4 className={`font-medium truncate ${isChecked ? "text-slate-500 dark:text-slate-400" : "text-slate-900 dark:text-white"}`}>
-            {title}
-          </h4>
-          {todayBadge && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500 text-white uppercase shadow-sm">
-              HOY
-            </span>
-          )}
-        </div>
-        <div className={`flex flex-wrap items-center gap-3 text-sm ${isChecked ? "text-slate-400 dark:text-slate-500" : "text-slate-600 dark:text-slate-400"}`}>
-          <div className="flex items-center gap-1.5">
-            <Calendar className="size-4 text-slate-400 dark:text-slate-500" />
-            <span>{date}</span>
+            }`}>
+            {isChecked && (
+              <svg
+                className="w-4 h-4 text-white transition-opacity pointer-events-none"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M5 13l4 4L19 7"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
           </div>
-          <div className="flex items-center gap-1.5">
-            <Clock className="size-4 text-slate-400 dark:text-slate-500" />
-            <span>{hours}</span>
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          type="button"
-          onClick={handleEdit}
-          className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all"
-        >
-          <Pencil className="size-4" />
-          <span className="text-sm font-medium">editar</span>
-        </button>
-        <button
-          type="button"
-          onClick={handleDeleteClick}
-          disabled={isDeleting}
-          className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
-            isDeleting
-              ? "text-red-600 bg-red-50 dark:bg-red-900/20 cursor-wait"
-              : deleteArmed
-              ? "text-white bg-red-600 hover:bg-red-500"
-              : "text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-          }`}
-        >
-          {isDeleting ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Trash2 className="size-4" />
-          )}
-          <span className="text-sm font-medium">
-            {isDeleting ? "Eliminando..." : deleteArmed ? "¿Seguro?" : "Eliminar"}
-          </span>
-        </button>
-      </div>
-    </article>
-
-    <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-semibold text-slate-900 dark:text-white">
-            Detalles de la subtarea
-          </DialogTitle>
-          <DialogDescription className="text-sm text-slate-600 dark:text-slate-400 pt-2">
-            Información completa de la subtarea
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 mt-4">
-          <div>
-            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-              Nombre
-            </label>
-            <div className="flex items-center gap-2 mt-1">
-              <p className="text-base font-medium text-slate-900 dark:text-white">
-                {title}
-              </p>
-              {todayBadge && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-500 text-white text-xs font-bold uppercase">
-                  HOY
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div>
-              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1">
-                Fecha objetivo
-              </label>
-              <div className="flex items-center gap-2">
-                <Calendar className="size-4 text-slate-400 dark:text-slate-500" />
-                <span className="text-base text-slate-900 dark:text-white">{date}</span>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1">
-                Horas estimadas
-              </label>
-              <div className="flex items-center gap-2">
-                <Clock className="size-4 text-slate-400 dark:text-slate-500" />
-                <span className="text-base text-slate-900 dark:text-white">{hours}</span>
-              </div>
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-              Estado
-            </label>
-            <p className="text-base text-slate-900 dark:text-white mt-1">
-              {isChecked ? "Completada" : "Pendiente"}
-            </p>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-
-    <EditSubtaskDialog
-      open={showEditDialog}
-      onOpenChange={setShowEditDialog}
-      subtaskData={{
-        nombre: title,
-        fechaObjetivo: dateOriginal || "", // Usar la fecha original en formato YYYY-MM-DD
-        horas: hours.replace("h", ""), // Remover la "h" para el input
-      }}
-      onSave={handleSaveEdit}
-      isSaving={isSavingEdit}
-      deadlineDate={deadlineDate}
-    />
-
-    <Dialog open={showEditSuccessDialog} onOpenChange={setShowEditSuccessDialog}>
-      <DialogContent className="sm:max-w-[420px]">
-        <DialogHeader>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-full">
-              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-            </div>
-            <DialogTitle className="text-lg font-semibold text-slate-900 dark:text-white">
-              Subtarea actualizada
-            </DialogTitle>
-          </div>
-          <DialogDescription className="text-sm text-slate-600 dark:text-slate-400 pt-2">
-            Tu subtarea{" "}
-            <span className="font-semibold text-slate-900 dark:text-white">
+        </label>
+        <div className={`flex-1 min-w-0 ${isChecked ? "line-through text-slate-500 dark:text-slate-400" : ""}`}>
+          <div className="flex items-center gap-2 mb-2">
+            <h4 className={`truncate font-bold ${isChecked ? "text-slate-500 dark:text-slate-400" : "text-slate-900 dark:text-white"}`}>
               {title}
-            </span>{" "}
-            se ha editado correctamente.
-          </DialogDescription>
-        </DialogHeader>
-      </DialogContent>
-    </Dialog>
+            </h4>
+            {todayBadge && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500 text-white uppercase shadow-sm">
+                HOY
+              </span>
+            )}
+          </div>
+          <div className={`flex flex-wrap items-center gap-3 text-sm ${isChecked ? "text-slate-400 dark:text-slate-500" : "text-slate-600 dark:text-slate-400"}`}>
+            <div className="flex items-center gap-1.5">
+              <Calendar className="size-4 text-slate-400 dark:text-slate-500" />
+              <span>{date}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Clock className="size-4 text-slate-400 dark:text-slate-500" />
+              <span>{hours}</span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleEdit}
+            className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-yellow-600 dark:text-yellow-500 bg-yellow-100 dark:bg-yellow-500/10 hover:bg-yellow-200 dark:hover:bg-yellow-500/20 rounded-lg transition-all"
+          >
+            <Pencil className="size-4" />
+            <span className="text-sm font-bold">editar</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleDeleteClick}
+            disabled={isDeleting}
+            className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${isDeleting
+              ? "text-red-600 bg-red-100 dark:bg-red-900/30 cursor-wait"
+              : deleteArmed
+                ? "text-white bg-red-600 hover:bg-red-500"
+                : "text-red-500 bg-red-100 dark:bg-red-500/10 hover:bg-red-200 dark:hover:bg-red-500/20"
+              }`}
+          >
+            {isDeleting ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Trash2 className="size-4" />
+            )}
+            <span className="text-sm font-bold">
+              {isDeleting ? "Eliminando..." : deleteArmed ? "¿Seguro?" : "Eliminar"}
+            </span>
+          </button>
+        </div>
+      </article>
+
+      <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold text-slate-900 dark:text-white">
+              Detalles de la subtarea
+            </DialogTitle>
+            <DialogDescription className="text-sm text-slate-600 dark:text-slate-400 pt-2">
+              Información completa de la subtarea
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                Nombre
+              </label>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-base font-medium text-slate-900 dark:text-white">
+                  {title}
+                </p>
+                {todayBadge && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-500 text-white text-xs font-bold uppercase">
+                    HOY
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1">
+                  Fecha objetivo
+                </label>
+                <div className="flex items-center gap-2">
+                  <Calendar className="size-4 text-slate-400 dark:text-slate-500" />
+                  <span className="text-base text-slate-900 dark:text-white">{date}</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1">
+                  Horas estimadas
+                </label>
+                <div className="flex items-center gap-2">
+                  <Clock className="size-4 text-slate-400 dark:text-slate-500" />
+                  <span className="text-base text-slate-900 dark:text-white">{hours}</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                Estado
+              </label>
+              <p className="text-base text-slate-900 dark:text-white mt-1">
+                {isChecked ? "Completada" : "Pendiente"}
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <EditSubtaskDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        subtaskData={{
+          nombre: title,
+          fechaObjetivo: dateOriginal || "", // Usar la fecha original en formato YYYY-MM-DD
+          horas: hours.replace("h", ""), // Remover la "h" para el input
+        }}
+        onSave={handleSaveEdit}
+        isSaving={isSavingEdit}
+        deadlineDate={deadlineDate}
+      />
+
+      <Dialog open={showEditSuccessDialog} onOpenChange={setShowEditSuccessDialog}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-full">
+                <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </div>
+              <DialogTitle className="text-lg font-semibold text-slate-900 dark:text-white">
+                Subtarea actualizada
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-sm text-slate-600 dark:text-slate-400 pt-2">
+              Tu subtarea{" "}
+              <span className="font-semibold text-slate-900 dark:text-white">
+                {title}
+              </span>{" "}
+              se ha editado correctamente.
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

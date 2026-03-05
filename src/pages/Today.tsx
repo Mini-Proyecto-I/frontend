@@ -1,13 +1,20 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { parseISO, startOfDay, differenceInDays, format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, Info } from "lucide-react";
+import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, Info, CheckCircle2, Calendar } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import { useAuth } from "@/app/authContext";
 import { patchSubtask } from "@/api/services/subtack";
 import { Input } from "@/shared/components/input";
 import { Button } from "@/shared/components/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/shared/components/select";
 
 function getGreeting(name: string) {
   const hour = new Date().getHours();
@@ -37,20 +44,7 @@ function getRelativeDateLabel(targetDateStr: string) {
   return format(date, "EEEE", { locale: es }).toUpperCase();
 }
 
-const Select = ({ value, onChange, options, placeholder }: any) => (
-  <select
-    value={value}
-    onChange={e => onChange(e.target.value)}
-    className="bg-[#1F2937]/50 border border-slate-700/50 text-slate-200 text-sm rounded-xl h-12 px-4 focus:ring-blue-500 focus:border-blue-500 appearance-none pr-10 relative cursor-pointer outline-none"
-  >
-    <option value="">{placeholder}</option>
-    {options.map((opt: any) => (
-      <option key={opt.value} value={opt.value}>
-        {opt.label}
-      </option>
-    ))}
-  </select>
-);
+
 
 export default function Today() {
   const { user } = useAuth();
@@ -232,58 +226,74 @@ export default function Today() {
       </div>
 
       {/* FILTER BAR SECTION */}
-      <div className="bg-[#111827] border border-slate-800/60 rounded-2xl p-4 shadow-lg shadow-black/10 flex flex-col md:flex-row gap-4 items-center">
-        <div className="bg-blue-600/20 w-12 h-12 flex-shrink-0 flex items-center justify-center rounded-xl border border-blue-500/30">
-          <AlertCircle className="w-5 h-5 text-blue-500" />
+      <div className="bg-[#111827] border border-slate-800/60 rounded-2xl p-4 shadow-lg shadow-black/10 flex flex-col gap-4">
+        <div className="flex items-center gap-2 px-1">
+          <Search className="w-5 h-5 text-blue-500" />
+          <h2 className="text-white font-bold text-lg">Filtros</h2>
         </div>
 
-        <div className="flex-1 w-full relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar tarea..."
-            className="w-full pl-12 bg-[#1F2937]/50 border-slate-700/50 focus-visible:ring-blue-500 h-12 rounded-xl text-slate-200 placeholder:text-slate-500"
-          />
-        </div>
-
-        <div className="flex w-full md:w-auto gap-3 items-center">
-          <div className="relative">
-            <Select
-              value={filters.course}
-              onChange={(v: string) => setFilters(prev => ({ ...prev, course: v }))}
-              placeholder="Curso"
-              options={courses.map((c: any) => ({ value: c.id, label: c.name }))}
-            />
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+        <div className="flex flex-col md:flex-row gap-4 items-end">
+          <div className="flex-1 w-full flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Buscar por nombre</label>
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar tarea..."
+                className="w-full pl-12 bg-[#1F2937]/50 border-slate-700/50 focus-visible:ring-blue-500 h-12 rounded-xl text-slate-200 placeholder:text-slate-500 block"
+              />
             </div>
           </div>
 
-          <div className="relative">
-            <Select
-              value={filters.status}
-              onChange={(v: string) => setFilters(prev => ({ ...prev, status: v }))}
-              placeholder="Estado"
-              options={[
-                { value: "PENDING", label: "Pendiente" },
-                { value: "DONE", label: "Completado" },
-                { value: "POSTPONED", label: "Pospuesto" },
-                { value: "WAITING", label: "En Espera" }
-              ]}
-            />
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+          <div className="flex w-full md:w-auto gap-3 items-end">
+            <div className="relative flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Curso</label>
+              <Select
+                value={filters.course || "all"}
+                onValueChange={(v) => setFilters(prev => ({ ...prev, course: v === "all" ? "" : v }))}
+              >
+                <SelectTrigger className="w-full md:w-[200px] bg-[#1F2937]/50 border-slate-700/50 text-slate-200 h-12 rounded-xl focus:ring-blue-500 shadow-inner">
+                  <SelectValue placeholder="Todos los cursos" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl">
+                  <SelectItem value="all" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Todos los cursos</SelectItem>
+                  {courses.map((c: any) => (
+                    <SelectItem key={c.id} value={c.id.toString()} className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </div>
 
-          <Button
-            variant="outline"
-            onClick={handleClearFilters}
-            className="h-12 border-slate-700/50 bg-transparent hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl"
-          >
-            <X className="w-4 h-4 mr-2" /> Limpiar
-          </Button>
+            <div className="relative flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Estado</label>
+              <Select
+                value={filters.status || "all"}
+                onValueChange={(v) => setFilters(prev => ({ ...prev, status: v === "all" ? "" : v }))}
+              >
+                <SelectTrigger className="w-full md:w-[170px] bg-[#1F2937]/50 border-slate-700/50 text-slate-200 h-12 rounded-xl focus:ring-blue-500 shadow-inner">
+                  <SelectValue placeholder="Cualquier estado" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl">
+                  <SelectItem value="all" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Cualquier estado</SelectItem>
+                  <SelectItem value="PENDING" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Pendiente</SelectItem>
+                  <SelectItem value="DONE" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Completado</SelectItem>
+                  <SelectItem value="POSTPONED" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Pospuesto</SelectItem>
+                  <SelectItem value="WAITING" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">En Espera</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              variant="outline"
+              onClick={handleClearFilters}
+              className="h-12 border-slate-700/50 bg-[#1F2937]/50 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl mb-[1px]"
+            >
+              <X className="w-4 h-4 mr-2" /> Limpiar
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -311,7 +321,14 @@ export default function Today() {
               />
             ))}
             {filteredVencidas.length === 0 && (
-              <p className="text-slate-500 text-sm text-center py-10 font-medium">No tienes tareas vencidas 👍</p>
+              <div className="flex flex-col items-center justify-center py-12 px-4 text-center mt-4">
+                <CheckCircle2 className="w-14 h-14 text-slate-600/50 mb-4" strokeWidth={1.5} />
+                <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[200px]">
+                  {search || filters.course || (filters.status && filters.status !== 'PENDING')
+                    ? "No hay tareas atrasadas que coincidan con los filtros aplicados."
+                    : "No tienes tareas atrasadas. ¡Buen trabajo!"}
+                </p>
+              </div>
             )}
           </div>
 
@@ -331,7 +348,24 @@ export default function Today() {
               />
             ))}
             {filteredParaHoy.length === 0 && (
-              <p className="text-slate-500 text-sm text-center py-10 font-medium">Has completado todo por hoy 🎉</p>
+              <div className="flex flex-col items-center justify-center py-12 px-4 text-center mt-4">
+                <CheckCircle2 className="w-16 h-16 text-slate-600/50 mb-4" strokeWidth={1.5} />
+                <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[260px] mb-6 shadow-sm">
+                  {filters.status === 'DONE'
+                    ? "No tienes tareas completadas para hoy. Revisa en Pendientes"
+                    : search || filters.course || (filters.status && filters.status !== 'PENDING')
+                      ? "No hay tareas para hoy que coincidan con los filtros aplicados."
+                      : "No tienes tareas para hoy. Disfruta tu descanso o añade alguna tarea"}
+                </p>
+                {!(search || filters.course || (filters.status && filters.status !== 'PENDING')) && (
+                  <Button
+                    onClick={() => navigate('/crear')}
+                    className="bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl px-5 py-2.5 transition-colors shadow-lg shadow-blue-500/20"
+                  >
+                    + Nueva actividad
+                  </Button>
+                )}
+              </div>
             )}
           </div>
 
@@ -351,7 +385,14 @@ export default function Today() {
               />
             ))}
             {filteredProximas.length === 0 && (
-              <p className="text-slate-500 text-sm text-center py-10 font-medium">No hay tareas programadas para después 📅</p>
+              <div className="flex flex-col items-center justify-center py-12 px-4 text-center mt-4">
+                <Calendar className="w-14 h-14 text-slate-600/50 mb-4" strokeWidth={1.5} />
+                <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[200px]">
+                  {search || filters.course || (filters.status && filters.status !== 'PENDING')
+                    ? "No hay tareas próximas que coincidan con los filtros aplicados."
+                    : "No hay tareas próximas. Todo está al día."}
+                </p>
+              </div>
             )}
           </div>
         </div>
