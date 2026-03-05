@@ -200,7 +200,12 @@ export default function ProgressPage() {
       sum +
       a.subtasks
         .filter((st: Subtask) => st.status === STATUS.DONE)
-        .reduce((h: number, st: Subtask) => h + (st.estimated_hours || 0), 0),
+        .reduce((h: number, st: Subtask) => {
+          const hours = typeof st.estimated_hours === 'string' 
+            ? parseFloat(st.estimated_hours) 
+            : (st.estimated_hours || 0);
+          return h + (isNaN(hours) ? 0 : hours);
+        }, 0),
     0
   );
 
@@ -503,7 +508,9 @@ export default function ProgressPage() {
                                     {st.estimated_hours && (
                                       <Badge variant="secondary" className="text-[10px]">
                                         <Clock className="h-3 w-3 mr-1" />
-                                        {st.estimated_hours}h
+                                        {typeof st.estimated_hours === 'string' 
+                                          ? parseFloat(st.estimated_hours).toFixed(1)
+                                          : (st.estimated_hours || 0).toFixed(1)}h
                                       </Badge>
                                     )}
                                   </div>
@@ -580,7 +587,7 @@ export default function ProgressPage() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500 dark:text-slate-400">Tiempo de estudio</span>
-                    <span className="font-semibold text-slate-900 dark:text-white">{totalHoursDone}h</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">{totalHoursDone.toFixed(1)}h</span>
                   </div>
                 </div>
               </CardContent>
