@@ -54,12 +54,23 @@ export default function Landing() {
                     setTotalUsers(numCount);
                 } else {
                     console.warn("⚠️ No se pudo obtener el número de usuarios de la respuesta:", data);
+                    // Fallback: mostrar un número por defecto si no se puede obtener
+                    setTotalUsers(0);
                 }
             })
             .catch((error) => {
                 console.error("❌ Error al cargar estadísticas:", error);
                 console.error("❌ Detalles del error:", error.response?.data || error.message);
-                // Mantener null para mostrar un fallback
+                console.error("❌ URL intentada:", error.config?.url || "N/A");
+                
+                // Si es un error de red (servidor no disponible), mostrar 0 como fallback
+                if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+                    console.warn("⚠️ Servidor no disponible. Mostrando fallback.");
+                    setTotalUsers(0); // Mostrar 0 en lugar de null para que se muestre "+0"
+                } else {
+                    // Para otros errores, mantener null
+                    setTotalUsers(null);
+                }
             })
             .finally(() => {
                 setIsLoadingStats(false);
@@ -68,7 +79,7 @@ export default function Landing() {
 
     // Función para formatear el número de usuarios
     const formatUserCount = (count: number | null): string => {
-        if (count === null) return ""; // No mostrar nada mientras carga
+        if (count === null) return ""; // No mostrar nada mientras carga o si hay error
         // Asegurar que sea un número entero
         const num = Math.floor(Number(count));
         if (num >= 1000) {
