@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { format, parseISO, isValid, differenceInDays } from 'date-fns';
+import FilterDropdown from "@/features/progress/components/FilterDropdown"
 import {
   CheckCircle2,
   Circle,
@@ -24,16 +25,6 @@ import { Card, CardContent } from '@/shared/components/card';
 import { Badge } from '@/shared/components/badge';
 import { Button } from '@/shared/components/button';
 import { Input } from '@/shared/components/input';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/components/select';
 import { cn } from '@/shared/utils/utils';
 import { Link } from 'react-router-dom';
 
@@ -174,15 +165,28 @@ export default function ProgressPage() {
   
   const { showToast, ToastComponent } = useToast();
   
-  const [filter, setFilter] = useState('all');
+  const [courseFilter, setCourseFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const hasActiveFilters =
+  courseFilter !== "all" || statusFilter !== "all";
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [noteValues, setNoteValues] = useState<Record<number, string>>({});
   const [processingTasks, setProcessingTasks] = useState<Set<number>>(new Set());
 
-  const filteredActivities =
-    filter === 'all'
-      ? activities
-      : activities.filter((a: Activity) => getCourseName(a.course) === filter);
+
+  const filteredActivities = activities.filter((activity: Activity) => {
+  
+    const courseMatch =
+      courseFilter === "all" ||
+      getCourseName(activity.course) === courseFilter;
+
+    const statusMatch =
+      statusFilter === "all" ||
+      activity.subtasks.some((s: Subtask) => s.status === statusFilter);
+
+    return courseMatch && statusMatch;
+  });
 
   const totalDone = activities.reduce(
     (sum: number, a: Activity) => sum + a.subtasks.filter((st: Subtask) => st.status === STATUS.DONE).length,
@@ -328,59 +332,21 @@ export default function ProgressPage() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="filter-by-course" className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Agrupar por curso
-              </label>
-              <Select value={filter} onValueChange={setFilter}>
-                <SelectTrigger
-                  id="filter-by-course"
-                  className="min-w-[220px] h-11 rounded-xl bg-white dark:bg-[#1a2230] border-slate-200 dark:border-slate-700 cursor-pointer transition-all duration-200 hover:border-primary/40 hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:ring-2 focus:ring-primary/20 [&>svg]:transition-transform data-[state=open]:[&>svg]:rotate-180"
-                >
-                  <SelectValue placeholder="Filtrar por curso" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl shadow-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1a2230] py-1.5 min-w-[var(--radix-select-trigger-width)]">
-                  <SelectGroup>
-                    <SelectLabel className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-3 py-2">
-                      Ver tareas de
-                    </SelectLabel>
-                    <SelectItem
-                      value="all"
-                      className="cursor-pointer rounded-lg mx-1.5 py-2.5 pl-9 pr-3 focus:bg-primary/10 focus:text-primary data-[highlighted]:bg-primary/10 data-[highlighted]:text-primary transition-colors"
-                    >
-                      <span className="flex items-center gap-2.5">
-                        <BarChart3 className="h-4 w-4 text-primary shrink-0" />
-                        <span>Todos los cursos</span>
-                      </span>
-                    </SelectItem>
-                  </SelectGroup>
-                  <SelectSeparator className="my-1.5 bg-slate-200 dark:bg-slate-700" />
-                  <SelectGroup>
-                    {courses.map((c: Course) => {
-                      const CourseIcon = getCourseIcon(c.name);
-                      const colorKey = getCourseColor(c);
-                      return (
-                        <SelectItem
-                          key={c.id}
-                          value={c.name}
-                          className="cursor-pointer rounded-lg mx-1.5 py-2.5 pl-9 pr-3 focus:bg-primary/10 focus:text-primary data-[highlighted]:bg-primary/10 data-[highlighted]:text-primary transition-colors"
-                        >
-                          <span className="flex items-center gap-2.5">
-                            <span
-                              className={cn(
-                                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-                                courseColorClasses[colorKey] || courseColorClasses.cyan
-                              )}
-                            >
-                              <CourseIcon className={cn("h-4 w-4", courseColorClasses[colorKey]?.split(' ')[1] || 'text-cyan-500')} />
-                            </span>
-                            <span className="font-medium">{c.name}</span>
-                          </span>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+              <FilterDropdown
+                courseFilter={courseFilter}
+                statusFilter={statusFilter}
+                setCourseFilter={setCourseFilter}
+                setStatusFilter={setStatusFilter}
+                courses={courses}
+                />
+                {hasActiveFilters && (
+                  <span className="text-xs text-blue-500 font-medium">
+                    Filtrado por:
+                    {courseFilter !== "all" && ` Curso`}
+                    {statusFilter !== "all" && ` Estado`}
+                    </span>
+                    )}
+
             </div>
             <Button asChild className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/30">
               <Link to="/crear">
@@ -399,9 +365,11 @@ export default function ProgressPage() {
               <Card className="border-dashed border-slate-200 dark:border-slate-700">
                 <CardContent className="flex flex-col items-center py-16 text-center">
                   <BarChart3 className="h-12 w-12 text-slate-400 mb-4" />
-                  <h3 className="font-semibold text-lg text-slate-900 dark:text-white">Aún no hay actividades</h3>
+                  <h3 className="font-semibold text-lg text-slate-900 dark:text-white">
+                    Sin resultados
+                  </h3>
                   <p className="text-slate-500 dark:text-slate-400 mt-1">
-                    Crea tu primera actividad para comenzar a seguir tu progreso.
+                    No hay actividades que coincidan con los filtros seleccionados.
                   </p>
                   <Button asChild className="mt-4">
                     <Link to="/crear">Crear actividad</Link>
