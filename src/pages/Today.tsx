@@ -68,7 +68,7 @@ export default function Today() {
     days_ahead: 7
   });
   const [search, setSearch] = useState("");
-  const hasActiveFilters = filters.course || filters.status || search;
+  const hasActiveFilters = Boolean(filters.course || filters.status || search);
 
   const {
     vencidas,
