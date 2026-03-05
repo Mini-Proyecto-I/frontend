@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import { useAuth } from "@/app/authContext";
 import { patchSubtask } from "@/api/services/subtack";
+import { queryCache } from "@/lib/queryCache";
 import { Input } from "@/shared/components/input";
 import { Button } from "@/shared/components/button";
 import {
@@ -89,7 +90,9 @@ export default function Today() {
   const handleToggleSubtask = async (activityId: string, subtaskId: string, currentStatus: string) => {
     const newStatus = currentStatus === "DONE" ? "PENDING" : "DONE";
 
-    // Optimistic UI Update
+    queryCache.invalidate('activities');
+    queryCache.invalidateByPrefix('subtasks:');
+
     setData((prev: any) => {
       const updateList = (list: any[]) =>
         list.map(item => item.id === subtaskId ? { ...item, status: newStatus } : item);
@@ -104,11 +107,11 @@ export default function Today() {
 
     try {
       await patchSubtask(activityId, subtaskId, { status: newStatus });
-      // Call lightweight endpoint to update time card values using the new endpoint
+      // Update the tiempo card without reloading the whole task list
       refetchTiempo();
     } catch (err) {
       console.error(err);
-      // Revert if API fails
+      // Revert optimistic update if the API call failed
       setData((prev: any) => {
         const revertList = (list: any[]) =>
           list.map(item => item.id === subtaskId ? { ...item, status: currentStatus } : item);
@@ -233,10 +236,10 @@ export default function Today() {
           <h2 className="text-white font-bold text-lg">Filtros</h2>
           {hasActiveFilters && (
             <span className="ml-2 text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded-lg font-semibold">
-            Filtrado por:
-            {filters.course && " Curso"}
-            {filters.status && " Estado"}
-            {search && " Busqueda"}
+              Filtrado por:
+              {filters.course && " Curso"}
+              {filters.status && " Estado"}
+              {search && " Busqueda"}
             </span>
           )
           }
@@ -500,9 +503,11 @@ function TaskCard({ item, badge, theme, onToggle }: { item: any, badge: string |
 
       <div className="flex justify-between items-start pt-2">
         <div className="space-y-1 pr-6 flex-1 min-w-0">
-          <p className={`font-black text-xs tracking-widest uppercase truncate ${colors.text} filter drop-shadow-md`}>
-            <Link to={`/actividad/${item.activity.id}`} className="hover:underline">
-              {courseName}
+          <p className={`font-black text-[10px] tracking-[0.15em] uppercase truncate ${colors.text} filter drop-shadow-md flex items-center gap-2`}>
+            <span className="opacity-50">{courseName}</span>
+            <span className="opacity-30">•</span>
+            <Link to={`/actividad/${item.activity.id}`} className="hover:underline transition-all hover:opacity-100">
+              {item.activity?.title || "Actividad"}
             </Link>
           </p>
           <h4 className={`text-lg font-bold ${isDone ? 'text-slate-400 line-through' : 'text-slate-100'} leading-tight tracking-tight pr-4`}>
