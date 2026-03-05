@@ -66,38 +66,38 @@ export default function ActivityDetailHeader({
       // Cerrar el modal de carga después de un breve delay
       setTimeout(() => {
         setShowDeletingDialog(false);
-        
+
         // Redirigir a /hoy con el estado para mostrar el modal de éxito
         navigate("/hoy", {
-          state: { 
+          state: {
             showActivityDeletedSuccess: true,
-            deletedActivityName: title 
+            deletedActivityName: title
           },
         });
       }, 1500);
     } catch (error: any) {
       console.error("Error al eliminar actividad:", error);
-      
+
       setShowDeletingDialog(false);
-      
+
       let errorMessage = "Error al eliminar la actividad. Intenta de nuevo.";
-      
+
       if (error?.response?.data?.detail) {
         errorMessage = error.response.data.detail;
       } else if (error?.message) {
         errorMessage = error.message;
       }
-      
+
       showToast(errorMessage, "error");
     }
   };
 
-    const handleActivityUpdated = () => {
+  const handleActivityUpdated = () => {
     // Aquí puedes recargar los datos de la actividad
     // Por ahora, simplemente cerramos el diálogo y mostramos un mensaje
     setShowEditDialog(false);
     showToast("Actividad actualizada correctamente", "success");
-    
+
     // Si necesitas recargar los datos, puedes hacer una llamada a la API
     // o usar el onActivityUpdated del padre si existe
     if (onActivityUpdated) {
@@ -108,39 +108,49 @@ export default function ActivityDetailHeader({
   return (
     <>
       <ToastComponent />
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-      <div>
-        <div className="flex items-center gap-3 mb-2">
-          <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30">
-            {typeLabel}
-          </span>
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium tracking-wide uppercase">
-            {dueDate}
-          </span>
-        </div>
-        <h2 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white mb-2">
-          {title}
-        </h2>
-        <p className="text-slate-500 dark:text-slate-400 max-w-xl">{description}</p>
-      </div>
+      <div className="flex flex-col gap-6">
 
-      <div className="flex flex-row gap-3 flex-shrink-0">
-        <button
-          type="button"
-          onClick={() => setShowEditDialog(true)}
-          className="cursor-pointer inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-slate-600 hover:bg-slate-500 border-2 border-slate-500 hover:border-slate-400 text-white transition-all duration-200 ease-out text-sm font-semibold shadow-md hover:shadow-lg active:scale-[0.98]"
-        >
-          <Pencil className="size-4" />
-          Editar Actividad
-        </button>
-        <button
-          type="button"
-          onClick={handleDeleteClick}
-          className="cursor-pointer inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 border-2 border-red-500 hover:border-red-400 text-white font-semibold text-sm shadow-lg shadow-red-900/40 hover:shadow-xl hover:shadow-red-500/30 transition-all duration-200 ease-out hover:scale-[1.02] active:scale-[0.98]"
-        >
-          <Trash2 className="size-4" />
-          Eliminar Actividad
-        </button>
+        {/* Top row: Badges and Buttons */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30">
+              {typeLabel}
+            </span>
+            <span className="text-xs text-slate-400 font-bold tracking-wider uppercase">
+              {dueDate.toUpperCase()}
+            </span>
+          </div>
+
+          <div className="flex flex-row gap-3 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowEditDialog(true)}
+              className="cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white transition-all duration-200 ease-out text-sm font-semibold shadow-md active:scale-[0.98]"
+            >
+              <Pencil className="w-4 h-4" />
+              Editar Detalles
+            </button>
+            <button
+              type="button"
+              onClick={handleDeleteClick}
+              className="cursor-pointer inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/50 text-red-500 font-semibold text-sm transition-all duration-200 ease-out active:scale-[0.98]"
+            >
+              <Trash2 className="w-4 h-4" />
+              Eliminar Actividad
+            </button>
+          </div>
+        </div>
+
+        {/* Title and Description */}
+        <div className="space-y-3">
+          <h1 className="text-3xl md:text-5xl font-extrabold text-[#1E293B] dark:text-white tracking-tight">
+            {title}
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 max-w-2xl text-lg font-medium leading-relaxed">
+            {description}
+          </p>
+        </div>
+
       </div>
 
       <EditActivityDialog
@@ -173,7 +183,6 @@ export default function ActivityDetailHeader({
         onOpenChange={setShowDeletingDialog}
         targetLabel="actividad"
       />
-    </div>
     </>
   );
 }
