@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { parseISO, startOfDay, differenceInDays, format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, Info, CheckCircle2, Calendar } from "lucide-react";
+import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, Info, CheckCircle2, Calendar, Pencil, Check, ChevronUp, ChevronDown } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import { useAuth } from "@/app/authContext";
 import { patchSubtask } from "@/api/services/subtack";
+import { queryCache } from "@/lib/queryCache";
 import { Input } from "@/shared/components/input";
 import { Button } from "@/shared/components/button";
 import {
@@ -51,8 +52,25 @@ export default function Today() {
   const location = useLocation();
   const navigate = useNavigate();
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [limitHours, setLimitHours] = useState(() => {
+    const saved = window.localStorage.getItem("studyLimitHours");
+    return saved ? parseFloat(saved) : 6;
+  });
+  const [isEditingLimit, setIsEditingLimit] = useState(false);
+  const [tempLimit, setTempLimit] = useState(limitHours.toString());
+  const [welcomeLimit, setWelcomeLimit] = useState("6");
 
-  const limitHours = 6; // Podría venir de configuraciones del usuario
+  const handleSaveLimit = () => {
+    let val = parseFloat(tempLimit);
+    if (isNaN(val)) val = limitHours;
+    if (val < 0.5) val = 0.5;
+    if (val > 24) val = 24;
+
+    setLimitHours(val);
+    setTempLimit(val.toString());
+    window.localStorage.setItem("studyLimitHours", val.toString());
+    setIsEditingLimit(false);
+  };
 
   useEffect(() => {
     if (location.state?.justRegistered) {
@@ -68,7 +86,7 @@ export default function Today() {
     days_ahead: 7
   });
   const [search, setSearch] = useState("");
-  const hasActiveFilters = filters.course || filters.status || search;
+  const hasActiveFilters = Boolean(filters.course || filters.status || search);
 
   const {
     vencidas,
@@ -82,6 +100,7 @@ export default function Today() {
     error,
     refetch,
     setData,
+    setTiempoData,
     tiempoData,
     refetchTiempo
   } = useHoy(filters);
@@ -89,7 +108,8 @@ export default function Today() {
   const handleToggleSubtask = async (activityId: string, subtaskId: string, currentStatus: string) => {
     const newStatus = currentStatus === "DONE" ? "PENDING" : "DONE";
 
-    // Optimistic UI Update
+    queryCache.invalidate('activities');
+    // ── Optimistic local UI update ──────────────────────────────────────────
     setData((prev: any) => {
       const updateList = (list: any[]) =>
         list.map(item => item.id === subtaskId ? { ...item, status: newStatus } : item);
@@ -102,13 +122,17 @@ export default function Today() {
       };
     });
 
+    setTiempoData((prev: any[]) =>
+      prev.map(item => item.id === subtaskId ? { ...item, status: newStatus } : item) as any
+    );
+
     try {
       await patchSubtask(activityId, subtaskId, { status: newStatus });
-      // Call lightweight endpoint to update time card values using the new endpoint
+      // Update the tiempo card silently in background
       refetchTiempo();
     } catch (err) {
       console.error(err);
-      // Revert if API fails
+      // Revert optimistic update if the API call failed
       setData((prev: any) => {
         const revertList = (list: any[]) =>
           list.map(item => item.id === subtaskId ? { ...item, status: currentStatus } : item);
@@ -120,6 +144,10 @@ export default function Today() {
           proximas: revertList(prev.proximas),
         };
       });
+
+      setTiempoData((prev: any[]) =>
+        prev.map(item => item.id === subtaskId ? { ...item, status: currentStatus } : item) as any
+      );
     }
   };
 
@@ -180,19 +208,55 @@ export default function Today() {
 
         {/* Capacity Card */}
         <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 lg:p-8 flex flex-col justify-center shadow-xl shadow-black/20 space-y-4">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
+          <div className="flex items-start justify-between w-full">
+            <div className="space-y-1 w-full">
               <div className="flex items-center gap-2">
                 {isOverloaded ? (
                   <AlertCircle className="w-5 h-5 text-orange-500" />
                 ) : (
                   <CalendarClock className="w-5 h-5 text-slate-400 hidden" />
                 )}
-                <h2 className="text-slate-300 font-bold text-lg">Tiempo de estudio</h2>
+                <h2 className="text-slate-300 font-bold text-lg">Tiempo de estudio / día</h2>
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-black text-white">{totalHours % 1 === 0 ? totalHours : totalHours.toFixed(1)}h</span>
-                <span className="text-slate-400 font-bold text-lg">/ {limitHours}h</span>
+
+              <div className="flex items-center justify-between w-full mt-2">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl font-black text-white">{totalHours % 1 === 0 ? totalHours : totalHours.toFixed(1)}h</span>
+                  <span className="text-slate-400 font-bold text-lg">/ {limitHours}h</span>
+                </div>
+
+                {!isEditingLimit ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsEditingLimit(true)}
+                    className="h-9 px-4 rounded-xl bg-slate-800/50 hover:bg-blue-500/20 text-slate-300 hover:text-blue-400 transition-all border border-slate-700/50"
+                  >
+                    <Pencil className="w-4 h-4 mr-2" />
+                    Editar
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-2 bg-slate-900 border border-blue-500/30 rounded-xl p-1.5 animate-in zoom-in-95 duration-200">
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      max="24"
+                      value={tempLimit}
+                      onChange={(e) => setTempLimit(e.target.value)}
+                      className="w-20 h-9 text-center bg-[#111827] border-slate-700 focus-visible:ring-1 focus-visible:ring-blue-500 text-white font-bold text-base rounded-lg"
+                      autoFocus
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleSaveLimit}
+                      className="h-9 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow-md font-medium"
+                    >
+                      <Check className="w-4 h-4 mr-2" />
+                      Guardar
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -233,10 +297,10 @@ export default function Today() {
           <h2 className="text-white font-bold text-lg">Filtros</h2>
           {hasActiveFilters && (
             <span className="ml-2 text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded-lg font-semibold">
-            Filtrado por:
-            {filters.course && " Curso"}
-            {filters.status && " Estado"}
-            {search && " Busqueda"}
+              Filtrado por:
+              {filters.course && " Curso"}
+              {filters.status && " Estado"}
+              {search && " Busqueda"}
             </span>
           )
           }
@@ -439,11 +503,35 @@ export default function Today() {
               Podrás aplicar filtros de búsqueda por nombre, curso y estado.
             </p>
 
+            <div className="mb-8 w-full px-4">
+              <label className="text-sm font-semibold text-slate-300 block mb-3">
+                ¿Cuántas horas planeas estudiar al día?
+              </label>
+              <Input
+                type="number"
+                step="0.5"
+                min="0.5"
+                max="24"
+                value={welcomeLimit}
+                onChange={(e) => setWelcomeLimit(e.target.value)}
+                className="w-full h-12 text-center bg-[#1F2937]/50 border-slate-700/50 focus-visible:ring-blue-500 text-white font-bold text-lg rounded-xl"
+              />
+            </div>
+
             <Button
-              onClick={() => setShowWelcomeModal(false)}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-8 h-10 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all"
+              onClick={() => {
+                let val = parseFloat(welcomeLimit);
+                if (isNaN(val)) val = 6;
+                if (val < 0.5) val = 0.5;
+                if (val > 24) val = 24;
+                setLimitHours(val);
+                setTempLimit(val.toString());
+                window.localStorage.setItem("studyLimitHours", val.toString());
+                setShowWelcomeModal(false);
+              }}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-8 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all w-full sm:w-auto"
             >
-              Entendido
+              Comenzar
             </Button>
           </div>
         </div>
@@ -500,9 +588,11 @@ function TaskCard({ item, badge, theme, onToggle }: { item: any, badge: string |
 
       <div className="flex justify-between items-start pt-2">
         <div className="space-y-1 pr-6 flex-1 min-w-0">
-          <p className={`font-black text-xs tracking-widest uppercase truncate ${colors.text} filter drop-shadow-md`}>
-            <Link to={`/actividad/${item.activity.id}`} className="hover:underline">
-              {courseName}
+          <p className={`font-black text-[10px] tracking-[0.15em] uppercase truncate ${colors.text} filter drop-shadow-md flex items-center gap-2`}>
+            <span className="opacity-50">{courseName}</span>
+            <span className="opacity-30">•</span>
+            <Link to={`/actividad/${item.activity.id}`} className="hover:underline transition-all hover:opacity-100">
+              {item.activity?.title || "Actividad"}
             </Link>
           </p>
           <h4 className={`text-lg font-bold ${isDone ? 'text-slate-400 line-through' : 'text-slate-100'} leading-tight tracking-tight pr-4`}>
