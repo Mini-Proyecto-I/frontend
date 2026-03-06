@@ -189,7 +189,7 @@ export default function Today() {
   return (
     <div className="flex flex-col gap-8 max-w-[1400px] w-full mx-auto px-4 sm:px-6 lg:px-10 pb-10 mt-6 lg:mt-10">
       {/* HEADER SECTION */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
         {/* Welcome Card */}
         <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 lg:p-8 flex items-center justify-between shadow-xl shadow-black/20 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -mr-20 -mt-20"></div>
@@ -250,7 +250,7 @@ export default function Today() {
                     <Button
                       size="sm"
                       onClick={handleSaveLimit}
-                      className="h-9 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow-md font-medium"
+                      className="h-9 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-md font-medium"
                     >
                       <Check className="w-4 h-4 mr-2" />
                       Guardar
@@ -291,16 +291,17 @@ export default function Today() {
       </div>
 
       {/* FILTER BAR SECTION */}
-      <div className="bg-[#111827] border border-slate-800/60 rounded-2xl p-4 shadow-lg shadow-black/10 flex flex-col gap-4">
-        <div className="flex items-center gap-2 px-1">
+      <div className="bg-[#111827] border border-slate-800/60 rounded-2xl p-4 shadow-lg shadow-black/10 flex flex-col gap-4 w-full">
+        <div className="flex items-center gap-2">
           <Search className="w-5 h-5 text-blue-500" />
           <h2 className="text-white font-bold text-lg">Filtros</h2>
           {hasActiveFilters && (
             <span className="ml-2 text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded-lg font-semibold">
-              Filtrado por:
-              {filters.course && " Curso"}
-              {filters.status && " Estado"}
-              {search && " Busqueda"}
+              Filtrado por: {[
+                filters.course && "Curso",
+                filters.status && "Estado",
+                search && "Nombre"
+              ].filter(Boolean).join(", ")}
             </span>
           )
           }
@@ -308,7 +309,7 @@ export default function Today() {
 
         <div className="flex flex-col md:flex-row gap-4 items-end">
           <div className="flex-1 w-full flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Buscar por nombre</label>
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Buscar por nombre</label>
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
               <Input
@@ -322,12 +323,22 @@ export default function Today() {
 
           <div className="flex w-full md:w-auto gap-3 items-end">
             <div className="relative flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Curso</label>
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Curso</label>
               <Select
                 value={filters.course || "all"}
                 onValueChange={(v) => setFilters(prev => ({ ...prev, course: v === "all" ? "" : v }))}
               >
-                <SelectTrigger className="w-full md:w-[200px] bg-[#1F2937]/50 border-slate-700/50 text-slate-200 h-12 rounded-xl focus:ring-blue-500 shadow-inner">
+                <SelectTrigger 
+                  style={filters.course ? { 
+                    backgroundColor: 'white',
+                    fontFamily: '"Lexend", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+                  } : undefined}
+                  className={`w-full md:w-[200px] h-12 rounded-xl focus:ring-blue-500 shadow-inner border ${
+                    filters.course 
+                      ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600" 
+                      : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
+                  }`}
+                >
                   <SelectValue placeholder="Todos los cursos" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl">
@@ -342,20 +353,28 @@ export default function Today() {
             </div>
 
             <div className="relative flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Estado</label>
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Estado</label>
               <Select
                 value={filters.status || "all"}
                 onValueChange={(v) => setFilters(prev => ({ ...prev, status: v === "all" ? "" : v }))}
               >
-                <SelectTrigger className="w-full md:w-[170px] bg-[#1F2937]/50 border-slate-700/50 text-slate-200 h-12 rounded-xl focus:ring-blue-500 shadow-inner">
+                <SelectTrigger 
+                  style={filters.status ? { 
+                    backgroundColor: 'white',
+                    fontFamily: '"Lexend", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+                  } : undefined}
+                  className={`w-full md:w-[170px] h-12 rounded-xl focus:ring-blue-500 shadow-inner border ${
+                    filters.status 
+                      ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600" 
+                      : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
+                  }`}
+                >
                   <SelectValue placeholder="Cualquier estado" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl">
                   <SelectItem value="all" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Cualquier estado</SelectItem>
                   <SelectItem value="PENDING" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Pendiente</SelectItem>
                   <SelectItem value="DONE" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Completado</SelectItem>
-                  <SelectItem value="POSTPONED" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Pospuesto</SelectItem>
-                  <SelectItem value="WAITING" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">En Espera</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -363,7 +382,12 @@ export default function Today() {
             <Button
               variant="outline"
               onClick={handleClearFilters}
-              className="h-12 border-slate-700/50 bg-[#1F2937]/50 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl mb-[1px]"
+              disabled={!hasActiveFilters}
+              className={`h-12 rounded-xl mb-[1px] transition-all ${
+                hasActiveFilters
+                  ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
+                  : "border-slate-700/50 bg-[#1F2937]/50 text-slate-400 cursor-not-allowed opacity-50"
+              }`}
             >
               <X className="w-4 h-4 mr-2" /> Limpiar
             </Button>
@@ -378,11 +402,11 @@ export default function Today() {
         </div>
       ) : (
         /* 3 COLUMNS SECTION */
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-6 pl-2 lg:pl-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-6 items-start w-full">
           {/* COLUMN 1: VENCIDAS */}
-          <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20 flex flex-col gap-4">
-            <div className="flex items-center gap-3 mb-2 px-2">
-              <AlertCircle className="w-6 h-6 text-red-500" />
+          <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20 flex flex-col gap-4 h-full">
+            <div className="flex items-center gap-3 mb-2">
+              <AlertCircle className="w-6 h-6 text-red-500 shrink-0" />
               <h3 className="text-xl font-black tracking-widest text-[#94A3B8] uppercase">Vencidas</h3>
             </div>
             {filteredVencidas.map((item: any, idx: number) => (
@@ -407,9 +431,9 @@ export default function Today() {
           </div>
 
           {/* COLUMN 2: PARA HOY */}
-          <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20 flex flex-col gap-4">
-            <div className="flex items-center gap-3 mb-2 px-2">
-              <CalendarDays className="w-6 h-6 text-emerald-400" />
+          <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20 flex flex-col gap-4 h-full">
+            <div className="flex items-center gap-3 mb-2">
+              <CalendarDays className="w-6 h-6 text-emerald-400 shrink-0" />
               <h3 className="text-xl font-black tracking-widest text-[#94A3B8] uppercase">Para Hoy</h3>
             </div>
             {filteredParaHoy.map((item: any, idx: number) => (
@@ -434,7 +458,7 @@ export default function Today() {
                 {!(search || filters.course || (filters.status && filters.status !== 'PENDING')) && (
                   <Button
                     onClick={() => navigate('/crear')}
-                    className="bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl px-5 py-2.5 transition-colors shadow-lg shadow-blue-500/20"
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl px-5 py-2.5 transition-colors shadow-lg shadow-blue-600/20"
                   >
                     + Nueva actividad
                   </Button>
@@ -444,9 +468,9 @@ export default function Today() {
           </div>
 
           {/* COLUMN 3: PRÓXIMAS */}
-          <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20 flex flex-col gap-4">
-            <div className="flex items-center gap-3 mb-2 px-2">
-              <CalendarClock className="w-6 h-6 text-blue-500" />
+          <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20 flex flex-col gap-4 h-full">
+            <div className="flex items-center gap-3 mb-2">
+              <CalendarClock className="w-6 h-6 text-blue-500 shrink-0" />
               <h3 className="text-xl font-black tracking-widest text-[#94A3B8] uppercase">Próximas</h3>
             </div>
             {filteredProximas.map((item: any, idx: number) => (
@@ -539,7 +563,7 @@ export default function Today() {
                 window.localStorage.setItem("studyLimitHours", val.toString());
                 setShowWelcomeModal(false);
               }}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-8 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all w-full sm:w-auto"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all w-full sm:w-auto"
             >
               Comenzar
             </Button>
@@ -630,3 +654,4 @@ function TaskCard({ item, badge, theme, onToggle }: { item: any, badge: string |
     </div>
   );
 }
+
