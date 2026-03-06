@@ -46,6 +46,10 @@
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
   * {
     border-color: hsl(var(--border));
   }
@@ -53,5 +57,6 @@
   body {
     background-color: #111827;
     color: hsl(var(--foreground));
+    overflow-x: hidden;
   }
 }

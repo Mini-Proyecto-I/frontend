@@ -1,21 +1,58 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/shared/components/button";
 import { ArrowRight, Clock, AlertTriangle, TrendingUp, Play, Bell, BarChart2, RefreshCw } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/app/authContext";
 import { getUserStats } from "@/api/services/stats";
 
 export default function Landing() {
     const navigate = useNavigate();
+    const location = useLocation();
     const { isAuthenticated, loading } = useAuth();
     const [totalUsers, setTotalUsers] = useState<number | null>(null);
     const [isLoadingStats, setIsLoadingStats] = useState<boolean>(true);
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (!loading && isAuthenticated) {
             navigate("/hoy", { replace: true });
         }
     }, [isAuthenticated, loading, navigate]);
+
+    // Scroll suave a secciones específicas cuando se entra a la landing con estado (desde el header)
+    useEffect(() => {
+        const state = location.state as { scrollTo?: "features" | "help" } | null;
+        let targetId: string | null = null;
+
+        if (state?.scrollTo === "features") {
+            targetId = "landing-features";
+        } else if (state?.scrollTo === "help") {
+            targetId = "landing-help-video";
+        } else if (location.hash === "#features") {
+            // Soporte opcional si alguien entra directo por hash
+            targetId = "landing-features";
+        } else if (location.hash === "#help") {
+            targetId = "landing-help-video";
+        }
+
+        if (!targetId) return;
+
+        const element = document.getElementById(targetId);
+        if (element) {
+            const headerOffset = 80;
+            const elementPosition = element.getBoundingClientRect().top + window.pageYOffset;
+            const offsetPosition = elementPosition - headerOffset;
+
+            window.scrollTo({
+                top: offsetPosition,
+                behavior: "smooth",
+            });
+        }
+
+        // Limpia el estado para que no vuelva a intentar hacer scroll en renders futuros
+        if (state?.scrollTo) {
+            navigate(location.pathname + location.hash, { replace: true });
+        }
+    }, [location.state, location.hash, location.pathname, navigate]);
 
     useEffect(() => {
         // Cargar estadísticas de usuarios
@@ -182,7 +219,7 @@ export default function Landing() {
                 <div className="w-full border-t border-slate-800/50"></div>
 
                 {/* Features Section */}
-                <section className="w-full bg-[#111827] py-24 px-6">
+                <section id="landing-features" className="w-full bg-[#111827] py-24 px-6">
                     <div className="max-w-6xl mx-auto flex flex-col items-center">
                         <div className="text-center mb-16 space-y-4">
                             <h2 className="text-3xl lg:text-4xl font-bold text-white">
@@ -269,7 +306,7 @@ export default function Landing() {
                 <div className="w-full border-t border-slate-800/50"></div>
 
                 {/* Video Section */}
-                <section className="w-full bg-[#0F172A] py-24 px-6 flex flex-col items-center">
+                <section id="landing-help-video" className="w-full bg-[#0F172A] py-24 px-6 flex flex-col items-center">
                     <div className="text-center mb-12 space-y-4 max-w-2xl mx-auto">
                         <h2 className="text-3xl lg:text-4xl font-bold text-white">
                             ¿Cómo planear con StudyFlow?

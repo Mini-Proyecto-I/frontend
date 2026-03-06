@@ -67,7 +67,12 @@ export default function Login() {
     };
 
     return (
-        <div className="flex-1 w-full flex text-slate-100 bg-[#0A0F1C]">
+        <div
+            className="flex-1 w-full flex text-slate-100 bg-[#0A0F1C]"
+            style={{
+                fontFamily: '"Lexend", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            }}
+        >
             {/* Panel Izquierdo */}
             <div className="hidden lg:flex w-[40%] relative flex-col justify-between p-12 overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 border-r border-[#1E293B]">
                 <div
@@ -104,7 +109,7 @@ export default function Login() {
                     <div className="hidden lg:block"></div>
                 </div>
 
-                <div className="w-full max-w-lg space-y-8 lg:mt-0 mt-12">
+                <div className="w-full max-w-xl space-y-10 lg:mt-0 mt-12">
                     <div>
                         <h2 className="text-4xl font-extrabold text-white mb-2">Bienvenido de nuevo</h2>
                         <p className="text-blue-500 font-semibold">
@@ -112,7 +117,7 @@ export default function Login() {
                         </p>
                     </div>
 
-                    <form className="space-y-6" onSubmit={handleSubmit} noValidate>
+                    <form className="space-y-8" onSubmit={handleSubmit} noValidate>
                         {authError && (
                             <div className="bg-red-500/10 border border-red-900/50 text-slate-200 px-4 py-4 rounded-xl text-sm flex gap-3 shadow-lg shadow-red-500/5 items-start">
                                 <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
@@ -139,7 +144,7 @@ export default function Login() {
                                             setErrors((prev) => ({ ...prev, email: undefined }));
                                         }
                                     }}
-                                    placeholder="usuario@ejemplo.com"
+                                    placeholder="Ej: ejemplo.email@ejemplo.com"
                                     className={`bg-[#0F172A] border ${errors.email ? "border-red-500/50"
                                         : "border-slate-800 focus-visible:ring-blue-500"
                                     } text-slate-100 placeholder:text-slate-500 h-12 rounded-xl`}
@@ -174,7 +179,7 @@ export default function Login() {
                                             setErrors(prev => ({ ...prev, password: undefined }));
                                         }
                                     }}
-                                    placeholder="fakepassword"
+                                    placeholder="Ej: Contraseña123"
                                     className={`bg-[#0F172A] border ${errors.password ? "border-red-500/50"
                                         : "border-slate-800 focus-visible:ring-blue-500"
                                     } text-slate-100 placeholder:text-slate-500 h-12 rounded-xl pr-10`}

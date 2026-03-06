@@ -378,7 +378,7 @@ export default function Today() {
         </div>
       ) : (
         /* 3 COLUMNS SECTION */
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-6 pl-2 lg:pl-4">
           {/* COLUMN 1: VENCIDAS */}
           <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20 flex flex-col gap-4">
             <div className="flex items-center gap-3 mb-2 px-2">
@@ -482,24 +482,34 @@ export default function Today() {
               <Info className="w-6 h-6 text-blue-400" />
             </div>
 
-            <h3 className="text-[17px] font-semibold text-white mb-8 tracking-wide">Te encuentras en hoy, aquí podrás ver:</h3>
+            <h3 className="text-2xl font-extrabold text-white mb-8 tracking-tight">
+              ¡Este es tu centro de mando! Aquí las tareas de
+              <span className="text-blue-400"> tus actividades </span>
+              se organizan en:
+            </h3>
 
-            <div className="flex flex-col gap-5 text-left w-full mb-8 px-4">
+            <div className="flex flex-col gap-5 text-left w-full mb-8 pl-8 pr-4">
               <div className="flex items-start gap-4">
                 <CalendarDays className="w-5 h-5 text-emerald-400 mt-1 shrink-0" />
-                <p className="text-emerald-400 text-[15px] font-medium leading-snug">Tus tareas propuestas para hoy y organizadas de menor a mayor tiempo</p>
+                <p className="text-emerald-400 text-[15px] font-semibold leading-snug">
+                  Para hoy <span className="font-bold">¡tareas más cortas primero!</span>
+                </p>
               </div>
               <div className="flex items-start gap-4">
                 <AlertCircle className="w-5 h-5 text-red-500 mt-1 shrink-0" />
-                <p className="text-red-400 text-[15px] font-medium leading-snug">Tus tareas vencidas de más antiguas a menos antiguas</p>
+                <p className="text-red-400 text-[15px] font-semibold leading-snug">
+                  Atrasadas <span className="font-bold">¡tareas más antiguas primero!</span>
+                </p>
               </div>
               <div className="flex items-start gap-4">
                 <CalendarClock className="w-5 h-5 text-blue-400 mt-1 shrink-0" />
-                <p className="text-blue-400 text-[15px] font-medium leading-snug">Tus tareas próximas de más cercanas a más lejanas</p>
+                <p className="text-blue-400 text-[15px] font-semibold leading-snug">
+                  Próximas <span className="font-bold">¡tareas más cercanas primero!</span>
+                </p>
               </div>
             </div>
 
-            <p className="text-slate-400 text-[13px] font-medium mb-8 px-4">
+            <p className="text-slate-400 text-[13px] font-medium mt-2 mb-8 px-4">
               Podrás aplicar filtros de búsqueda por nombre, curso y estado.
             </p>
 
