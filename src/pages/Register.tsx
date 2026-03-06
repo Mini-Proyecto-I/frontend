@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/shared/components/button";
 import { Input } from "@/shared/components/input";
 import { Checkbox } from "@/shared/components/checkbox";
@@ -32,6 +32,41 @@ export default function Register() {
         confirmPassword?: string;
     }>({});
 
+    // Touched states for real-time validation feedback
+    const [passwordTouched, setPasswordTouched] = useState(false);
+    const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false);
+
+    // Email autocomplete states
+    const [emailSuggestions, setEmailSuggestions] = useState<string[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+    const emailInputRef = useRef<HTMLInputElement>(null);
+    const suggestionsRef = useRef<HTMLDivElement>(null);
+
+    // Dominios comunes con sus abreviaciones
+    const emailDomains = [
+        { domain: "@gmail.com", keywords: ["gm", "gmail", "google"] },
+        { domain: "@outlook.com", keywords: ["out", "outlook", "msn"] },
+        { domain: "@outlook.es", keywords: ["out", "outlook"] },
+        { domain: "@correounivalle.edu.co", keywords: ["correoun", "univalle", "valle"] },
+        { domain: "@hotmail.com", keywords: ["hot", "hotmail"] },
+        { domain: "@yahoo.com", keywords: ["yah", "yahoo"] },
+        { domain: "@icloud.com", keywords: ["icl", "icloud", "apple"] },
+        { domain: "@protonmail.com", keywords: ["prot", "proton", "protonmail"] },
+        { domain: "@live.com", keywords: ["liv", "live"] },
+        { domain: "@msn.com", keywords: ["msn"] },
+    ];
+
+    // Password validation rules
+    const passwordHasMinLength = password.length >= 8;
+    const passwordHasUppercase = /[A-ZÁÉÍÓÚÑ]/.test(password);
+    const passwordHasNumber = /\d/.test(password);
+    const isPasswordValid = passwordHasMinLength && passwordHasUppercase && passwordHasNumber;
+
+    // Confirm password real-time validation
+    const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword;
+    const showConfirmFeedback = confirmPasswordTouched && confirmPassword.length > 0;
+
     const { login, isAuthenticated, loading: authLoading } = useAuth();
     const navigate = useNavigate();
 
@@ -41,14 +76,127 @@ export default function Register() {
         }
     }, [isAuthenticated, authLoading, navigate, isLoading, showSuccessModal]);
 
+    // Función para generar sugerencias de dominio
+    const getEmailSuggestions = (input: string): string[] => {
+        const atIndex = input.lastIndexOf("@");
+        if (atIndex === -1) return [];
+
+        const domainPart = input.substring(atIndex + 1).toLowerCase();
+        if (domainPart.length === 0) return [];
+
+        const localPart = input.substring(0, atIndex);
+        const suggestions: Array<{ email: string; score: number }> = [];
+
+        emailDomains.forEach(({ domain, keywords }) => {
+            const domainWithoutAt = domain.substring(1);
+            let score = 0;
+
+            // Verificar coincidencias exactas en keywords (mayor prioridad)
+            const exactKeywordMatch = keywords.some(keyword => {
+                if (keyword === domainPart) {
+                    score = 100; // Coincidencia exacta
+                    return true;
+                }
+                if (keyword.startsWith(domainPart)) {
+                    score = Math.max(score, 50); // Coincidencia parcial en keyword
+                    return true;
+                }
+                return false;
+            });
+
+            // Verificar coincidencia en el dominio completo
+            if (domainWithoutAt.startsWith(domainPart)) {
+                score = Math.max(score, 30);
+            }
+
+            if (exactKeywordMatch || domainWithoutAt.startsWith(domainPart)) {
+                suggestions.push({
+                    email: `${localPart}${domain}`,
+                    score: score
+                });
+            }
+        });
+
+        // Ordenar por score (mayor a menor) y devolver máximo 5
+        return suggestions
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5)
+            .map(item => item.email);
+    };
+
+    // Manejar cambios en el input de email
+    const handleEmailChange = (value: string) => {
+        setEmail(value);
+        if (errors.email) setErrors(prev => ({ ...prev, email: undefined }));
+
+        const suggestions = getEmailSuggestions(value);
+        setEmailSuggestions(suggestions);
+        setShowSuggestions(suggestions.length > 0 && value.includes("@"));
+        setSelectedSuggestionIndex(-1);
+    };
+
+    // Manejar selección de sugerencia
+    const handleSelectSuggestion = (suggestion: string) => {
+        setEmail(suggestion);
+        setShowSuggestions(false);
+        setEmailSuggestions([]);
+        emailInputRef.current?.focus();
+    };
+
+    // Manejar teclado en sugerencias
+    const handleEmailKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (!showSuggestions || emailSuggestions.length === 0) return;
+
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setSelectedSuggestionIndex(prev =>
+                prev < emailSuggestions.length - 1 ? prev + 1 : prev
+            );
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setSelectedSuggestionIndex(prev => (prev > 0 ? prev - 1 : -1));
+        } else if (e.key === "Enter" && selectedSuggestionIndex >= 0) {
+            e.preventDefault();
+            handleSelectSuggestion(emailSuggestions[selectedSuggestionIndex]);
+        } else if (e.key === "Escape") {
+            setShowSuggestions(false);
+        }
+    };
+
+    // Cerrar sugerencias al hacer click fuera
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                emailInputRef.current &&
+                !emailInputRef.current.contains(event.target as Node) &&
+                suggestionsRef.current &&
+                !suggestionsRef.current.contains(event.target as Node)
+            ) {
+                setShowSuggestions(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
     const validate = () => {
         const newErrors: typeof errors = {};
 
         if (!name.trim()) newErrors.name = "Es obligatorio poner tu nombre";
         if (!lastName.trim()) newErrors.lastName = "Es obligatorio poner tu apellido";
         if (!email.trim()) newErrors.email = "Es obligatorio poner un correo";
-        if (!password) newErrors.password = "Es obligatorio poner una contraseña";
-        if (password && password.length < 8) newErrors.password = "Mínimo 8 caracteres";
+        if (!password) {
+            newErrors.password = "Es obligatorio poner una contraseña";
+        } else {
+            if (!passwordHasMinLength) {
+                newErrors.password = "La contraseña debe tener mínimo 8 caracteres";
+            } else if (!passwordHasUppercase) {
+                newErrors.password = "La contraseña debe incluir al menos una mayúscula";
+            } else if (!passwordHasNumber) {
+                newErrors.password = "La contraseña debe incluir al menos un número";
+            }
+        }
         if (!confirmPassword) newErrors.confirmPassword = "Debes confirmar tu contraseña";
         if (password && confirmPassword && password !== confirmPassword) {
             newErrors.confirmPassword = "La contraseña no coincide con la anterior";
@@ -89,7 +237,12 @@ export default function Register() {
     };
 
     return (
-        <div className="flex-1 w-full flex text-slate-100 bg-[#0A0F1C]">
+        <div
+            className="flex-1 w-full flex text-slate-100 bg-[#0A0F1C] overflow-hidden max-h-[calc(100vh-8px)]"
+            style={{
+                fontFamily: '"Lexend", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            }}
+        >
             {/* Panel Izquierdo */}
             <div className="hidden lg:flex w-[40%] relative flex-col justify-between p-12 overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 border-r border-[#1E293B]">
                 <div
@@ -126,7 +279,7 @@ export default function Register() {
                     <div className="hidden lg:block"></div>
                 </div>
 
-                <div className="w-full max-w-lg space-y-10 lg:mt-0 mt-12">
+                <div className="w-full max-w-xl space-y-10 lg:mt-0 mt-12">
                     <div>
                         <h2 className="text-4xl font-extrabold text-white mb-2">Crea tu cuenta</h2>
                     </div>
@@ -194,17 +347,51 @@ export default function Register() {
 
                             <div className="space-y-2">
                                 <Label htmlFor="email" className="text-slate-300 text-xs font-semibold">Correo electrónico</Label>
-                                <Input
-                                    id="email"
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => {
-                                        setEmail(e.target.value);
-                                        if (errors.email) setErrors(prev => ({ ...prev, email: undefined }));
-                                    }}
-                                    placeholder="nombre.usuario@gmail.com"
-                                    className={`bg-[#0F172A] border ${errors.email ? 'border-red-500 focus-visible:ring-red-500' : 'border-slate-800 focus-visible:ring-blue-500'} text-slate-100 placeholder:text-slate-500 h-12 rounded-xl`}
-                                />
+
+                                <div className="relative">
+                                    <Input
+                                        ref={emailInputRef}
+                                        id="email"
+                                        type="email"
+                                        autoComplete="off"
+                                        value={email}
+                                        onChange={(e) => {
+                                            const value = e.target.value.replace(/\s/g, "");
+                                            handleEmailChange(value);
+                                        }}
+                                        onKeyDown={handleEmailKeyDown}
+                                        onFocus={() => {
+                                            const suggestions = getEmailSuggestions(email);
+                                            if (suggestions.length > 0 && email.includes("@")) {
+                                                setShowSuggestions(true);
+                                            }
+                                        }}
+                                        placeholder="Ej: ejemplo.email@gmail.com"
+                                        className={`bg-[#0F172A] border ${errors.email ? 'border-red-500 focus-visible:ring-red-500' : 'border-slate-800 focus-visible:ring-blue-500'} text-slate-100 placeholder:text-slate-500 h-12 rounded-xl`}
+                                    />
+
+                                    {/* Dropdown de sugerencias */}
+                                    {showSuggestions && emailSuggestions.length > 0 && (
+                                        <div
+                                            ref={suggestionsRef}
+                                            className="absolute z-50 w-full mt-1 bg-[#0F172A] border border-slate-800 rounded-xl shadow-lg overflow-hidden"
+                                        >
+                                            {emailSuggestions.map((suggestion, index) => (
+                                                <button
+                                                    key={index}
+                                                    type="button"
+                                                    onClick={() => handleSelectSuggestion(suggestion)}
+                                                    className={`w-full text-left px-4 py-3 text-sm text-slate-100 hover:bg-slate-800 transition-colors ${
+                                                        index === selectedSuggestionIndex ? "bg-slate-800" : ""
+                                                    } ${index === 0 ? "" : "border-t border-slate-800"}`}
+                                                >
+                                                    {suggestion}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
                                 {errors.email && (
                                     <p className="text-red-500 text-xs flex items-center mt-1">
                                         <AlertCircle className="w-3 h-3 mr-1" /> {errors.email}
@@ -221,10 +408,12 @@ export default function Register() {
                                             type={showPassword ? "text" : "password"}
                                             value={password}
                                             onChange={(e) => {
-                                                setPassword(e.target.value);
+                                                const value = e.target.value;
+                                                setPassword(value);
+                                                if (!passwordTouched) setPasswordTouched(true);
                                                 if (errors.password) setErrors(prev => ({ ...prev, password: undefined }));
                                             }}
-                                            placeholder="••••••••"
+                                            placeholder="Ej: Contraseña123"
                                             className={`bg-[#0F172A] border ${errors.password ? 'border-red-500 focus-visible:ring-red-500' : 'border-slate-800 focus-visible:ring-blue-500'} text-slate-100 placeholder:text-slate-500 h-12 rounded-xl pr-10`}
                                         />
                                         <button
@@ -235,15 +424,73 @@ export default function Register() {
                                             {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                         </button>
                                     </div>
-                                    {errors.password ? (
+                                    {errors.password && (
                                         <p className="text-red-500 text-xs flex items-center mt-1">
                                             <AlertCircle className="w-3 h-3 mr-1" /> {errors.password}
                                         </p>
-                                    ) : (
-                                        <div className="text-xs text-slate-500 mt-2 space-y-1 px-1">
-                                            <p>• Mínimo 8 caracteres</p>
-                                        </div>
                                     )}
+                                    <div className="text-xs mt-2 space-y-1 px-1">
+                                        <p
+                                            className={`flex items-center gap-2 ${
+                                                !passwordTouched || password.length === 0
+                                                    ? "text-slate-500"
+                                                    : passwordHasMinLength
+                                                        ? "text-emerald-400"
+                                                        : "text-red-400"
+                                            }`}
+                                        >
+                                            <span
+                                                className={`w-2 h-2 rounded-full ${
+                                                    !passwordTouched || password.length === 0
+                                                        ? "bg-slate-600"
+                                                        : passwordHasMinLength
+                                                            ? "bg-emerald-400"
+                                                            : "bg-red-400"
+                                                }`}
+                                            />
+                                            Mínimo 8 caracteres
+                                        </p>
+                                        <p
+                                            className={`flex items-center gap-2 ${
+                                                !passwordTouched || password.length === 0
+                                                    ? "text-slate-500"
+                                                    : passwordHasUppercase
+                                                        ? "text-emerald-400"
+                                                        : "text-red-400"
+                                            }`}
+                                        >
+                                            <span
+                                                className={`w-2 h-2 rounded-full ${
+                                                    !passwordTouched || password.length === 0
+                                                        ? "bg-slate-600"
+                                                        : passwordHasUppercase
+                                                            ? "bg-emerald-400"
+                                                            : "bg-red-400"
+                                                }`}
+                                            />
+                                            Incluye una mayúscula
+                                        </p>
+                                        <p
+                                            className={`flex items-center gap-2 ${
+                                                !passwordTouched || password.length === 0
+                                                    ? "text-slate-500"
+                                                    : passwordHasNumber
+                                                        ? "text-emerald-400"
+                                                        : "text-red-400"
+                                            }`}
+                                        >
+                                            <span
+                                                className={`w-2 h-2 rounded-full ${
+                                                    !passwordTouched || password.length === 0
+                                                        ? "bg-slate-600"
+                                                        : passwordHasNumber
+                                                            ? "bg-emerald-400"
+                                                            : "bg-red-400"
+                                                }`}
+                                            />
+                                            Incluye un número
+                                        </p>
+                                    </div>
                                 </div>
 
                                 <div className="space-y-2">
@@ -254,11 +501,21 @@ export default function Register() {
                                             type={showConfirmPassword ? "text" : "password"}
                                             value={confirmPassword}
                                             onChange={(e) => {
-                                                setConfirmPassword(e.target.value);
+                                                const value = e.target.value;
+                                                setConfirmPassword(value);
+                                                if (!confirmPasswordTouched) setConfirmPasswordTouched(true);
                                                 if (errors.confirmPassword) setErrors(prev => ({ ...prev, confirmPassword: undefined }));
                                             }}
-                                            placeholder="••••••••"
-                                            className={`bg-[#0F172A] border ${errors.confirmPassword ? 'border-red-500 focus-visible:ring-red-500' : 'border-slate-800 focus-visible:ring-blue-500'} text-slate-100 placeholder:text-slate-500 h-12 rounded-xl pr-10`}
+                                            placeholder="Ej: Contraseña123"
+                                            className={`bg-[#0F172A] border ${
+                                                showConfirmFeedback
+                                                    ? passwordsMatch
+                                                        ? "border-emerald-500 focus-visible:ring-emerald-500"
+                                                        : "border-red-500 focus-visible:ring-red-500"
+                                                    : errors.confirmPassword
+                                                        ? "border-red-500 focus-visible:ring-red-500"
+                                                        : "border-slate-800 focus-visible:ring-blue-500"
+                                            } text-slate-100 placeholder:text-slate-500 h-12 rounded-xl pr-10`}
                                         />
                                         <button
                                             type="button"
@@ -268,9 +525,22 @@ export default function Register() {
                                             {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                         </button>
                                     </div>
-                                    {errors.confirmPassword && (
+                                    {errors.confirmPassword ? (
                                         <p className="text-red-500 text-xs flex items-center mt-1">
                                             <AlertCircle className="w-3 h-3 mr-1" /> {errors.confirmPassword}
+                                        </p>
+                                    ) : showConfirmFeedback && (
+                                        <p
+                                            className={`text-xs flex items-center mt-1 ${
+                                                passwordsMatch ? "text-emerald-400" : "text-red-500"
+                                            }`}
+                                        >
+                                            {passwordsMatch ? (
+                                                <CheckCircle className="w-3 h-3 mr-1" />
+                                            ) : (
+                                                <AlertCircle className="w-3 h-3 mr-1" />
+                                            )}
+                                            {passwordsMatch ? "Las contraseñas coinciden" : "Las contraseñas no coinciden"}
                                         </p>
                                     )}
                                 </div>

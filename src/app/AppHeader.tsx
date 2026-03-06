@@ -5,16 +5,39 @@ import { useAuth } from '@/app/authContext';
 import { GraduationCap, Plus, Menu, X, LogOut } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/avatar';
 import { Button } from '@/shared/components/button';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export function AppHeader() {
     const { user, isAuthenticated } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
     const displayName = user?.name || "Estudiante";
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
 
     const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
+
+    const scrollOrNavigateToSection = (target: 'features' | 'help') => {
+        const isOnLanding = location.pathname === '/';
+        const targetId = target === 'features' ? 'landing-features' : 'landing-help-video';
+
+        if (isOnLanding) {
+            const el = document.getElementById(targetId);
+            if (el) {
+                const headerOffset = 80;
+                const elementPosition = el.getBoundingClientRect().top + window.pageYOffset;
+                const offsetPosition = elementPosition - headerOffset;
+
+                window.scrollTo({
+                    top: offsetPosition,
+                    behavior: 'smooth',
+                });
+                return;
+            }
+        }
+
+        navigate('/', { state: { scrollTo: target } });
+    };
 
     return (
         <header className="sticky top-0 z-50 w-full flex flex-col bg-[#0A0F1C] border-b border-slate-800">
@@ -104,10 +127,10 @@ export function AppHeader() {
                         <>
                             {/* Desktop Nav Unauthenticated */}
                             <nav className="items-center gap-6 text-sm font-semibold text-slate-400 hidden md:flex">
-                                <button onClick={() => navigate('/')} className="hover:text-white transition-colors">
+                                <button onClick={() => scrollOrNavigateToSection('features')} className="hover:text-white transition-colors">
                                     Funcionalidades
                                 </button>
-                                <button onClick={() => navigate('/')} className="hover:text-white transition-colors">
+                                <button onClick={() => scrollOrNavigateToSection('help')} className="hover:text-white transition-colors">
                                     Ayuda
                                 </button>
                             </nav>
@@ -215,7 +238,7 @@ export function AppHeader() {
                                 <button
                                     onClick={() => {
                                         setIsMenuOpen(false);
-                                        navigate('/');
+                                        scrollOrNavigateToSection('features');
                                     }}
                                     className="px-4 py-3 text-left font-semibold text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors"
                                 >
@@ -224,7 +247,7 @@ export function AppHeader() {
                                 <button
                                     onClick={() => {
                                         setIsMenuOpen(false);
-                                        navigate('/');
+                                        scrollOrNavigateToSection('help');
                                     }}
                                     className="px-4 py-3 text-left font-semibold text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors"
                                 >

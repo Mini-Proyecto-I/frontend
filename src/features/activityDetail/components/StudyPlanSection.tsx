@@ -25,8 +25,8 @@ interface StudyPlanSectionProps {
   deadlineDate?: string; // Fecha de entrega de la actividad
 }
 
-export default function StudyPlanSection({ 
-  subtasks = [], 
+export default function StudyPlanSection({
+  subtasks = [],
   activityId,
   onSubtaskStatusChange,
   onSubtaskUpdated,
@@ -50,7 +50,7 @@ export default function StudyPlanSection({
         if (!a.date && !b.date) return 0;
         if (!a.date) return 1;
         if (!b.date) return -1;
-        
+
         // Intentar parsear la fecha (formato: "10 nov")
         const parseDate = (dateStr: string): Date => {
           const months: { [key: string]: number } = {
@@ -68,7 +68,7 @@ export default function StudyPlanSection({
           }
           return new Date(0);
         };
-        
+
         const dateA = parseDate(a.date);
         const dateB = parseDate(b.date);
         return dateA.getTime() - dateB.getTime();
@@ -87,11 +87,10 @@ export default function StudyPlanSection({
           <button
             type="button"
             onClick={() => setActiveFilter("mostrar")}
-            className={`cursor-pointer transition-colors ${
-              activeFilter === "mostrar"
-                ? "text-blue-500 dark:text-blue-400 font-semibold"
-                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-            }`}
+            className={`cursor-pointer transition-colors ${activeFilter === "mostrar"
+              ? "text-blue-500 dark:text-blue-400 font-semibold"
+              : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+              }`}
           >
             Mostrar Todo
           </button>
@@ -99,11 +98,10 @@ export default function StudyPlanSection({
           <button
             type="button"
             onClick={() => setActiveFilter("fecha")}
-            className={`cursor-pointer transition-colors ${
-              activeFilter === "fecha"
-                ? "text-blue-500 dark:text-blue-400 font-semibold"
-                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-            }`}
+            className={`cursor-pointer transition-colors ${activeFilter === "fecha"
+              ? "text-blue-500 dark:text-blue-400 font-semibold"
+              : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+              }`}
           >
             Ordenar por fecha
           </button>
@@ -111,7 +109,7 @@ export default function StudyPlanSection({
       </div>
 
       {filteredSubtasks.length === 0 ? (
-        <div className="text-center py-12 px-4">  
+        <div className="text-center py-12 px-4">
           <p className="text-slate-600 dark:text-slate-400 mb-2">
             No hay subtareas registradas para esta actividad.
           </p>
@@ -142,10 +140,10 @@ export default function StudyPlanSection({
       <button
         type="button"
         onClick={() => setShowAddDialog(true)}
-        className="cursor-pointer w-full py-3.5 rounded-xl border-2 border-dashed border-slate-500 dark:border-slate-600 hover:border-blue-500 dark:hover:border-blue-400 bg-slate-100 dark:bg-slate-800/60 hover:bg-blue-500/10 dark:hover:bg-blue-500/10 text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all flex items-center justify-center gap-2.5 font-semibold"
+        className="cursor-pointer w-full py-3.5 rounded-xl border-2 border-dashed border-slate-700 hover:border-blue-500 bg-transparent hover:bg-slate-800/30 text-slate-300 hover:text-blue-400 transition-all flex items-center justify-center gap-2.5 font-semibold"
       >
         <Plus className="size-5" />
-        <span>Añadir Subtarea</span>
+        <span>Añadir otra subtarea</span>
       </button>
 
       <AddSubtaskDialog

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { login as apiLogin, refreshToken as apiRefreshToken } from "@/api/services/auth";
+import { queryCache } from "@/lib/queryCache";
 
 type AuthUser = {
   email: string;
@@ -96,6 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.localStorage.removeItem(REFRESH_TOKEN_KEY);
     setAccessToken(null);
     setUser(null);
+    // Clear all cached API responses so the next user starts with a clean slate
+    queryCache.clear();
   };
 
   const value: AuthContextValue = {
