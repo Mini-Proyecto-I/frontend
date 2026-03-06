@@ -1,22 +1,25 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/shared/components/button";
-import { ArrowRight, Clock, AlertTriangle, TrendingUp, Play, Bell, BarChart2 } from "lucide-react";
+import { ArrowRight, Clock, AlertTriangle, TrendingUp, Play, Bell, BarChart2, RefreshCw } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/app/authContext";
+import { getUserStats } from "@/api/services/stats";
 
 export default function Landing() {
     const navigate = useNavigate();
     const location = useLocation();
     const { isAuthenticated, loading } = useAuth();
+    const [totalUsers, setTotalUsers] = useState<number | null>(null);
+    const [isLoadingStats, setIsLoadingStats] = useState<boolean>(true);
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (!loading && isAuthenticated) {
             navigate("/hoy", { replace: true });
         }
     }, [isAuthenticated, loading, navigate]);
 
     // Scroll suave a secciones específicas cuando se entra a la landing con estado (desde el header)
-    React.useEffect(() => {
+    useEffect(() => {
         const state = location.state as { scrollTo?: "features" | "help" } | null;
         let targetId: string | null = null;
 
@@ -51,6 +54,81 @@ export default function Landing() {
         }
     }, [location.state, location.hash, location.pathname, navigate]);
 
+    useEffect(() => {
+        // Cargar estadísticas de usuarios
+        setIsLoadingStats(true);
+        getUserStats()
+            .then((data) => {
+                // Debug: ver qué estamos recibiendo
+                console.log("📊 Respuesta completa del API:", data);
+                
+                // La respuesta puede venir directamente o dentro de un objeto
+                // Intentar diferentes formas de acceder al dato
+                let count = null;
+                
+                if (data && typeof data === 'object') {
+                    // Si viene como { total_users: 19 }
+                    if ('total_users' in data) {
+                        count = data.total_users;
+                    }
+                    // Si viene como { data: { total_users: 19 } }
+                    else if ('data' in data && data.data && 'total_users' in data.data) {
+                        count = data.data.total_users;
+                    }
+                    // Si viene directamente como número (poco probable)
+                    else if (typeof data === 'number') {
+                        count = data;
+                    }
+                }
+                
+                // Convertir a número entero
+                if (count !== null && count !== undefined) {
+                    const numCount = typeof count === 'string' 
+                        ? parseInt(count, 10) 
+                        : Math.floor(Number(count));
+                    
+                    console.log("📊 Número de usuarios procesado:", numCount);
+                    setTotalUsers(numCount);
+                } else {
+                    console.warn("⚠️ No se pudo obtener el número de usuarios de la respuesta:", data);
+                    // Fallback: mostrar un número por defecto si no se puede obtener
+                    setTotalUsers(0);
+                }
+            })
+            .catch((error) => {
+                console.error("❌ Error al cargar estadísticas:", error);
+                console.error("❌ Detalles del error:", error.response?.data || error.message);
+                console.error("❌ URL intentada:", error.config?.url || "N/A");
+                
+                // Si es un error de red (servidor no disponible), mostrar 0 como fallback
+                if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+                    console.warn("⚠️ Servidor no disponible. Mostrando fallback.");
+                    setTotalUsers(0); // Mostrar 0 en lugar de null para que se muestre "+0"
+                } else {
+                    // Para otros errores, mantener null
+                    setTotalUsers(null);
+                }
+            })
+            .finally(() => {
+                setIsLoadingStats(false);
+            });
+    }, []);
+
+    // Función para formatear el número de usuarios
+    const formatUserCount = (count: number | null): string => {
+        if (count === null) return ""; // No mostrar nada mientras carga o si hay error
+        // Asegurar que sea un número entero
+        const num = Math.floor(Number(count));
+        if (num >= 1000) {
+            // Si es exactamente un múltiplo de 1000, mostrar sin decimales
+            if (num % 1000 === 0) {
+                return `+${num / 1000}k`;
+            }
+            return `+${(num / 1000).toFixed(1)}k`;
+        }
+        return `+${num}`;
+    };
+
     return (
         <div className="flex-1 w-full flex flex-col bg-[#0A0F1C] text-slate-100 font-sans selection:bg-blue-500/30">
             {/* Header / Navbar? (opcional si hay, el diseño no muestra navbar arriba de esto) */}
@@ -79,7 +157,11 @@ export default function Landing() {
                                 <img className="w-10 h-10 rounded-full border-2 border-[#0F172A]" src="https://i.pravatar.cc/100?img=2" alt="Student" />
                                 <img className="w-10 h-10 rounded-full border-2 border-[#0F172A]" src="https://i.pravatar.cc/100?img=3" alt="Student" />
                                 <div className="w-10 h-10 rounded-full border-2 border-[#0F172A] bg-blue-600 flex items-center justify-center text-xs font-bold text-white z-10">
-                                    +2k
+                                    {isLoadingStats ? (
+                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        formatUserCount(totalUsers)
+                                    )}
                                 </div>
                             </div>
                             <span className="text-sm text-slate-400 font-medium">

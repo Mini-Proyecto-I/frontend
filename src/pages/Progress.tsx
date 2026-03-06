@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { format, parseISO, isValid, differenceInDays } from 'date-fns';
+import FilterDropdown from "@/features/progress/components/FilterDropdown"
 import {
   CheckCircle2,
   Circle,
@@ -20,20 +21,11 @@ import {
 } from 'lucide-react';
 import { useProgressData, Activity, Subtask, Course } from '@/features/progress/hooks/useProgressData';
 import { patchSubtask } from '@/api/services/subtack';
+import { queryCache } from '@/lib/queryCache';
 import { Card, CardContent } from '@/shared/components/card';
 import { Badge } from '@/shared/components/badge';
 import { Button } from '@/shared/components/button';
 import { Input } from '@/shared/components/input';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectSeparator,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/components/select';
 import { cn } from '@/shared/utils/utils';
 import { Link } from 'react-router-dom';
 
@@ -171,18 +163,31 @@ function CircularProgress({ value, size = 160, strokeWidth = 8 }: { value: numbe
 
 export default function ProgressPage() {
   const { activities, courses, loading, error, refresh, updateSubtask } = useProgressData();
-  
+
   const { showToast, ToastComponent } = useToast();
-  
-  const [filter, setFilter] = useState('all');
+
+  const [courseFilter, setCourseFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const hasActiveFilters =
+    courseFilter !== "all" || statusFilter !== "all";
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [noteValues, setNoteValues] = useState<Record<number, string>>({});
   const [processingTasks, setProcessingTasks] = useState<Set<number>>(new Set());
 
-  const filteredActivities =
-    filter === 'all'
-      ? activities
-      : activities.filter((a: Activity) => getCourseName(a.course) === filter);
+
+  const filteredActivities = activities.filter((activity: Activity) => {
+
+    const courseMatch =
+      courseFilter === "all" ||
+      getCourseName(activity.course) === courseFilter;
+
+    const statusMatch =
+      statusFilter === "all" ||
+      activity.subtasks.some((s: Subtask) => s.status === statusFilter);
+
+    return courseMatch && statusMatch;
+  });
 
   const totalDone = activities.reduce(
     (sum: number, a: Activity) => sum + a.subtasks.filter((st: Subtask) => st.status === STATUS.DONE).length,
@@ -190,13 +195,18 @@ export default function ProgressPage() {
   );
   const totalAll = activities.reduce((sum: number, a: Activity) => sum + a.subtasks.length, 0);
   const overallProgress = totalAll > 0 ? Math.round((totalDone / totalAll) * 100) : 0;
-  
+
   const totalHoursDone = activities.reduce(
     (sum: number, a: Activity) =>
       sum +
       a.subtasks
         .filter((st: Subtask) => st.status === STATUS.DONE)
-        .reduce((h: number, st: Subtask) => h + (st.estimated_hours || 0), 0),
+        .reduce((h: number, st: Subtask) => {
+          const hours = typeof st.estimated_hours === 'string' 
+            ? parseFloat(st.estimated_hours) 
+            : (st.estimated_hours || 0);
+          return h + (isNaN(hours) ? 0 : hours);
+        }, 0),
     0
   );
 
@@ -221,12 +231,14 @@ export default function ProgressPage() {
   ) => {
     if (processingTasks.has(subtaskId)) return;
 
+    queryCache.invalidateByPrefix('hoy:');
+
     const note = noteValues[subtaskId];
-    
+
     const updateData: Partial<Subtask> = {
       status: STATUS.DONE,
     };
-    
+
     if (note && note.trim().length > 0) {
       updateData.note = note.trim();
     }
@@ -247,7 +259,7 @@ export default function ProgressPage() {
 
     } catch (err: any) {
       console.error('❌ PATCH Error:', err);
-      
+
       showToast('No se pudo completar la tarea. Verifica tu conexión e intenta de nuevo.', 'error');
       refresh();
     } finally {
@@ -266,11 +278,13 @@ export default function ProgressPage() {
   ) => {
     if (processingTasks.has(subtaskId)) return;
 
+    queryCache.invalidateByPrefix('hoy:');
+
     setProcessingTasks((prev) => new Set(prev).add(subtaskId));
 
     try {
       const updateData = { status: STATUS.POSTPONED };
-      
+
       await patchSubtask(activityId, subtaskId, updateData);
       await updateSubtask(activityId, subtaskId, updateData);
 
@@ -278,7 +292,7 @@ export default function ProgressPage() {
 
     } catch (err: any) {
       console.error('❌ PATCH Error:', err);
-      
+
       showToast('No se pudo posponer la tarea. Verifica tu conexión e intenta de nuevo.', 'error');
       refresh();
     } finally {
@@ -318,7 +332,7 @@ export default function ProgressPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-[#101622] p-6 lg:p-8">
       {/* ✅ CAMBIO 10: Renderizar ToastComponent en la raíz */}
       <ToastComponent />
-      
+
       <div className="max-w-7xl mx-auto">
         {/* Header Section */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
@@ -328,59 +342,21 @@ export default function ProgressPage() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="filter-by-course" className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Agrupar por curso
-              </label>
-              <Select value={filter} onValueChange={setFilter}>
-                <SelectTrigger
-                  id="filter-by-course"
-                  className="min-w-[220px] h-11 rounded-xl bg-white dark:bg-[#1a2230] border-slate-200 dark:border-slate-700 cursor-pointer transition-all duration-200 hover:border-primary/40 hover:bg-slate-50 dark:hover:bg-slate-800/50 focus:ring-2 focus:ring-primary/20 [&>svg]:transition-transform data-[state=open]:[&>svg]:rotate-180"
-                >
-                  <SelectValue placeholder="Filtrar por curso" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl shadow-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1a2230] py-1.5 min-w-[var(--radix-select-trigger-width)]">
-                  <SelectGroup>
-                    <SelectLabel className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider px-3 py-2">
-                      Ver tareas de
-                    </SelectLabel>
-                    <SelectItem
-                      value="all"
-                      className="cursor-pointer rounded-lg mx-1.5 py-2.5 pl-9 pr-3 focus:bg-primary/10 focus:text-primary data-[highlighted]:bg-primary/10 data-[highlighted]:text-primary transition-colors"
-                    >
-                      <span className="flex items-center gap-2.5">
-                        <BarChart3 className="h-4 w-4 text-primary shrink-0" />
-                        <span>Todos los cursos</span>
-                      </span>
-                    </SelectItem>
-                  </SelectGroup>
-                  <SelectSeparator className="my-1.5 bg-slate-200 dark:bg-slate-700" />
-                  <SelectGroup>
-                    {courses.map((c: Course) => {
-                      const CourseIcon = getCourseIcon(c.name);
-                      const colorKey = getCourseColor(c);
-                      return (
-                        <SelectItem
-                          key={c.id}
-                          value={c.name}
-                          className="cursor-pointer rounded-lg mx-1.5 py-2.5 pl-9 pr-3 focus:bg-primary/10 focus:text-primary data-[highlighted]:bg-primary/10 data-[highlighted]:text-primary transition-colors"
-                        >
-                          <span className="flex items-center gap-2.5">
-                            <span
-                              className={cn(
-                                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-                                courseColorClasses[colorKey] || courseColorClasses.cyan
-                              )}
-                            >
-                              <CourseIcon className={cn("h-4 w-4", courseColorClasses[colorKey]?.split(' ')[1] || 'text-cyan-500')} />
-                            </span>
-                            <span className="font-medium">{c.name}</span>
-                          </span>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+              <FilterDropdown
+                courseFilter={courseFilter}
+                statusFilter={statusFilter}
+                setCourseFilter={setCourseFilter}
+                setStatusFilter={setStatusFilter}
+                courses={courses}
+              />
+              {hasActiveFilters && (
+                <span className="text-xs text-blue-500 font-medium">
+                  Filtrado por:
+                  {courseFilter !== "all" && ` Curso`}
+                  {statusFilter !== "all" && ` Estado`}
+                </span>
+              )}
+
             </div>
             <Button asChild className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/30">
               <Link to="/crear">
@@ -399,9 +375,11 @@ export default function ProgressPage() {
               <Card className="border-dashed border-slate-200 dark:border-slate-700">
                 <CardContent className="flex flex-col items-center py-16 text-center">
                   <BarChart3 className="h-12 w-12 text-slate-400 mb-4" />
-                  <h3 className="font-semibold text-lg text-slate-900 dark:text-white">Aún no hay actividades</h3>
+                  <h3 className="font-semibold text-lg text-slate-900 dark:text-white">
+                    Sin resultados
+                  </h3>
                   <p className="text-slate-500 dark:text-slate-400 mt-1">
-                    Crea tu primera actividad para comenzar a seguir tu progreso.
+                    No hay actividades que coincidan con los filtros seleccionados.
                   </p>
                   <Button asChild className="mt-4">
                     <Link to="/crear">Crear actividad</Link>
@@ -413,16 +391,16 @@ export default function ProgressPage() {
                 const courseName = getCourseName(activity.course);
                 const courseColor = getCourseColor(activity.course);
                 const CourseIcon = getCourseIcon(courseName);
-                
+
                 const done = activity.subtasks.filter((s: Subtask) => s.status === STATUS.DONE).length;
                 const total = activity.subtasks.length;
                 const pct = total > 0 ? Math.round((done / total) * 100) : 0;
                 const isOpen = expanded[activity.id] ?? true;
-                
+
                 const pending = activity.subtasks.filter((s: Subtask) => s.status !== STATUS.DONE);
-                
+
                 const allCompleted = total > 0 && done === total;
-                
+
                 const isBehind = pct < 50 && getDaysLeft(activity.deadline) !== null && getDaysLeft(activity.deadline)! <= 5;
 
                 return (
@@ -441,12 +419,12 @@ export default function ProgressPage() {
                             <CourseIcon className={cn("h-6 w-6", courseColorClasses[courseColor]?.split(' ')[1] || 'text-cyan-500')} />
                           </div>
                           <div>
-                              <Link
-                                to={`/actividad/${activity.id}`}
-                                className="text-xl font-semibold text-slate-900 dark:text-white hover:text-primary transition-colors"
-                              >
-                                {activity.title}
-                              </Link>
+                            <Link
+                              to={`/actividad/${activity.id}`}
+                              className="text-xl font-semibold text-slate-900 dark:text-white hover:text-primary transition-colors"
+                            >
+                              {activity.title}
+                            </Link>
                             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                               Próxima fecha límite:{' '}
                               <span className={cn("font-medium", getDeadlineColor(activity.deadline, pct))}>
@@ -460,11 +438,11 @@ export default function ProgressPage() {
                             variant={isBehind ? 'destructive' : 'secondary'}
                             className={cn(
                               "text-xs font-semibold",
-                              isBehind 
+                              isBehind
                                 ? 'bg-red-500/10 text-red-500 border-red-500/20'
                                 : pct === 100
-                                ? 'bg-green-500/10 text-green-500 border-green-500/20'
-                                : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
+                                  ? 'bg-green-500/10 text-green-500 border-green-500/20'
+                                  : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
                             )}
                           >
                             {isBehind ? 'Retrasado' : pct === 100 ? 'Completado' : 'En curso'}
@@ -535,7 +513,9 @@ export default function ProgressPage() {
                                     {st.estimated_hours && (
                                       <Badge variant="secondary" className="text-[10px]">
                                         <Clock className="h-3 w-3 mr-1" />
-                                        {st.estimated_hours}h
+                                        {typeof st.estimated_hours === 'string' 
+                                          ? parseFloat(st.estimated_hours).toFixed(1)
+                                          : (st.estimated_hours || 0).toFixed(1)}h
                                       </Badge>
                                     )}
                                   </div>
@@ -612,7 +592,7 @@ export default function ProgressPage() {
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500 dark:text-slate-400">Tiempo de estudio</span>
-                    <span className="font-semibold text-slate-900 dark:text-white">{totalHoursDone}h</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">{totalHoursDone.toFixed(1)}h</span>
                   </div>
                 </div>
               </CardContent>
@@ -632,8 +612,8 @@ export default function ProgressPage() {
                         <div className={cn(
                           "mt-1 w-2 h-2 rounded-full",
                           recentWins.indexOf(w) === 0 ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' :
-                          recentWins.indexOf(w) === 1 ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]' :
-                          'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.6)]'
+                            recentWins.indexOf(w) === 1 ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]' :
+                              'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.6)]'
                         )} />
                         <div>
                           <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{w.name}</p>
