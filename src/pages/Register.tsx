@@ -1,9 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/shared/components/button";
 import { Input } from "@/shared/components/input";
 import { Checkbox } from "@/shared/components/checkbox";
 import { Label } from "@/shared/components/label";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/shared/components/select";
 import { ArrowRight, GraduationCap, AlertCircle, Eye, EyeOff, CheckCircle } from "lucide-react";
 import { register } from "@/api/services/auth";
 import { useAuth } from "@/app/authContext";
@@ -37,11 +36,26 @@ export default function Register() {
     const [passwordTouched, setPasswordTouched] = useState(false);
     const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false);
 
-    // Email helper state (parte local + dominio o modo personalizado)
-    const [emailMode, setEmailMode] = useState<"preset" | "custom">("preset");
-    const [emailLocalPart, setEmailLocalPart] = useState("");
-    const [emailDomain, setEmailDomain] = useState("@gmail.com");
-    const [customEmail, setCustomEmail] = useState("");
+    // Email autocomplete states
+    const [emailSuggestions, setEmailSuggestions] = useState<string[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+    const emailInputRef = useRef<HTMLInputElement>(null);
+    const suggestionsRef = useRef<HTMLDivElement>(null);
+
+    // Dominios comunes con sus abreviaciones
+    const emailDomains = [
+        { domain: "@gmail.com", keywords: ["gm", "gmail", "google"] },
+        { domain: "@outlook.com", keywords: ["out", "outlook", "msn"] },
+        { domain: "@outlook.es", keywords: ["out", "outlook"] },
+        { domain: "@correounivalle.edu.co", keywords: ["correoun", "univalle", "valle"] },
+        { domain: "@hotmail.com", keywords: ["hot", "hotmail"] },
+        { domain: "@yahoo.com", keywords: ["yah", "yahoo"] },
+        { domain: "@icloud.com", keywords: ["icl", "icloud", "apple"] },
+        { domain: "@protonmail.com", keywords: ["prot", "proton", "protonmail"] },
+        { domain: "@live.com", keywords: ["liv", "live"] },
+        { domain: "@msn.com", keywords: ["msn"] },
+    ];
 
     // Password validation rules
     const passwordHasMinLength = password.length >= 8;
@@ -61,6 +75,110 @@ export default function Register() {
             navigate("/hoy", { replace: true });
         }
     }, [isAuthenticated, authLoading, navigate, isLoading, showSuccessModal]);
+
+    // Función para generar sugerencias de dominio
+    const getEmailSuggestions = (input: string): string[] => {
+        const atIndex = input.lastIndexOf("@");
+        if (atIndex === -1) return [];
+
+        const domainPart = input.substring(atIndex + 1).toLowerCase();
+        if (domainPart.length === 0) return [];
+
+        const localPart = input.substring(0, atIndex);
+        const suggestions: Array<{ email: string; score: number }> = [];
+
+        emailDomains.forEach(({ domain, keywords }) => {
+            const domainWithoutAt = domain.substring(1);
+            let score = 0;
+
+            // Verificar coincidencias exactas en keywords (mayor prioridad)
+            const exactKeywordMatch = keywords.some(keyword => {
+                if (keyword === domainPart) {
+                    score = 100; // Coincidencia exacta
+                    return true;
+                }
+                if (keyword.startsWith(domainPart)) {
+                    score = Math.max(score, 50); // Coincidencia parcial en keyword
+                    return true;
+                }
+                return false;
+            });
+
+            // Verificar coincidencia en el dominio completo
+            if (domainWithoutAt.startsWith(domainPart)) {
+                score = Math.max(score, 30);
+            }
+
+            if (exactKeywordMatch || domainWithoutAt.startsWith(domainPart)) {
+                suggestions.push({
+                    email: `${localPart}${domain}`,
+                    score: score
+                });
+            }
+        });
+
+        // Ordenar por score (mayor a menor) y devolver máximo 5
+        return suggestions
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5)
+            .map(item => item.email);
+    };
+
+    // Manejar cambios en el input de email
+    const handleEmailChange = (value: string) => {
+        setEmail(value);
+        if (errors.email) setErrors(prev => ({ ...prev, email: undefined }));
+
+        const suggestions = getEmailSuggestions(value);
+        setEmailSuggestions(suggestions);
+        setShowSuggestions(suggestions.length > 0 && value.includes("@"));
+        setSelectedSuggestionIndex(-1);
+    };
+
+    // Manejar selección de sugerencia
+    const handleSelectSuggestion = (suggestion: string) => {
+        setEmail(suggestion);
+        setShowSuggestions(false);
+        setEmailSuggestions([]);
+        emailInputRef.current?.focus();
+    };
+
+    // Manejar teclado en sugerencias
+    const handleEmailKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (!showSuggestions || emailSuggestions.length === 0) return;
+
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setSelectedSuggestionIndex(prev =>
+                prev < emailSuggestions.length - 1 ? prev + 1 : prev
+            );
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setSelectedSuggestionIndex(prev => (prev > 0 ? prev - 1 : -1));
+        } else if (e.key === "Enter" && selectedSuggestionIndex >= 0) {
+            e.preventDefault();
+            handleSelectSuggestion(emailSuggestions[selectedSuggestionIndex]);
+        } else if (e.key === "Escape") {
+            setShowSuggestions(false);
+        }
+    };
+
+    // Cerrar sugerencias al hacer click fuera
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                emailInputRef.current &&
+                !emailInputRef.current.contains(event.target as Node) &&
+                suggestionsRef.current &&
+                !suggestionsRef.current.contains(event.target as Node)
+            ) {
+                setShowSuggestions(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     const validate = () => {
         const newErrors: typeof errors = {};
@@ -230,67 +348,49 @@ export default function Register() {
                             <div className="space-y-2">
                                 <Label htmlFor="email" className="text-slate-300 text-xs font-semibold">Correo electrónico</Label>
 
-                                {emailMode === "preset" ? (
-                                    <div className="flex gap-0">
-                                        <Input
-                                            id="email"
-                                            type="text"
-                                            autoComplete="off"
-                                            value={emailLocalPart}
-                                            onChange={(e) => {
-                                                const value = e.target.value.replace(/\s/g, "");
-                                                setEmailLocalPart(value);
-                                                const composed = value ? `${value}${emailDomain}` : "";
-                                                setEmail(composed);
-                                                if (errors.email) setErrors(prev => ({ ...prev, email: undefined }));
-                                            }}
-                                            placeholder="Ej: ejemplo.email"
-                                            className={`flex-1 bg-[#0F172A] border ${errors.email ? 'border-red-500 focus-visible:ring-red-500' : 'border-slate-800 focus-visible:ring-blue-500'} text-slate-100 placeholder:text-slate-500 h-12 rounded-l-xl rounded-r-none`}
-                                        />
-                                        <Select
-                                            value={emailDomain}
-                                            onValueChange={(value) => {
-                                                if (value === "custom") {
-                                                    const currentFull = emailLocalPart ? `${emailLocalPart}${emailDomain}` : "";
-                                                    setCustomEmail(currentFull);
-                                                    setEmail(currentFull);
-                                                    setEmailMode("custom");
-                                                    return;
-                                                }
-                                                setEmailDomain(value);
-                                                const composed = emailLocalPart ? `${emailLocalPart}${value}` : "";
-                                                setEmail(composed);
-                                                if (errors.email) setErrors(prev => ({ ...prev, email: undefined }));
-                                            }}
-                                        >
-                                            <SelectTrigger
-                                                className={`w-56 bg-[#0F172A] border ${errors.email ? 'border-red-500 focus:ring-red-500' : 'border-slate-800 focus:ring-blue-500'} text-slate-100 h-12 rounded-r-xl rounded-l-none border-l-0`}
-                                            >
-                                                <SelectValue placeholder="@gmail.com" />
-                                            </SelectTrigger>
-                                            <SelectContent className="bg-[#020617] border border-slate-800 text-slate-100">
-                                                <SelectItem value="@gmail.com">@gmail.com</SelectItem>
-                                                <SelectItem value="@correounivalle.edu.co">@correounivalle.edu.co</SelectItem>
-                                                <SelectItem value="@outlook.com">@outlook.com</SelectItem>
-                                                <SelectItem value="custom">Añadir...</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                ) : (
+                                <div className="relative">
                                     <Input
+                                        ref={emailInputRef}
                                         id="email"
                                         type="email"
-                                        value={customEmail}
+                                        autoComplete="off"
+                                        value={email}
                                         onChange={(e) => {
-                                            const value = e.target.value.trim();
-                                            setCustomEmail(value);
-                                            setEmail(value);
-                                            if (errors.email) setErrors(prev => ({ ...prev, email: undefined }));
+                                            const value = e.target.value.replace(/\s/g, "");
+                                            handleEmailChange(value);
                                         }}
-                                        placeholder="Ej: ejemplo.email@ejemplo.com"
+                                        onKeyDown={handleEmailKeyDown}
+                                        onFocus={() => {
+                                            const suggestions = getEmailSuggestions(email);
+                                            if (suggestions.length > 0 && email.includes("@")) {
+                                                setShowSuggestions(true);
+                                            }
+                                        }}
+                                        placeholder="Ej: ejemplo.email@gmail.com"
                                         className={`bg-[#0F172A] border ${errors.email ? 'border-red-500 focus-visible:ring-red-500' : 'border-slate-800 focus-visible:ring-blue-500'} text-slate-100 placeholder:text-slate-500 h-12 rounded-xl`}
                                     />
-                                )}
+
+                                    {/* Dropdown de sugerencias */}
+                                    {showSuggestions && emailSuggestions.length > 0 && (
+                                        <div
+                                            ref={suggestionsRef}
+                                            className="absolute z-50 w-full mt-1 bg-[#0F172A] border border-slate-800 rounded-xl shadow-lg overflow-hidden"
+                                        >
+                                            {emailSuggestions.map((suggestion, index) => (
+                                                <button
+                                                    key={index}
+                                                    type="button"
+                                                    onClick={() => handleSelectSuggestion(suggestion)}
+                                                    className={`w-full text-left px-4 py-3 text-sm text-slate-100 hover:bg-slate-800 transition-colors ${
+                                                        index === selectedSuggestionIndex ? "bg-slate-800" : ""
+                                                    } ${index === 0 ? "" : "border-t border-slate-800"}`}
+                                                >
+                                                    {suggestion}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
 
                                 {errors.email && (
                                     <p className="text-red-500 text-xs flex items-center mt-1">
