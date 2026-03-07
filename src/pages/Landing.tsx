@@ -138,11 +138,6 @@ export default function Landing() {
                 <section className="w-full max-w-6xl mx-auto px-6 py-20 lg:py-32 flex flex-col lg:flex-row items-center justify-between gap-16">
                     {/* Left Column */}
                     <div className="flex-1 space-y-8">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold tracking-wider uppercase">
-                            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                            Útil para cualquier entorno académico
-                        </div>
-
                         <h1 className="text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.1]">
                             Reduce tu <span className="text-blue-500">estrés académico</span> hoy
                         </h1>
