@@ -261,7 +261,7 @@ export default function Landing() {
                                 <div className="space-y-3">
                                     <h3 className="text-xl font-bold text-white">Detección de Conflictos</h3>
                                     <p className="text-sm text-slate-400 leading-relaxed">
-                                        Te avisaremos si planeas más de <span className="text-orange-400 font-medium">6 horas</span> seguidas sin descanso.
+                                        Te avisaremos si planeas más de <span className="text-orange-400 font-medium">de tu tiempo establecido</span> seguido sin descanso.
                                     </p>
                                 </div>
                                 <div className="mt-auto pt-6 flex flex-col items-center gap-4">
