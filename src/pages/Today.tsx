@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { parseISO, startOfDay, differenceInDays, format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, Info, CheckCircle2, Calendar, Pencil, Check, ChevronUp, ChevronDown, HelpCircle } from "lucide-react";
+import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, Info, CheckCircle2, Calendar, Pencil, Check, ChevronUp, ChevronDown, HelpCircle, CalendarRange } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import { useAuth } from "@/app/authContext";
@@ -182,31 +182,17 @@ export default function Today() {
     return item.title.toLowerCase().includes(s) || (item.activity?.course?.name || "").toLowerCase().includes(s);
   };
 
-  const filteredVencidas = vencidas.filter(searchFilter);
+  // En "vencidas" solo mostramos tareas no completadas (pendientes, pospuestas, etc.)
+  const vencidasPendientes = useMemo(
+    () => vencidas.filter((item: any) => item.status !== "DONE"),
+    [vencidas]
+  );
+  const filteredVencidas = vencidasPendientes.filter(searchFilter);
   const filteredParaHoy = para_hoy.filter(searchFilter);
   const filteredProximas = proximas.filter(searchFilter);
 
   const pendingTodayCount = filteredParaHoy.filter((t: any) => t.status !== "DONE").length;
 
-<<<<<<< Updated upstream
-  return (
-    <div className="flex flex-col gap-8 max-w-[1580px] w-full mx-auto px-4 sm:px-6 lg:px-10 pb-10 mt-6 lg:mt-10">
-      {/* HEADER SECTION */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
-        {/* Welcome Card */}
-        <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 lg:p-8 flex items-center justify-between shadow-xl shadow-black/20 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -mr-20 -mt-20"></div>
-          <div className="space-y-2 relative z-10">
-            <h1 className="text-2xl lg:text-3xl font-extrabold text-white">
-              <span className="text-blue-500">{getGreeting(user?.name || "Estudiante")}</span> Aquí encuentras tus tareas para hoy
-            </h1>
-            <p className="text-slate-400 font-medium">
-              Tienes {pendingTodayCount === 1 ? '1 tarea pendiente' : `${pendingTodayCount} tareas pendientes`} hoy
-            </p>
-          </div>
-          <div className="bg-blue-600/10 p-4 rounded-2xl hidden sm:flex border border-blue-500/20 relative z-10">
-            <CalendarDays className="w-8 h-8 text-blue-500" />
-=======
   if (!loading && !hasActiveFilters && vencidas.length === 0 && para_hoy.length === 0 && proximas.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-120px)] w-full px-4 text-center animate-in fade-in zoom-in-[0.98] duration-700">
@@ -219,7 +205,6 @@ export default function Today() {
             <div className="absolute -bottom-6 -right-6 w-20 h-20 bg-blue-600 rounded-[1.2rem] shadow-xl shadow-blue-600/30 flex items-center justify-center -rotate-12 transform hover:rotate-0 hover:scale-110 transition-all duration-300 border-[6px] border-[#0B1120]">
               <Check className="w-10 h-10 text-white" strokeWidth={3} />
             </div>
->>>>>>> Stashed changes
           </div>
         </div>
 
@@ -231,42 +216,6 @@ export default function Today() {
           Aún no tienes actividades registradas. Este es el momento perfecto para organizar tu día y darle forma a tus proyectos.
         </p>
 
-<<<<<<< Updated upstream
-                {!isEditingLimit ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsEditingLimit(true)}
-                    className="h-9 px-4 rounded-xl bg-slate-800/50 hover:bg-blue-500/20 text-slate-300 hover:text-blue-400 transition-all border border-slate-700/50"
-                  >
-                    <Pencil className="w-4 h-4 mr-2" />
-                    Editar
-                  </Button>
-                ) : (
-                  <div className="flex items-center gap-2 bg-slate-900 border border-blue-500/30 rounded-xl p-1.5 animate-in zoom-in-95 duration-200">
-                    <Input
-                      type="number"
-                      step="0.5"
-                      min="0.5"
-                      max="24"
-                      value={tempLimit}
-                      onChange={(e) => setTempLimit(e.target.value)}
-                      className="w-20 h-9 text-center bg-[#111827] border-slate-700 focus-visible:ring-1 focus-visible:ring-blue-500 text-white font-bold text-base rounded-lg"
-                      autoFocus
-                    />
-                    <Button
-                      size="sm"
-                      onClick={handleSaveLimit}
-                      className="h-9 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow-md font-medium"
-                    >
-                      <Check className="w-4 h-4 mr-2" />
-                      Guardar
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-=======
         <button
           onClick={() => navigate('/crear')}
           className="group relative flex items-center gap-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl px-10 py-5 text-lg transition-all hover:-translate-y-1 shadow-[0_0_40px_-10px_rgba(37,99,235,0.4)] hover:shadow-[0_0_60px_-15px_rgba(37,99,235,0.6)]"
@@ -337,7 +286,6 @@ export default function Today() {
           <div className="flex-1 flex flex-col items-center justify-center py-24 gap-4">
             <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
             <p className="text-slate-400 font-medium tracking-wide">Cargando tus tareas de hoy...</p>
->>>>>>> Stashed changes
           </div>
         ) : (
           <div className="flex-1 min-h-[500px]">
@@ -451,41 +399,6 @@ export default function Today() {
         )}
       </div>
 
-<<<<<<< Updated upstream
-      {/* FILTER BAR SECTION */}
-      <div className="bg-[#111827] border border-slate-800/60 rounded-2xl p-4 shadow-lg shadow-black/10 flex flex-col gap-4">
-        <div className="flex items-center gap-2 px-1">
-          <Search className="w-5 h-5 text-blue-500" />
-          <h2 className="text-white font-bold text-lg">Filtros</h2>
-          {hasActiveFilters && (
-            <span className="ml-2 text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded-lg font-semibold">
-              Filtrado por:
-              {filters.course && " Curso"}
-              {filters.status && " Estado"}
-              {search && " Busqueda"}
-            </span>
-          )
-          }
-        </div>
-
-        <div className="flex flex-col md:flex-row gap-4 items-end">
-          <div className="flex-1 w-full flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Buscar por nombre</label>
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar tarea..."
-                className="w-full pl-12 bg-[#1F2937]/50 border-slate-700/50 focus-visible:ring-blue-500 h-12 rounded-xl text-slate-200 placeholder:text-slate-500 block"
-              />
-            </div>
-          </div>
-
-          <div className="flex w-full md:w-auto gap-3 items-end">
-            <div className="relative flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Curso</label>
-=======
       {/* RIGHT SIDE: INFO & FILTERS (Approx 40% of layout) */}
       <div className="lg:w-[35%] xl:w-[30%] flex flex-col gap-6 order-1 lg:order-2">
         <div className="flex flex-col gap-6 w-full">
@@ -629,26 +542,22 @@ export default function Today() {
 
             <div className="w-full flex flex-col gap-1.5">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Curso</label>
->>>>>>> Stashed changes
               <Select
                 value={filters.course || "all"}
                 onValueChange={(v) => setFilters(prev => ({ ...prev, course: v === "all" ? "" : v }))}
                 disabled={loading}
               >
-<<<<<<< Updated upstream
-                <SelectTrigger className="w-full md:w-[200px] bg-[#1F2937]/50 border-slate-700/50 text-slate-200 h-12 rounded-xl focus:ring-blue-500 shadow-inner">
-=======
                 <SelectTrigger
                   style={filters.course ? {
                     backgroundColor: 'white',
                     fontFamily: '"Lexend", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
                   } : undefined}
-                  className={`w-full h-12 rounded-xl focus:ring-blue-500 shadow-inner border ${filters.course
-                    ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600"
-                    : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
-                    }`}
+                  className={`w-full md:w-[200px] h-12 rounded-xl focus:ring-blue-500 shadow-inner border ${
+                    filters.course
+                      ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600"
+                      : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
+                  }`}
                 >
->>>>>>> Stashed changes
                   <SelectValue placeholder="Todos los cursos" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl">
@@ -662,32 +571,24 @@ export default function Today() {
               </Select>
             </div>
 
-<<<<<<< Updated upstream
-            <div className="relative flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">Estado</label>
-=======
             <div className="w-full flex flex-col gap-1.5">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Estado</label>
->>>>>>> Stashed changes
               <Select
                 value={filters.status || "all"}
                 onValueChange={(v) => setFilters(prev => ({ ...prev, status: v === "all" ? "" : v }))}
                 disabled={loading}
               >
-<<<<<<< Updated upstream
-                <SelectTrigger className="w-full md:w-[170px] bg-[#1F2937]/50 border-slate-700/50 text-slate-200 h-12 rounded-xl focus:ring-blue-500 shadow-inner">
-=======
                 <SelectTrigger
                   style={filters.status ? {
                     backgroundColor: 'white',
                     fontFamily: '"Lexend", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
                   } : undefined}
-                  className={`w-full h-12 rounded-xl focus:ring-blue-500 shadow-inner border ${filters.status
-                    ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600"
-                    : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
-                    }`}
+                  className={`w-full md:w-[170px] h-12 rounded-xl focus:ring-blue-500 shadow-inner border ${
+                    filters.status
+                      ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600"
+                      : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
+                  }`}
                 >
->>>>>>> Stashed changes
                   <SelectValue placeholder="Cualquier estado" />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl">
@@ -701,131 +602,18 @@ export default function Today() {
             <Button
               variant="outline"
               onClick={handleClearFilters}
-<<<<<<< Updated upstream
-              className="h-12 border-slate-700/50 bg-[#1F2937]/50 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl mb-[1px]"
-=======
               disabled={!hasActiveFilters}
-              className={`w-full h-12 rounded-xl mt-2 transition-all ${hasActiveFilters
-                ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
-                : "border-slate-700/50 bg-[#1F2937]/50 text-slate-400 cursor-not-allowed opacity-50"
-                }`}
->>>>>>> Stashed changes
+              className={`h-12 rounded-xl mb-[1px] transition-all ${
+                hasActiveFilters
+                  ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
+                  : "border-slate-700/50 bg-[#1F2937]/50 text-slate-400 cursor-not-allowed opacity-50"
+              }`}
             >
               <X className="w-4 h-4 mr-2" /> Limpiar Filtros
             </Button>
           </div>
         </div>
       </div>
-
-<<<<<<< Updated upstream
-      {loading ? (
-        <div className="flex-1 flex flex-col items-center justify-center py-24 gap-4">
-          <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
-          <p className="text-slate-400 font-medium tracking-wide">Cargando tus tareas de hoy...</p>
-        </div>
-      ) : (
-        /* 3 COLUMNS SECTION */
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-6 items-start w-full">
-          {/* COLUMN 1: VENCIDAS */}
-          <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20 flex flex-col h-full min-w-105">
-            <div className="flex items-center gap-3 mb-2">
-              <AlertCircle className="w-6 h-6 text-red-500 shrink-0" />
-              <h3 className="text-xl font-black tracking-widest text-[#94A3B8] uppercase">Vencidas</h3>
-            </div>
-            <ScrollableTaskSection>
-              {filteredVencidas.map((item: any, idx: number) => (
-                <TaskCard
-                  key={item.id}
-                  item={item}
-                  badge={idx === 0 ? "MÁS ANTIGUA" : null}
-                  theme="red"
-                  onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
-                />
-              ))}
-              {filteredVencidas.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-12 px-4 text-center mt-4">
-                  <CheckCircle2 className="w-14 h-14 text-slate-600/50 mb-4" strokeWidth={1.5} />
-                  <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[200px]">
-                    {search || filters.course || (filters.status && filters.status !== 'PENDING')
-                      ? "No hay tareas atrasadas que coincidan con los filtros aplicados."
-                      : "No tienes tareas atrasadas. ¡Buen trabajo!"}
-                  </p>
-                </div>
-              )}
-            </ScrollableTaskSection>
-          </div>
-
-          {/* COLUMN 2: PARA HOY */}
-          <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20 flex flex-col h-full min-w-0">
-            <div className="flex items-center gap-3 mb-2">
-              <CalendarDays className="w-6 h-6 text-emerald-400 shrink-0" />
-              <h3 className="text-xl font-black tracking-widest text-[#94A3B8] uppercase">Para Hoy</h3>
-            </div>
-            <ScrollableTaskSection>
-              {filteredParaHoy.map((item: any, idx: number) => (
-                <TaskCard
-                  key={item.id}
-                  item={item}
-                  badge={idx === 0 ? "LA MÁS CORTA" : null}
-                  theme="emerald"
-                  onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
-                />
-              ))}
-              {filteredParaHoy.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-12 px-4 text-center mt-4">
-                  <CheckCircle2 className="w-16 h-16 text-slate-600/50 mb-4" strokeWidth={1.5} />
-                  <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[260px] mb-6 shadow-sm">
-                    {filters.status === 'DONE'
-                      ? "No tienes tareas completadas para hoy. Revisa en Pendientes"
-                      : search || filters.course || (filters.status && filters.status !== 'PENDING')
-                        ? "No hay tareas para hoy que coincidan con los filtros aplicados."
-                        : "No tienes tareas para hoy. Disfruta tu descanso o añade alguna tarea"}
-                  </p>
-                  {!(search || filters.course || (filters.status && filters.status !== 'PENDING')) && (
-                    <Button
-                      onClick={() => navigate('/crear')}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl px-5 py-2.5 transition-colors shadow-lg shadow-blue-600/20"
-                    >
-                      + Nueva actividad
-                    </Button>
-                  )}
-                </div>
-              )}
-            </ScrollableTaskSection>
-          </div>
-
-          {/* COLUMN 3: PRÓXIMAS */}
-          <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20 flex flex-col h-full min-w-105">
-            <div className="flex items-center gap-3 mb-2">
-              <CalendarClock className="w-6 h-6 text-blue-500 shrink-0" />
-              <h3 className="text-xl font-black tracking-widest text-[#94A3B8] uppercase">Próximas</h3>
-            </div>
-            <ScrollableTaskSection>
-              {filteredProximas.map((item: any, idx: number) => (
-                <TaskCard
-                  key={item.id}
-                  item={item}
-                  badge={idx === 0 ? "MÁS CERCANA" : null}
-                  theme="blue"
-                  onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
-                />
-              ))}
-              {filteredProximas.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-12 px-4 text-center mt-4">
-                  <Calendar className="w-14 h-14 text-slate-600/50 mb-4" strokeWidth={1.5} />
-                  <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[200px]">
-                    {search || filters.course || (filters.status && filters.status !== 'PENDING')
-                      ? "No hay tareas próximas que coincidan con los filtros aplicados."
-                      : "No hay tareas próximas. Todo está al día."}
-                  </p>
-                </div>
-              )}
-            </ScrollableTaskSection>
-          </div>
-        </div>
-      )}
-=======
->>>>>>> Stashed changes
 
       {/* Welcome Modal */}
       {showWelcomeModal && (
@@ -837,76 +625,59 @@ export default function Today() {
               <Info className="w-6 h-6 text-blue-400" />
             </div>
 
-<<<<<<< Updated upstream
-            <h3 className="text-[17px] font-semibold text-white mb-8 tracking-wide">Te encuentras en hoy, aquí podrás ver:</h3>
+            <h3 className="text-2xl font-extrabold text-white mb-4 tracking-tight">
+              Vista <span className="text-blue-400">Hoy</span>: orden de prioridad
+            </h3>
+            <p className="text-slate-400 text-sm mb-6 px-2">
+              Esta pantalla sigue una regla clara para que sepas qué atender primero:
+            </p>
 
             <div className="flex flex-col gap-5 text-left w-full mb-8 pl-8 pr-4">
-              <div className="flex items-start gap-4">
-                <CalendarDays className="w-5 h-5 text-emerald-400 mt-1 shrink-0" />
-                <p className="text-emerald-400 text-[15px] font-medium leading-snug">Tus tareas propuestas para hoy y organizadas de menor a mayor tiempo</p>
-=======
-            <h3 className="text-xl sm:text-2xl font-extrabold text-white mb-8 tracking-tight">
-              ¡Este es tu centro de mando! Tu día se enfoca en
-              <span className="text-blue-400"> tus prioridades: </span>
-            </h3>
-
-            <div className="flex flex-col gap-5 text-left w-full mb-8 pl-4 sm:pl-8 pr-4">
               <div className="flex items-start gap-4">
                 <div className="bg-emerald-400/10 p-2.5 rounded-xl border border-emerald-400/20 mt-0.5">
                   <CalendarDays className="w-5 h-5 text-emerald-400 shrink-0" />
                 </div>
                 <div>
                   <p className="text-emerald-400 text-[15px] font-bold leading-snug mb-1">
-                    1. Tareas de Hoy
+                    1. Tareas de hoy (prioridad)
                   </p>
                   <p className="text-slate-400 text-[13px] leading-relaxed">
-                    Son tu prioridad absoluta. Te sugerimos completarlas primero (¡las más cortas salen al inicio!).
+                    Lo primero que verás son las tareas del día. Son tu prioridad: complétalas primero. Se muestran ordenadas de menor a mayor tiempo estimado.
                   </p>
                 </div>
->>>>>>> Stashed changes
               </div>
 
               <div className="flex items-start gap-4">
-<<<<<<< Updated upstream
-                <AlertCircle className="w-5 h-5 text-red-500 mt-1 shrink-0" />
-                <p className="text-red-400 text-[15px] font-medium leading-snug">Tus tareas vencidas de más antiguas a menos antiguas</p>
-=======
                 <div className="bg-orange-500/10 p-2.5 rounded-xl border border-orange-500/20 mt-0.5">
                   <Clock className="w-5 h-5 text-orange-500 shrink-0" />
                 </div>
                 <div>
                   <p className="text-orange-500 text-[15px] font-bold leading-snug mb-1">
-                    2. Límite de Horas
+                    2. Límite de horas
                   </p>
                   <p className="text-slate-400 text-[13px] leading-relaxed">
-                    Revisa en todo momento no pasarte de la capacidad de estudio diario que tú mismo definiste.
+                    En segundo lugar, revisa tu tiempo de estudio diario. No te pases del límite que definiste; si te pasas, la barra te avisará.
                   </p>
                 </div>
->>>>>>> Stashed changes
               </div>
 
               <div className="flex items-start gap-4">
-<<<<<<< Updated upstream
-                <CalendarClock className="w-5 h-5 text-blue-400 mt-1 shrink-0" />
-                <p className="text-blue-400 text-[15px] font-medium leading-snug">Tus tareas próximas de más cercanas a más lejanas</p>
-=======
                 <div className="bg-blue-500/10 p-2.5 rounded-xl border border-blue-500/20 mt-0.5">
                   <CalendarClock className="w-5 h-5 text-blue-400 shrink-0" />
                 </div>
                 <div>
                   <p className="text-blue-400 text-[15px] font-bold leading-snug mb-1">
-                    3. Vencidas y Próximas
+                    3. Vencidas y próximas
                   </p>
                   <p className="text-slate-400 text-[13px] leading-relaxed">
-                    Finalmente, dale un vistazo a lo que quedó pendiente o a lo que se te viene para organizar tu tiempo sabiamente.
+                    Por último, usa las pestañas para ver lo atrasado (vencidas) y lo que viene (próximas), y así tener el panorama completo.
                   </p>
                 </div>
->>>>>>> Stashed changes
               </div>
             </div>
 
-            <p className="text-slate-400 text-[13px] font-medium mt-2 mb-8 px-4">
-              Podrás aplicar filtros de búsqueda por nombre, curso y estado.
+            <p className="text-slate-400 text-[13px] font-medium mt-2 mb-6 px-4">
+              Puedes filtrar por nombre, curso y estado cuando lo necesites.
             </p>
 
             <div className="mb-8 w-full px-4">
@@ -942,8 +713,6 @@ export default function Today() {
           </div>
         </div>
       )}
-<<<<<<< Updated upstream
-=======
 
       {/* Modal de Ayuda */}
       {showHelpModal && (
@@ -955,57 +724,42 @@ export default function Today() {
               <Info className="w-6 h-6 text-blue-400" />
             </div>
 
-            <h3 className="text-xl sm:text-2xl font-extrabold text-white mb-8 tracking-tight">
-              ¡Este es tu centro de mando! Tu día se enfoca en
-              <span className="text-blue-400"> tus prioridades: </span>
+            <h3 className="text-2xl font-extrabold text-white mb-4 tracking-tight">
+              Vista <span className="text-blue-400">Hoy</span>: orden de prioridad
             </h3>
+            <p className="text-slate-400 text-sm mb-6 px-2">
+              Esta pantalla sigue una regla clara para que sepas qué atender primero:
+            </p>
 
-            <div className="flex flex-col gap-5 text-left w-full mb-8 pl-4 sm:pl-8 pr-4">
+            <div className="flex flex-col gap-5 text-left w-full mb-8 pl-8 pr-4">
               <div className="flex items-start gap-4">
-                <div className="bg-emerald-400/10 p-2.5 rounded-xl border border-emerald-400/20 mt-0.5">
-                  <CalendarDays className="w-5 h-5 text-emerald-400 shrink-0" />
-                </div>
+                <CalendarDays className="w-5 h-5 text-emerald-400 mt-1 shrink-0" />
                 <div>
-                  <p className="text-emerald-400 text-[15px] font-bold leading-snug mb-1">
-                    1. Tareas de Hoy
-                  </p>
-                  <p className="text-slate-400 text-[13px] leading-relaxed">
-                    Son tu prioridad absoluta. Te sugerimos completarlas primero (¡las más cortas salen al inicio!).
+                  <p className="text-emerald-400 text-[15px] font-semibold leading-snug">
+                    1. Tareas de hoy (prioridad) — lo primero que ves; complétalas primero.
                   </p>
                 </div>
               </div>
-
               <div className="flex items-start gap-4">
-                <div className="bg-orange-500/10 p-2.5 rounded-xl border border-orange-500/20 mt-0.5">
-                  <Clock className="w-5 h-5 text-orange-500 shrink-0" />
-                </div>
+                <Clock className="w-5 h-5 text-orange-500 mt-1 shrink-0" />
                 <div>
-                  <p className="text-orange-500 text-[15px] font-bold leading-snug mb-1">
-                    2. Límite de Horas
-                  </p>
-                  <p className="text-slate-400 text-[13px] leading-relaxed">
-                    Revisa en todo momento no pasarte de la capacidad de estudio diario que tú mismo definiste.
+                  <p className="text-orange-500 text-[15px] font-semibold leading-snug">
+                    2. Límite de horas — revisa que no te pases del tiempo de estudio diario.
                   </p>
                 </div>
               </div>
-
               <div className="flex items-start gap-4">
-                <div className="bg-blue-500/10 p-2.5 rounded-xl border border-blue-500/20 mt-0.5">
-                  <CalendarClock className="w-5 h-5 text-blue-400 shrink-0" />
-                </div>
+                <CalendarClock className="w-5 h-5 text-blue-400 mt-1 shrink-0" />
                 <div>
-                  <p className="text-blue-400 text-[15px] font-bold leading-snug mb-1">
-                    3. Vencidas y Próximas
-                  </p>
-                  <p className="text-slate-400 text-[13px] leading-relaxed">
-                    Finalmente, dale un vistazo a lo que quedó pendiente o a lo que se te viene para organizar tu tiempo sabiamente.
+                  <p className="text-blue-400 text-[15px] font-semibold leading-snug">
+                    3. Vencidas y próximas — pestañas para lo atrasado y lo que viene.
                   </p>
                 </div>
               </div>
             </div>
 
             <p className="text-slate-400 text-[13px] font-medium mt-2 mb-8 px-4">
-              Podrás aplicar filtros de búsqueda por nombre, curso y estado.
+              Puedes filtrar por nombre, curso y estado cuando lo necesites.
             </p>
 
             <Button
@@ -1026,13 +780,10 @@ export default function Today() {
       >
         <HelpCircle className="w-6 h-6" />
       </button>
->>>>>>> Stashed changes
     </div>
   );
 }
 
-<<<<<<< Updated upstream
-=======
 // Component for scrollable task sections
 function ScrollableTaskSection({ children }: { children: React.ReactNode }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1160,9 +911,9 @@ function ScrollableTaskSection({ children }: { children: React.ReactNode }) {
   );
 }
 
->>>>>>> Stashed changes
 // Sub-component for individual tasks matching the requested UI
 function TaskCard({ item, badge, theme, onToggle }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void }) {
+  const navigate = useNavigate();
   const isDone = item.status === "DONE";
   const courseName = item.activity?.course?.name || "Actividad";
   const title = item.title;
@@ -1237,6 +988,17 @@ function TaskCard({ item, badge, theme, onToggle }: { item: any, badge: string |
           <Clock className={`w-3.5 h-3.5 ${colors.icon}`} />
           {formatHours(item.estimated_hours)}
         </div>
+      </div>
+
+      <div className="mt-3 pt-3 border-t border-slate-700/20">
+        <button
+          type="button"
+          onClick={() => navigate("/calendario")}
+          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-300 hover:text-blue-400 bg-slate-800/40 hover:bg-blue-500/15 px-3 py-2 rounded-lg border border-slate-700/50 hover:border-blue-500/30 transition-colors cursor-pointer"
+        >
+          <CalendarRange className="w-4 h-4" />
+          Reprogramar
+        </button>
       </div>
     </div>
   );
