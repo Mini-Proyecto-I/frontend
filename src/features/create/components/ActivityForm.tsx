@@ -15,6 +15,13 @@ import {
 } from "@/shared/components/dialog";
 import { Button } from "@/shared/components/button";
 import { MessageModal } from "@/shared/components/MessageModal";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/shared/components/select";
 import SubtaskForm, { Subtarea } from "./SubtaskForm";
 
 interface Course {
@@ -531,7 +538,7 @@ const ActivityForm = () => {
     };
 
     const inputClass =
-        "w-full rounded-lg bg-[#111827] border border-border px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-colors";
+        "w-full rounded-xl !bg-[#1F2937]/50 border border-slate-700/50 px-4 py-2.5 h-12 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors";
 
     return (
         <>
@@ -564,58 +571,58 @@ const ActivityForm = () => {
                 </div>
             )}
             <div className="flex-1 min-h-screen overflow-y-auto">
-                <div className="max-w-[880px] mx-auto px-8 py-6">
+                <div className="max-w-[880px] mx-auto px-4 sm:px-6 lg:px-10 py-6 lg:py-10">
 
                     {/* Header */}
-                    <h1 className="text-2xl font-bold text-foreground">
+                    <h1 className="text-2xl lg:text-3xl font-extrabold text-white mb-2">
                         {currentStep === 1 ? "Crear nueva actividad" : "Agregar subtareas"}
                     </h1>
-                    <p className="text-muted-foreground text-sm mt-1 mb-6">
+                    <p className="text-slate-400 font-medium text-sm mt-1 mb-8">
                         {currentStep === 1
                             ? "Añade un nuevo examen, tarea, o proyecto a tu plan de estudio."
                             : "Divide tu actividad en subtareas más manejables para organizarte mejor."}
                     </p>
 
                     {/* Indicador de pasos */}
-                    <div className="flex items-center gap-2 mb-6">
-                        <div className={`flex items-center gap-2 ${currentStep >= 1 ? 'text-[#3B82F6]' : 'text-muted-foreground'}`}>
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep >= 1 ? 'bg-[#3B82F6] text-white' : 'bg-[#1E293B] border border-border'}`}>
+                    <div className="flex items-center gap-2 mb-8">
+                        <div className={`flex items-center gap-2 ${currentStep >= 1 ? 'text-blue-500' : 'text-slate-400'}`}>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep >= 1 ? 'bg-blue-600 text-white' : 'bg-[#1F2937]/50 border border-slate-700/50'}`}>
                                 {currentStep > 1 ? '✓' : '1'}
                             </div>
-                            <span className="text-sm font-medium">Actividad</span>
+                            <span className="text-sm font-bold">Actividad</span>
                         </div>
-                        <div className={`h-0.5 flex-1 ${currentStep >= 2 ? 'bg-[#3B82F6]' : 'bg-[#1E293B]'}`} />
-                        <div className={`flex items-center gap-2 ${currentStep >= 2 ? 'text-[#3B82F6]' : 'text-muted-foreground'}`}>
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep >= 2 ? 'bg-[#3B82F6] text-white' : 'bg-[#1E293B] border border-border'}`}>
+                        <div className={`h-0.5 flex-1 ${currentStep >= 2 ? 'bg-blue-600' : 'bg-slate-800/60'}`} />
+                        <div className={`flex items-center gap-2 ${currentStep >= 2 ? 'text-blue-500' : 'text-slate-400'}`}>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep >= 2 ? 'bg-blue-600 text-white' : 'bg-[#1F2937]/50 border border-slate-700/50'}`}>
                                 2
                             </div>
-                            <span className="text-sm font-medium">Subtareas</span>
+                            <span className="text-sm font-bold">Subtareas</span>
                         </div>
                     </div>
 
                     {/* Paso 1: Detalles de la actividad */}
                     {currentStep === 1 && (
                         <>
-                            <div className="rounded-xl border border-border bg-[#111827] p-6 mb-4">
-                                <div className="flex items-center gap-3 mb-5">
-                                    <div className="h-9 w-9 rounded-lg bg-primary/20 flex items-center justify-center">
-                                        <ClipboardList className="h-5 w-5 text-[#3B82F6]" />
+                            <div className="rounded-3xl border border-slate-800/60 bg-[#111827] p-6 lg:p-8 mb-6 shadow-xl shadow-black/20">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="h-9 w-9 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center">
+                                        <ClipboardList className="h-5 w-5 text-blue-500" />
                                     </div>
                                     <div>
-                                        <h2 className="text-base font-semibold text-foreground flex items-center">
+                                        <h2 className="text-lg font-bold text-white flex items-center">
                                             Detalles de la actividad
                                             <InfoTooltip text="Información general sobre la tarea o evento." />
                                         </h2>
-                                        <p className="text-xs text-muted-foreground">
+                                        <p className="text-xs text-slate-400 font-medium">
                                             Información general sobre la tarea o evento.
                                         </p>
                                     </div>
                                 </div>
 
                                 {/* Título */}
-                                <div className="mb-5" data-field="titulo">
-                                    <label className="block text-sm font-medium mb-1.5">
-                                        <span className="text-white">Título:</span> <span className="text-[#9CA3AF]">¿Qué tienes que hacer?</span> <span className="text-primary">*</span>
+                                <div className="mb-6" data-field="titulo">
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                        <span className="text-white">Título:</span> <span className="text-slate-400 normal-case">¿Qué tienes que hacer?</span> <span className="text-blue-500">*</span>
                                         <InfoTooltip text="Escribe un título descriptivo para identificar la actividad rápidamente." />
                                     </label>
                                     <input
@@ -626,75 +633,13 @@ const ActivityForm = () => {
                                             clearFieldError("titulo");
                                         }}
                                         placeholder="e.j. Examen final de cálculo"
-                                        className={`${inputClass} ${errors.titulo ? 'border-[#EF4444] focus:ring-[#EF4444]' : ''}`}
+                                        className={`${inputClass} ${errors.titulo ? 'border-red-500 focus:ring-red-500' : ''}`}
                                     />
-                                    {errors.titulo && (
-                                        <div className="mt-2 flex items-start gap-2">
-                                            <div className="flex-shrink-0 mt-0.5">
-                                                <svg
-                                                    className="h-4 w-4 text-[#EF4444]"
-                                                    fill="currentColor"
-                                                    viewBox="0 0 20 20"
-                                                >
-                                                    <path
-                                                        fillRule="evenodd"
-                                                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                                                        clipRule="evenodd"
-                                                    />
-                                                </svg>
-                                            </div>
-                                            <p className="text-sm text-[#EF4444] flex-1">{errors.titulo}</p>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Curso + Tipo */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-                                    <div data-field="curso">
-                                        <label className="block text-sm font-medium mb-1.5">
-                                            <span className="text-white">Curso:</span> <span className="text-[#9CA3AF]">¿A qué curso pertenece?</span> <span className="text-primary">*</span>
-                                            <InfoTooltip text="Selecciona el curso al que pertenece esta actividad." />
-                                        </label>
-                                        <div className="relative">
-                                            <select
-                                                value={curso}
-                                                onChange={(e) => {
-                                                    const value = e.target.value;
-                                                    if (value === "create-new") {
-                                                        setIsDialogOpen(true);
-                                                        // Resetear el select a su valor anterior
-                                                        setTimeout(() => {
-                                                            e.target.value = curso || "";
-                                                        }, 0);
-                                                    } else {
-                                                        setCurso(value);
-                                                        clearFieldError("curso");
-                                                    }
-                                                }}
-                                                disabled={loadingCourses}
-                                                className={`${inputClass} appearance-none pr-10 ${loadingCourses ? 'opacity-50 cursor-not-allowed' : ''} ${!curso ? 'text-muted-foreground' : ''} ${errors.curso ? 'border-[#EF4444] focus:ring-[#EF4444]' : ''}`}
-                                            >
-                                                {!curso && (
-                                                    <option value="" disabled hidden>
-                                                        Selecciona un curso
-                                                    </option>
-                                                )}
-                                                {courses.map((course) => (
-                                                    <option key={course.id} value={course.id}>
-                                                        {course.name}
-                                                    </option>
-                                                ))}
-                                                <option value="create-new" className="text-[#3B82F6] font-medium">
-                                                    ➕ Crear nuevo curso
-                                                </option>
-                                            </select>
-                                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                                        </div>
-                                        {errors.curso && (
+                                        {errors.titulo && (
                                             <div className="mt-2 flex items-start gap-2">
                                                 <div className="flex-shrink-0 mt-0.5">
                                                     <svg
-                                                        className="h-4 w-4 text-[#EF4444]"
+                                                        className="h-4 w-4 text-red-500"
                                                         fill="currentColor"
                                                         viewBox="0 0 20 20"
                                                     >
@@ -705,21 +650,76 @@ const ActivityForm = () => {
                                                         />
                                                     </svg>
                                                 </div>
-                                                <p className="text-sm text-[#EF4444] flex-1">{errors.curso}</p>
+                                                <p className="text-sm text-red-500 font-medium flex-1">{errors.titulo}</p>
+                                            </div>
+                                        )}
+                                </div>
+
+                                {/* Curso + Tipo */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                    <div data-field="curso">
+                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                            <span className="text-white">Curso:</span> <span className="text-slate-400 normal-case">¿A qué curso pertenece?</span> <span className="text-blue-500">*</span>
+                                            <InfoTooltip text="Selecciona el curso al que pertenece esta actividad." />
+                                        </label>
+                                        <Select
+                                            value={curso || ""}
+                                            onValueChange={(value) => {
+                                                if (value === "create-new") {
+                                                    setIsDialogOpen(true);
+                                                } else {
+                                                    setCurso(value);
+                                                    clearFieldError("curso");
+                                                }
+                                            }}
+                                            disabled={loadingCourses}
+                                        >
+                                            <SelectTrigger 
+                                                className={`w-full rounded-xl !bg-[#1F2937]/50 border border-slate-700/50 h-12 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.curso ? 'border-red-500 focus:ring-red-500' : ''} ${loadingCourses ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            >
+                                                <SelectValue placeholder="Selecciona un curso" />
+                                            </SelectTrigger>
+                                            <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl">
+                                                {courses.map((course) => (
+                                                    <SelectItem key={course.id} value={course.id.toString()} className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">
+                                                        {course.name}
+                                                    </SelectItem>
+                                                ))}
+                                                <SelectItem value="create-new" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer text-blue-500 font-medium">
+                                                    ➕ Crear nuevo curso
+                                                </SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        {errors.curso && (
+                                            <div className="mt-2 flex items-start gap-2">
+                                                <div className="flex-shrink-0 mt-0.5">
+                                                    <svg
+                                                        className="h-4 w-4 text-red-500"
+                                                        fill="currentColor"
+                                                        viewBox="0 0 20 20"
+                                                    >
+                                                        <path
+                                                            fillRule="evenodd"
+                                                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                                                            clipRule="evenodd"
+                                                        />
+                                                    </svg>
+                                                </div>
+                                                <p className="text-sm text-red-500 font-medium flex-1">{errors.curso}</p>
                                             </div>
                                         )}
                                         <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
-                                            <DialogContent className="sm:max-w-[550px] bg-[#1E293B] border-border">
+                                            <DialogContent className="sm:max-w-[550px] bg-[#111827] border-slate-800/60 rounded-3xl">
                                                 <DialogHeader>
-                                                    <DialogTitle className="text-foreground text-xl">Crear nuevo curso</DialogTitle>
-                                                    <DialogDescription className="text-muted-foreground">
+                                                    <DialogTitle className="text-white text-xl font-extrabold">Crear nuevo curso</DialogTitle>
+                                                    <DialogDescription className="text-slate-400 font-medium">
                                                         Si el curso de tu actividad no está en la lista, puedes registrarlo aquí para poder seleccionarlo ahora y en futuras actividades.
                                                     </DialogDescription>
                                                 </DialogHeader>
                                                 <div className="space-y-4 py-4">
                                                     <div>
-                                                        <label className="block text-sm font-medium mb-1.5 text-foreground">
-                                                            <span className="text-white">Nombre del curso:</span> <span className="text-[#9CA3AF]">¿Qué curso quieres registrar?</span> <span className="text-primary">*</span>
+                                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                                            <span className="text-white">Nombre del curso:</span> <span className="text-slate-400 normal-case">¿Qué curso quieres registrar?</span> <span className="text-blue-500">*</span>
                                                             <InfoTooltip text="Escribe el nombre completo del curso que deseas agregar a tu lista. Solo debes crearlo una vez y después estará disponible para seleccionarlo cuando lo necesites." />
                                                         </label>
                                                         <input
@@ -727,7 +727,7 @@ const ActivityForm = () => {
                                                             value={newCourseName}
                                                             onChange={handleCourseNameChange}
                                                             placeholder="e.j. Cálculo Diferencial"
-                                                            className={`${inputClass} ${courseError ? 'border-[#EF4444] focus:ring-[#EF4444]' : ''}`}
+                                                            className={`${inputClass} ${courseError ? 'border-red-500 focus:ring-red-500' : ''}`}
                                                             onKeyDown={(e) => {
                                                                 if (e.key === 'Enter' && !creatingCourse && newCourseName.trim()) {
                                                                     handleCreateCourse();
@@ -739,7 +739,7 @@ const ActivityForm = () => {
                                                             <div className="mt-2 flex items-start gap-2">
                                                                 <div className="flex-shrink-0 mt-0.5">
                                                                     <svg
-                                                                        className="h-4 w-4 text-[#EF4444]"
+                                                                        className="h-4 w-4 text-red-500"
                                                                         fill="currentColor"
                                                                         viewBox="0 0 20 20"
                                                                     >
@@ -750,7 +750,7 @@ const ActivityForm = () => {
                                                                         />
                                                                     </svg>
                                                                 </div>
-                                                                <p className="text-sm text-[#EF4444] flex-1">{courseError}</p>
+                                                                <p className="text-sm text-red-500 font-medium flex-1">{courseError}</p>
                                                             </div>
                                                         )}
                                                     </div>
@@ -764,7 +764,7 @@ const ActivityForm = () => {
                                                             setNewCourseName("");
                                                             setCourseError("");
                                                         }}
-                                                        className="bg-[#111827] border-border text-foreground hover:bg-[#111827]/80 cursor-pointer"
+                                                        className="bg-[#1F2937]/50 border-slate-700/50 text-slate-400 hover:bg-slate-800/50 hover:text-slate-300 cursor-pointer rounded-xl font-bold"
                                                     >
                                                         Cancelar
                                                     </Button>
@@ -772,7 +772,7 @@ const ActivityForm = () => {
                                                         type="button"
                                                         onClick={handleCreateCourse}
                                                         disabled={!newCourseName.trim() || creatingCourse}
-                                                        className="bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white"
+                                                        className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-600/20"
                                                     >
                                                         {creatingCourse ? "Creando..." : "Crear curso"}
                                                     </Button>
@@ -782,8 +782,8 @@ const ActivityForm = () => {
                                     </div>
 
                                     <div data-field="tipo">
-                                        <label className="block text-sm font-medium mb-1.5">
-                                            <span className="text-white">Tipo:</span> <span className="text-[#9CA3AF]">¿Qué tipo de actividad es?</span> <span className="text-primary">*</span>
+                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                            <span className="text-white">Tipo:</span> <span className="text-slate-400 normal-case">¿Qué tipo de actividad es?</span> <span className="text-blue-500">*</span>
                                             <InfoTooltip text="Selecciona si es un examen, tarea o proyecto." />
                                         </label>
                                         <div className="flex items-center flex-wrap gap-x-5 gap-y-3 mt-3">
@@ -809,17 +809,17 @@ const ActivityForm = () => {
                                                     />
                                                     <div
                                                         className={`h-4 w-4 rounded-full border-2 flex items-center justify-center transition-colors ${tipo === t.value
-                                                            ? "border-[#3B82F6] bg-[#3B82F6]"
+                                                            ? "border-blue-600 bg-blue-600"
                                                             : errors.tipo
-                                                                ? "border-[#EF4444]"
-                                                                : "border-muted-foreground"
+                                                                ? "border-red-500"
+                                                                : "border-slate-600"
                                                             }`}
                                                     >
                                                         {tipo === t.value && (
                                                             <div className="h-1.5 w-1.5 rounded-full bg-white" />
                                                         )}
                                                     </div>
-                                                    <span className="text-sm text-foreground">{t.label}</span>
+                                                    <span className="text-sm text-slate-200 font-medium">{t.label}</span>
                                                 </label>
                                             ))}
                                         </div>
@@ -827,7 +827,7 @@ const ActivityForm = () => {
                                             <div className="mt-2 flex items-start gap-2">
                                                 <div className="flex-shrink-0 mt-0.5">
                                                     <svg
-                                                        className="h-4 w-4 text-[#EF4444]"
+                                                        className="h-4 w-4 text-red-500"
                                                         fill="currentColor"
                                                         viewBox="0 0 20 20"
                                                     >
@@ -838,21 +838,21 @@ const ActivityForm = () => {
                                                         />
                                                     </svg>
                                                 </div>
-                                                <p className="text-sm text-[#EF4444] flex-1">{errors.tipo}</p>
+                                                <p className="text-sm text-red-500 font-medium flex-1">{errors.tipo}</p>
                                             </div>
                                         )}
                                     </div>
                                 </div>
 
                                 {/* Fechas */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                                     <div className="flex flex-col justify-between" data-field="fechaEntrega">
-                                        <label className="block text-sm font-medium mb-1">
-                                            <span className="text-white">Fecha de entrega o del evento:</span> <span className="text-[#9CA3AF]">¿Cuándo debes entregar o presentar?</span> <span className="text-primary">*</span>
+                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                            <span className="text-white">Fecha de entrega o del evento:</span> <span className="text-slate-400 normal-case">¿Cuándo debes entregar o presentar?</span> <span className="text-blue-500">*</span>
                                             <InfoTooltip text="Indica la fecha máxima o límite de entrega de esta actividad." />
                                         </label>
                                         <div className="relative">
-                                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-foreground pointer-events-none z-10" />
+                                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 pointer-events-none z-10" />
                                             <input
                                                 type="date"
                                                 value={fechaEntrega}
@@ -862,14 +862,14 @@ const ActivityForm = () => {
                                                     clearFieldError("fechaEntrega");
                                                 }}
                                                 placeholder="mm/dd/yyyy"
-                                                className={`${inputClass} pl-10 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors.fechaEntrega ? 'border-[#EF4444] focus:ring-[#EF4444]' : ''}`}
+                                                className={`w-full rounded-xl !bg-[#1F2937]/50 border border-slate-700/50 h-12 text-sm text-slate-200 pl-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors.fechaEntrega ? 'border-red-500 focus:ring-red-500' : ''}`}
                                             />
                                         </div>
                                         {errors.fechaEntrega && (
                                             <div className="mt-2 flex items-start gap-2">
                                                 <div className="flex-shrink-0 mt-0.5">
                                                     <svg
-                                                        className="h-4 w-4 text-[#EF4444]"
+                                                        className="h-4 w-4 text-red-500"
                                                         fill="currentColor"
                                                         viewBox="0 0 20 20"
                                                     >
@@ -880,19 +880,19 @@ const ActivityForm = () => {
                                                         />
                                                     </svg>
                                                 </div>
-                                                <p className="text-sm text-[#EF4444] flex-1">{errors.fechaEntrega}</p>
+                                                <p className="text-sm text-red-500 font-medium flex-1">{errors.fechaEntrega}</p>
                                             </div>
                                         )}
                                     </div>
 
                                     <div data-field="fechaEvento">
-                                        <label className="block text-sm font-medium mb-1.5">
-                                            <span className="text-white">Fecha adicional:</span> <span className="text-[#9CA3AF]">Si hay otra fecha importante (ej: sustentación)</span>
+                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                            <span className="text-white">Fecha adicional:</span> <span className="text-slate-400 normal-case">Si hay otra fecha importante (ej: sustentación)</span>
                                             <InfoTooltip text="Úsala cuando exista una fecha concreta en la que sucede el evento, por ejemplo un examen o presentación." />
                                         </label>
-                                        <div className="text-[#9CA3AF] text-xs mb-1">(Opcional)</div>
+                                        <div className="text-slate-400 text-xs mb-1 font-medium">(Opcional)</div>
                                         <div className="relative">
-                                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-foreground pointer-events-none z-10" />
+                                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 pointer-events-none z-10" />
                                             <input
                                                 type="date"
                                                 value={fechaEvento}
@@ -902,14 +902,14 @@ const ActivityForm = () => {
                                                     setErrors((prev) => ({ ...prev, fechaEvento: undefined }));
                                                 }}
                                                 placeholder="mm/dd/yyyy"
-                                                className={`${inputClass} pl-10 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors.fechaEvento ? 'border-[#EF4444] focus:ring-[#EF4444]' : ''}`}
+                                                className={`w-full rounded-xl !bg-[#1F2937]/50 border border-slate-700/50 h-12 text-sm text-slate-200 pl-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors.fechaEvento ? 'border-red-500 focus:ring-red-500' : ''}`}
                                             />
                                         </div>
                                         {errors.fechaEvento && (
                                             <div className="mt-2 flex items-start gap-2">
                                                 <div className="flex-shrink-0 mt-0.5">
                                                     <svg
-                                                        className="h-4 w-4 text-[#EF4444]"
+                                                        className="h-4 w-4 text-red-500"
                                                         fill="currentColor"
                                                         viewBox="0 0 20 20"
                                                     >
@@ -920,7 +920,7 @@ const ActivityForm = () => {
                                                         />
                                                     </svg>
                                                 </div>
-                                                <p className="text-sm text-[#EF4444] flex-1">{errors.fechaEvento}</p>
+                                                <p className="text-sm text-red-500 font-medium flex-1">{errors.fechaEvento}</p>
                                             </div>
                                         )}
                                     </div>
@@ -928,16 +928,16 @@ const ActivityForm = () => {
 
                                 {/* Descripción */}
                                 <div>
-                                    <label className="block text-sm font-medium mb-1.5">
-                                        <span className="text-white">Descripción</span> <span className="text-[#9CA3AF] text-xs">(Opcional)</span>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                        <span className="text-white">Descripción</span> <span className="text-slate-400 text-xs normal-case">(Opcional)</span>
                                         <InfoTooltip text="Añade notas o detalles específicos sobre esta actividad." />
                                     </label>
                                     <textarea
                                         value={descripcion}
                                         onChange={(e) => setDescripcion(e.target.value)}
                                         placeholder="Añade detalles específicos o notas sobre esta actividad..."
-                                        rows={4}
-                                        className={`${inputClass} resize-none`}
+                                        rows={12}
+                                        className={`${inputClass} resize-none min-h-[100px]`}
                                     />
                                 </div>
                             </div>
@@ -981,7 +981,7 @@ const ActivityForm = () => {
                     )}
 
                     {/* Actions */}
-                    <div className="flex items-center justify-end gap-3 pb-8">
+                    <div className="flex items-center justify-end gap-3 pb-8 mt-6">
                         <button
                             type="button"
                             onClick={() => {
@@ -991,7 +991,7 @@ const ActivityForm = () => {
                                     navigate("/hoy");
                                 }
                             }}
-                            className="px-6 py-2.5 rounded-lg bg-[#1E293B] border border-border text-muted-foreground text-sm font-medium hover:bg-[#1E293B]/80 transition-colors"
+                            className="px-6 py-2.5 rounded-xl bg-[#1F2937]/50 border border-slate-700/50 text-slate-400 text-sm font-bold hover:bg-slate-800/50 hover:text-slate-300 transition-colors"
                         >
                             {currentStep === 2 ? "Volver" : "Cancelar"}
                         </button>
@@ -1000,9 +1000,9 @@ const ActivityForm = () => {
                                 type="button"
                                 onClick={handleSaveActivity}
                                 disabled={isSavingActivity}
-                                className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${isSavingActivity
-                                    ? "bg-[#3B82F6]/70 text-white cursor-not-allowed"
-                                    : "bg-[#3B82F6] text-white hover:bg-[#3B82F6]/90"
+                                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-colors cursor-pointer shadow-lg shadow-blue-600/20 ${isSavingActivity
+                                    ? "bg-blue-600/70 text-white cursor-not-allowed"
+                                    : "bg-blue-600 text-white hover:bg-blue-700"
                                     }`}
                             >
                                 {isSavingActivity ? (
@@ -1025,9 +1025,9 @@ const ActivityForm = () => {
                                 type="button"
                                 onClick={handleSaveSubtasks}
                                 disabled={isSavingSubtasks}
-                                className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${isSavingSubtasks
-                                    ? "bg-[#3B82F6]/70 text-white cursor-not-allowed"
-                                    : "bg-[#3B82F6] text-white hover:bg-[#3B82F6]/90"
+                                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-colors cursor-pointer shadow-lg shadow-blue-600/20 ${isSavingSubtasks
+                                    ? "bg-blue-600/70 text-white cursor-not-allowed"
+                                    : "bg-blue-600 text-white hover:bg-blue-700"
                                     }`}
                             >
                                 {isSavingSubtasks ? (

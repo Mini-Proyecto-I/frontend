@@ -35,18 +35,18 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
     };
 
     return (
-        <div className="rounded-xl border border-border bg-[#1E293B] p-6 mb-6">
-            <div className="flex items-center justify-between mb-5">
+        <div className="rounded-3xl border border-slate-800/60 bg-[#111827] p-6 lg:p-8 mb-6 shadow-xl shadow-black/20">
+            <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-lg bg-primary/20 flex items-center justify-center">
-                        <ClipboardList className="h-5 w-5 text-[#3B82F6]" />
+                    <div className="h-9 w-9 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center">
+                        <ClipboardList className="h-5 w-5 text-blue-500" />
                     </div>
                     <div>
-                        <h2 className="text-base font-semibold text-foreground flex items-center">
+                        <h2 className="text-lg font-bold text-white flex items-center">
                             Plan de estudio / Subtareas
                             <InfoTooltip text="Divide la actividad en tareas más manejables para organizarte mejor." />
                         </h2>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-slate-400 font-medium">
                             Divide la actividad en tareas más manejables.
                         </p>
                     </div>
@@ -54,11 +54,7 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                 <button
                     type="button"
                     onClick={onAdd}
-                    style={{
-                        border: '1px solidrgb(79, 138, 232)',
-                        color: 'white'
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#2563EB] bg-[#3B82F6]/80 transition-colors cursor-pointer"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 bg-blue-600 text-white transition-colors cursor-pointer shadow-lg shadow-blue-600/20"
                 >
                     <Plus className="h-4 w-4" />
                     Añadir subtarea
@@ -66,35 +62,35 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
             </div>
 
             {/* Table header */}
-            <div className="grid grid-cols-[1fr_160px_100px_48px] gap-3 items-center px-2 mb-2">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+            <div className="grid grid-cols-[1fr_160px_100px_48px] gap-3 items-center px-2 mb-3">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                     <InfoTooltip text="Escribe un nombre descriptivo para una tarea concreta que te ayude a completar la actividad." />
-                    Nombre subtarea <span className="text-primary">*</span>
+                    Nombre subtarea <span className="text-blue-500">*</span>
                 </span>
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                     <InfoTooltip text="Fecha objetivo para completar esta subtarea." />
-                    Fecha objetivo <span className="text-primary">*</span>
+                    Fecha objetivo <span className="text-blue-500">*</span>
                 </span>
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1 whitespace-nowrap">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 whitespace-nowrap">
                     <InfoTooltip text="Horas estimadas para completar esta subtarea." />
-                    Est. Horas <span className="text-primary">*</span>
+                    Est. Horas <span className="text-blue-500">*</span>
                 </span>
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                     Acción
                 </span>
             </div>
 
             {/* Subtarea rows */}
-            <div className="space-y-2">
+            <div className="space-y-3">
                 {subtareas.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
                         <div className="mb-3">
-                            <ListTodo className="h-10 w-10 text-[#3B82F6]" />
+                            <ListTodo className="h-10 w-10 text-blue-500" />
                         </div>
-                        <p className="text-muted-foreground text-sm">
+                        <p className="text-slate-400 text-sm font-medium">
                             Añade subtareas para organizar mejor tu actividad.
                             <br />
-                            oprime el botón <span className="text-[#3B82F6] font-medium">"Añadir subtarea"</span>
+                            oprime el botón <span className="text-blue-500 font-bold">"Añadir subtarea"</span>
                         </p>
                     </div>
                 ) : (
@@ -104,7 +100,7 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                         return (
                             <div key={sub.id} className="space-y-2">
                                 <div
-                                    className="grid grid-cols-[1fr_160px_100px_48px] gap-3 bg-[#111827] rounded-lg px-2 py-1.5"
+                                    className="grid grid-cols-[1fr_160px_100px_48px] gap-3 bg-[#1F2937]/50 border border-slate-700/50 rounded-xl px-3 py-2"
                                 >
                                     <div className="flex flex-col py-1.5">
                                         <input
@@ -115,12 +111,12 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                                                 onClearError?.(sub.id, "nombre");
                                             }}
                                             placeholder="ej. Revisar apuntes de clase"
-                                            className={`w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none px-2 py-1.5 border rounded ${subErrors.nombre ? 'border-[#EF4444]' : 'border-transparent'}`}
+                                            className={`w-full h-10 rounded-lg text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none px-3 py-1.5 border transition-colors bg-[#1F2937]/50 border-slate-700/50 ${subErrors.nombre ? 'border-red-500 focus:ring-red-500' : 'focus:ring-blue-500 focus:border-blue-500'}`}
                                         />
                                         {subErrors.nombre && (
                                             <div className="flex items-start gap-1.5 mt-1 px-2">
                                                 <svg
-                                                    className="h-3.5 w-3.5 text-[#EF4444] flex-shrink-0 mt-0.5"
+                                                    className="h-3.5 w-3.5 text-red-500 flex-shrink-0 mt-0.5"
                                                     fill="currentColor"
                                                     viewBox="0 0 20 20"
                                                 >
@@ -130,13 +126,13 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                                                         clipRule="evenodd"
                                                     />
                                                 </svg>
-                                                <p className="text-xs text-[#EF4444] leading-tight">{subErrors.nombre}</p>
+                                                <p className="text-xs text-red-500 font-medium leading-tight">{subErrors.nombre}</p>
                                             </div>
                                         )}
                                     </div>
                                     <div className="flex flex-col py-1.5">
                                         <div className="relative">
-                                            <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground pointer-events-none z-10" />
+                                            <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none z-10" />
                                             <input
                                                 type="date"
                                                 value={sub.fechaObjetivo}
@@ -146,13 +142,13 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                                                     onUpdate(sub.id, "fechaObjetivo", e.target.value);
                                                     onClearError?.(sub.id, "fechaObjetivo");
                                                 }}
-                                                className={`w-full bg-[#111827] rounded-md text-sm text-foreground pl-7 pr-2 py-1.5 focus:outline-none border [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer ${subErrors.fechaObjetivo ? 'border-[#EF4444]' : 'border-border'}`}
+                                                className={`w-full h-10 rounded-lg text-sm pl-7 pr-2 py-1.5 focus:outline-none border transition-colors bg-[#1F2937]/50 border-slate-700/50 text-slate-200 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer ${subErrors.fechaObjetivo ? 'border-red-500 focus:ring-red-500' : 'focus:ring-blue-500 focus:border-blue-500'}`}
                                             />
                                         </div>
                                         {subErrors.fechaObjetivo && (
                                             <div className="flex items-start gap-1.5 mt-1">
                                                 <svg
-                                                    className="h-3.5 w-3.5 text-[#EF4444] flex-shrink-0 mt-0.5"
+                                                    className="h-3.5 w-3.5 text-red-500 flex-shrink-0 mt-0.5"
                                                     fill="currentColor"
                                                     viewBox="0 0 20 20"
                                                 >
@@ -162,7 +158,7 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                                                         clipRule="evenodd"
                                                     />
                                                 </svg>
-                                                <p className="text-xs text-[#EF4444] leading-tight">{subErrors.fechaObjetivo}</p>
+                                                <p className="text-xs text-red-500 font-medium leading-tight">{subErrors.fechaObjetivo}</p>
                                             </div>
                                         )}
                                     </div>
@@ -177,16 +173,16 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                                                     onUpdate(sub.id, "horas", e.target.value);
                                                     onClearError?.(sub.id, "horas");
                                                 }}
-                                                className={`w-full bg-[#111827] rounded-md text-sm text-foreground text-center py-1.5 focus:outline-none border pr-7 ${subErrors.horas ? 'border-[#EF4444]' : 'border-border'}`}
+                                                className={`w-full h-10 rounded-lg text-sm text-center py-1.5 focus:outline-none border pr-7 transition-colors bg-[#1F2937]/50 border-slate-700/50 text-slate-200 ${subErrors.horas ? 'border-red-500 focus:ring-red-500' : 'focus:ring-blue-500 focus:border-blue-500'}`}
                                             />
-                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-500">
                                                 hr
                                             </span>
                                         </div>
                                         {subErrors.horas && (
                                             <div className="flex items-start gap-1.5 mt-1">
                                                 <svg
-                                                    className="h-3.5 w-3.5 text-[#EF4444] flex-shrink-0 mt-0.5"
+                                                    className="h-3.5 w-3.5 text-red-500 flex-shrink-0 mt-0.5"
                                                     fill="currentColor"
                                                     viewBox="0 0 20 20"
                                                 >
@@ -196,7 +192,7 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                                                         clipRule="evenodd"
                                                     />
                                                 </svg>
-                                                <p className="text-xs text-[#EF4444] leading-tight">{subErrors.horas}</p>
+                                                <p className="text-xs text-red-500 font-medium leading-tight">{subErrors.horas}</p>
                                             </div>
                                         )}
                                     </div>
@@ -204,9 +200,9 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                                         <button
                                             type="button"
                                             onClick={() => onRemove(sub.id)}
-                                            className="group flex items-center justify-center h-8 w-8 rounded transition-colors"
+                                            className="group flex items-center justify-center h-8 w-8 rounded-lg transition-colors hover:bg-red-500/10"
                                         >
-                                            <Trash2 className="h-4 w-4 text-muted-foreground group-hover:text-red-500 transition-colors" />
+                                            <Trash2 className="h-4 w-4 text-slate-400 group-hover:text-red-500 transition-colors" />
                                         </button>
                                     </div>
                                 </div>

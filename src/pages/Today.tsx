@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { parseISO, startOfDay, differenceInDays, format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, Info, CheckCircle2, Calendar, Pencil, Check, ChevronUp, ChevronDown } from "lucide-react";
+import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, Info, CheckCircle2, Calendar, Pencil, Check, ChevronUp, ChevronDown, HelpCircle } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import { useAuth } from "@/app/authContext";
@@ -52,6 +52,7 @@ export default function Today() {
   const location = useLocation();
   const navigate = useNavigate();
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
   const [limitHours, setLimitHours] = useState(() => {
     const saved = window.localStorage.getItem("studyLimitHours");
     return saved ? parseFloat(saved) : 6;
@@ -189,9 +190,9 @@ export default function Today() {
 
 <<<<<<< Updated upstream
   return (
-    <div className="flex flex-col gap-8 max-w-[1400px] w-full mx-auto px-4 sm:px-6 lg:px-10 pb-10 mt-6 lg:mt-10">
+    <div className="flex flex-col gap-8 max-w-[1580px] w-full mx-auto px-4 sm:px-6 lg:px-10 pb-10 mt-6 lg:mt-10">
       {/* HEADER SECTION */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
         {/* Welcome Card */}
         <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 lg:p-8 flex items-center justify-between shadow-xl shadow-black/20 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -mr-20 -mt-20"></div>
@@ -632,6 +633,7 @@ export default function Today() {
               <Select
                 value={filters.course || "all"}
                 onValueChange={(v) => setFilters(prev => ({ ...prev, course: v === "all" ? "" : v }))}
+                disabled={loading}
               >
 <<<<<<< Updated upstream
                 <SelectTrigger className="w-full md:w-[200px] bg-[#1F2937]/50 border-slate-700/50 text-slate-200 h-12 rounded-xl focus:ring-blue-500 shadow-inner">
@@ -670,6 +672,7 @@ export default function Today() {
               <Select
                 value={filters.status || "all"}
                 onValueChange={(v) => setFilters(prev => ({ ...prev, status: v === "all" ? "" : v }))}
+                disabled={loading}
               >
 <<<<<<< Updated upstream
                 <SelectTrigger className="w-full md:w-[170px] bg-[#1F2937]/50 border-slate-700/50 text-slate-200 h-12 rounded-xl focus:ring-blue-500 shadow-inner">
@@ -691,8 +694,6 @@ export default function Today() {
                   <SelectItem value="all" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Cualquier estado</SelectItem>
                   <SelectItem value="PENDING" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Pendiente</SelectItem>
                   <SelectItem value="DONE" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Completado</SelectItem>
-                  <SelectItem value="POSTPONED" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Pospuesto</SelectItem>
-                  <SelectItem value="WAITING" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">En Espera</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -724,96 +725,102 @@ export default function Today() {
         </div>
       ) : (
         /* 3 COLUMNS SECTION */
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-6 items-start w-full">
           {/* COLUMN 1: VENCIDAS */}
-          <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20 flex flex-col gap-4">
-            <div className="flex items-center gap-3 mb-2 px-2">
-              <AlertCircle className="w-6 h-6 text-red-500" />
+          <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20 flex flex-col h-full min-w-105">
+            <div className="flex items-center gap-3 mb-2">
+              <AlertCircle className="w-6 h-6 text-red-500 shrink-0" />
               <h3 className="text-xl font-black tracking-widest text-[#94A3B8] uppercase">Vencidas</h3>
             </div>
-            {filteredVencidas.map((item: any, idx: number) => (
-              <TaskCard
-                key={item.id}
-                item={item}
-                badge={idx === 0 ? "MÁS ANTIGUA" : null}
-                theme="red"
-                onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
-              />
-            ))}
-            {filteredVencidas.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-12 px-4 text-center mt-4">
-                <CheckCircle2 className="w-14 h-14 text-slate-600/50 mb-4" strokeWidth={1.5} />
-                <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[200px]">
-                  {search || filters.course || (filters.status && filters.status !== 'PENDING')
-                    ? "No hay tareas atrasadas que coincidan con los filtros aplicados."
-                    : "No tienes tareas atrasadas. ¡Buen trabajo!"}
-                </p>
-              </div>
-            )}
+            <ScrollableTaskSection>
+              {filteredVencidas.map((item: any, idx: number) => (
+                <TaskCard
+                  key={item.id}
+                  item={item}
+                  badge={idx === 0 ? "MÁS ANTIGUA" : null}
+                  theme="red"
+                  onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
+                />
+              ))}
+              {filteredVencidas.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 px-4 text-center mt-4">
+                  <CheckCircle2 className="w-14 h-14 text-slate-600/50 mb-4" strokeWidth={1.5} />
+                  <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[200px]">
+                    {search || filters.course || (filters.status && filters.status !== 'PENDING')
+                      ? "No hay tareas atrasadas que coincidan con los filtros aplicados."
+                      : "No tienes tareas atrasadas. ¡Buen trabajo!"}
+                  </p>
+                </div>
+              )}
+            </ScrollableTaskSection>
           </div>
 
           {/* COLUMN 2: PARA HOY */}
-          <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20 flex flex-col gap-4">
-            <div className="flex items-center gap-3 mb-2 px-2">
-              <CalendarDays className="w-6 h-6 text-emerald-400" />
+          <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20 flex flex-col h-full min-w-0">
+            <div className="flex items-center gap-3 mb-2">
+              <CalendarDays className="w-6 h-6 text-emerald-400 shrink-0" />
               <h3 className="text-xl font-black tracking-widest text-[#94A3B8] uppercase">Para Hoy</h3>
             </div>
-            {filteredParaHoy.map((item: any, idx: number) => (
-              <TaskCard
-                key={item.id}
-                item={item}
-                badge={idx === 0 ? "LA MÁS CORTA" : null}
-                theme="emerald"
-                onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
-              />
-            ))}
-            {filteredParaHoy.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-12 px-4 text-center mt-4">
-                <CheckCircle2 className="w-16 h-16 text-slate-600/50 mb-4" strokeWidth={1.5} />
-                <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[260px] mb-6 shadow-sm">
-                  {filters.status === 'DONE'
-                    ? "No tienes tareas completadas para hoy. Revisa en Pendientes"
-                    : search || filters.course || (filters.status && filters.status !== 'PENDING')
-                      ? "No hay tareas para hoy que coincidan con los filtros aplicados."
-                      : "No tienes tareas para hoy. Disfruta tu descanso o añade alguna tarea"}
-                </p>
-                {!(search || filters.course || (filters.status && filters.status !== 'PENDING')) && (
-                  <Button
-                    onClick={() => navigate('/crear')}
-                    className="bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl px-5 py-2.5 transition-colors shadow-lg shadow-blue-500/20"
-                  >
-                    + Nueva actividad
-                  </Button>
-                )}
-              </div>
-            )}
+            <ScrollableTaskSection>
+              {filteredParaHoy.map((item: any, idx: number) => (
+                <TaskCard
+                  key={item.id}
+                  item={item}
+                  badge={idx === 0 ? "LA MÁS CORTA" : null}
+                  theme="emerald"
+                  onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
+                />
+              ))}
+              {filteredParaHoy.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 px-4 text-center mt-4">
+                  <CheckCircle2 className="w-16 h-16 text-slate-600/50 mb-4" strokeWidth={1.5} />
+                  <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[260px] mb-6 shadow-sm">
+                    {filters.status === 'DONE'
+                      ? "No tienes tareas completadas para hoy. Revisa en Pendientes"
+                      : search || filters.course || (filters.status && filters.status !== 'PENDING')
+                        ? "No hay tareas para hoy que coincidan con los filtros aplicados."
+                        : "No tienes tareas para hoy. Disfruta tu descanso o añade alguna tarea"}
+                  </p>
+                  {!(search || filters.course || (filters.status && filters.status !== 'PENDING')) && (
+                    <Button
+                      onClick={() => navigate('/crear')}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl px-5 py-2.5 transition-colors shadow-lg shadow-blue-600/20"
+                    >
+                      + Nueva actividad
+                    </Button>
+                  )}
+                </div>
+              )}
+            </ScrollableTaskSection>
           </div>
 
           {/* COLUMN 3: PRÓXIMAS */}
-          <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20 flex flex-col gap-4">
-            <div className="flex items-center gap-3 mb-2 px-2">
-              <CalendarClock className="w-6 h-6 text-blue-500" />
+          <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20 flex flex-col h-full min-w-105">
+            <div className="flex items-center gap-3 mb-2">
+              <CalendarClock className="w-6 h-6 text-blue-500 shrink-0" />
               <h3 className="text-xl font-black tracking-widest text-[#94A3B8] uppercase">Próximas</h3>
             </div>
-            {filteredProximas.map((item: any, idx: number) => (
-              <TaskCard
-                key={item.id}
-                item={item}
-                badge={idx === 0 ? "MÁS CERCANA" : null}
-                theme="blue"
-                onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
-              />
-            ))}
-            {filteredProximas.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-12 px-4 text-center mt-4">
-                <Calendar className="w-14 h-14 text-slate-600/50 mb-4" strokeWidth={1.5} />
-                <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[200px]">
-                  {search || filters.course || (filters.status && filters.status !== 'PENDING')
-                    ? "No hay tareas próximas que coincidan con los filtros aplicados."
-                    : "No hay tareas próximas. Todo está al día."}
-                </p>
-              </div>
-            )}
+            <ScrollableTaskSection>
+              {filteredProximas.map((item: any, idx: number) => (
+                <TaskCard
+                  key={item.id}
+                  item={item}
+                  badge={idx === 0 ? "MÁS CERCANA" : null}
+                  theme="blue"
+                  onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
+                />
+              ))}
+              {filteredProximas.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 px-4 text-center mt-4">
+                  <Calendar className="w-14 h-14 text-slate-600/50 mb-4" strokeWidth={1.5} />
+                  <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[200px]">
+                    {search || filters.course || (filters.status && filters.status !== 'PENDING')
+                      ? "No hay tareas próximas que coincidan con los filtros aplicados."
+                      : "No hay tareas próximas. Todo está al día."}
+                  </p>
+                </div>
+              )}
+            </ScrollableTaskSection>
           </div>
         </div>
       )}
@@ -833,7 +840,7 @@ export default function Today() {
 <<<<<<< Updated upstream
             <h3 className="text-[17px] font-semibold text-white mb-8 tracking-wide">Te encuentras en hoy, aquí podrás ver:</h3>
 
-            <div className="flex flex-col gap-5 text-left w-full mb-8 px-4">
+            <div className="flex flex-col gap-5 text-left w-full mb-8 pl-8 pr-4">
               <div className="flex items-start gap-4">
                 <CalendarDays className="w-5 h-5 text-emerald-400 mt-1 shrink-0" />
                 <p className="text-emerald-400 text-[15px] font-medium leading-snug">Tus tareas propuestas para hoy y organizadas de menor a mayor tiempo</p>
@@ -898,7 +905,7 @@ export default function Today() {
               </div>
             </div>
 
-            <p className="text-slate-400 text-[13px] font-medium mb-8 px-4">
+            <p className="text-slate-400 text-[13px] font-medium mt-2 mb-8 px-4">
               Podrás aplicar filtros de búsqueda por nombre, curso y estado.
             </p>
 
@@ -928,7 +935,7 @@ export default function Today() {
                 window.localStorage.setItem("studyLimitHours", val.toString());
                 setShowWelcomeModal(false);
               }}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-8 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all w-full sm:w-auto"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all w-full sm:w-auto"
             >
               Comenzar
             </Button>
@@ -1193,7 +1200,7 @@ function TaskCard({ item, badge, theme, onToggle }: { item: any, badge: string |
   const colors = themeColors[theme];
 
   return (
-    <div className={`relative flex flex-col gap-4 border ${colors.border} ${colors.bg} rounded-3xl p-5 w-full transition-all duration-300 ${colors.hover} shadow-lg ${isDone ? 'opacity-50 grayscale' : ''}`}>
+    <div className={`relative flex flex-col gap-4 border ${colors.border} ${colors.bg} rounded-3xl p-4 w-full transition-all duration-300 ${colors.hover} shadow-lg ${isDone ? 'opacity-50 grayscale' : ''}`}>
       {badge && (
         <div className={`absolute -top-3 left-6 px-3 py-1 font-black text-[10px] tracking-widest uppercase rounded-full ${colors.badge} shadow-lg`}>
           {badge}
@@ -1234,3 +1241,4 @@ function TaskCard({ item, badge, theme, onToggle }: { item: any, badge: string |
     </div>
   );
 }
+
