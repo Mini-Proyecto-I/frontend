@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useState } from 'react';
 import { NavLink } from '@/app/NavLink';
 import { useAuth } from '@/app/authContext';
-import { Plus, Menu, X, LogOut } from 'lucide-react';
+import { Plus, Menu, X, LogOut, CalendarRange } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/avatar';
 import { Button } from '@/shared/components/button';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -63,6 +63,13 @@ export function AppHeader() {
                                     activeClassName="!bg-white !text-blue-600 shadow-md"
                                 >
                                     Hoy
+                                </NavLink>
+                                <NavLink
+                                    to="/calendario"
+                                    className="px-5 py-2 rounded-full font-bold text-sm transition-all text-slate-400 hover:text-slate-200"
+                                    activeClassName="!bg-white !text-blue-600 shadow-md"
+                                >
+                                    Calendario
                                 </NavLink>
                                 <NavLink
                                     to="/progreso"
@@ -198,6 +205,15 @@ export function AppHeader() {
                                     activeClassName="!bg-white !text-blue-600 shadow-md"
                                 >
                                     Hoy
+                                </NavLink>
+                                <NavLink
+                                    to="/calendario"
+                                    onClick={() => setIsMenuOpen(false)}
+                                    className="px-4 py-3 rounded-xl font-bold text-sm transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800 flex items-center gap-2"
+                                    activeClassName="!bg-white !text-blue-600 shadow-md"
+                                >
+                                    <CalendarRange className="w-4 h-4" />
+                                    Calendario
                                 </NavLink>
                                 <NavLink
                                     to="/progreso"

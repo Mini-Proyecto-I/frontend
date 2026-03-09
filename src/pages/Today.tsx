@@ -9,6 +9,7 @@ import { patchSubtask } from "@/api/services/subtack";
 import { queryCache } from "@/lib/queryCache";
 import { Input } from "@/shared/components/input";
 import { Button } from "@/shared/components/button";
+import { OverloadAlert } from "@/features/today/components/OverloadAlert";
 import {
   Select,
   SelectContent,
@@ -174,9 +175,116 @@ export default function Today() {
 
   const totalHours = doneHours + pendingHours;
   const isOverloaded = totalHours > limitHours;
+  const conflictedTasks = useMemo<any[]>(() => {
+    const all = [...vencidas, ...para_hoy, ...proximas];
+    return all.filter((t: any) => t?.status !== "DONE" && t?.is_conflicted);
+  }, [vencidas, para_hoy, proximas]);
+  const conflictedCount = conflictedTasks.length;
+
+  const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
+  const [selectedConflictId, setSelectedConflictId] = useState<string | null>(null);
+  const [reduceHours, setReduceHours] = useState("");
+  const [reduceError, setReduceError] = useState<string | null>(null);
+  const [isReducing, setIsReducing] = useState(false);
+
+  const selectedConflict = useMemo<any | null>(() => {
+    if (conflictedTasks.length === 0) return null;
+    return conflictedTasks.find((t: any) => t.id === selectedConflictId) ?? conflictedTasks[0];
+  }, [conflictedTasks, selectedConflictId]);
+
+  useEffect(() => {
+    if (conflictedTasks.length === 0) {
+      setIsConflictModalOpen(false);
+      setSelectedConflictId(null);
+      return;
+    }
+
+    // Abrir automáticamente cuando aparece el primer conflicto.
+    setIsConflictModalOpen(true);
+
+    // Mantener selección estable.
+    const stillExists = conflictedTasks.some((t: any) => t.id === selectedConflictId);
+    if (!selectedConflictId || !stillExists) {
+      setSelectedConflictId(conflictedTasks[0].id);
+    }
+  }, [conflictedTasks, selectedConflictId]);
+
+  useEffect(() => {
+    if (!selectedConflict) return;
+    setReduceError(null);
+    const current = parseFloat(String(selectedConflict.estimated_hours ?? 0));
+    if (!Number.isFinite(current) || current <= 0) {
+      setReduceHours("");
+      return;
+    }
+    // Sugerencia por defecto: reducir 0.5h sin bajar de 0.5
+    const suggested = Math.max(0.5, Math.round((current - 0.5) * 10) / 10);
+    setReduceHours(String(suggested));
+  }, [selectedConflict?.id]);
+
+  const handleMoveConflictTask = () => {
+    setIsConflictModalOpen(false);
+    navigate("/calendario");
+  };
+
+  const handleReduceConflictHours = async () => {
+    if (!selectedConflict) return;
+    setReduceError(null);
+
+    const current = parseFloat(String(selectedConflict.estimated_hours ?? 0));
+    const next = parseFloat(String(reduceHours));
+
+    if (!Number.isFinite(next)) {
+      setReduceError("Ingresa un número válido.");
+      return;
+    }
+    if (next <= 0) {
+      setReduceError("Las horas deben ser mayores a 0.");
+      return;
+    }
+    if (!Number.isFinite(current) || current <= 0) {
+      setReduceError("No se pudo leer las horas actuales de la tarea.");
+      return;
+    }
+    if (next >= current) {
+      setReduceError(`Debe ser menor a ${current.toFixed(2)}h.`);
+      return;
+    }
+
+    setIsReducing(true);
+    const activityId = selectedConflict.activity?.id;
+    const subtaskId = selectedConflict.id;
+
+    try {
+      await patchSubtask(activityId, subtaskId, { estimated_hours: next });
+
+      // Optimistic update local UI
+      setData((prev: any) => {
+        const updateList = (list: any[]) =>
+          list.map((item) => (item.id === subtaskId ? { ...item, estimated_hours: next } : item));
+        return {
+          ...prev,
+          vencidas: updateList(prev.vencidas),
+          para_hoy: updateList(prev.para_hoy),
+          proximas: updateList(prev.proximas),
+        };
+      });
+      setTiempoData((prev: any[]) =>
+        prev.map((t: any) => (t.id === subtaskId ? { ...t, estimated_hours: next } : t)) as any
+      );
+
+      // Re-fetch para recalcular conflictos desde backend
+      refetch();
+      refetchTiempo();
+    } catch (e: any) {
+      setReduceError("No se pudo actualizar las horas. Intenta de nuevo.");
+    } finally {
+      setIsReducing(false);
+    }
+  };
 
   // Filter lists locally by search query
-  const searchFilter = (item: any) => {
+  const searchFilter = (item: any) => { 
     if (!search) return true;
     const s = search.toLowerCase();
     return item.title.toLowerCase().includes(s) || (item.activity?.course?.name || "").toLowerCase().includes(s);
@@ -492,15 +600,13 @@ export default function Today() {
                   </>
                 )}
               </div>
-              {isOverloaded && (
-                <p className="text-orange-500 text-[13px] font-semibold flex items-center gap-1.5 break-words">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  El tiempo total de tus tareas excede tu tiempo de estudio límite ¡Acomodemos las tareas!
-                </p>
-              )}
             </div>
           </div>
         </div>
+
+        {isOverloaded && (
+          <OverloadAlert totalHours={totalHours} dailyLimit={limitHours} />
+        )}
         {/* FILTER BAR SECTION */}
         <div className="bg-[#111827] border border-slate-800/60 rounded-2xl p-4 shadow-lg shadow-black/10 flex flex-col gap-4 w-full">
           <div className="flex items-center gap-2">
@@ -780,6 +886,122 @@ export default function Today() {
       >
         <HelpCircle className="w-6 h-6" />
       </button>
+
+      {/* Conflict Alert Modal */}
+      {isConflictModalOpen && conflictedCount > 0 && selectedConflict && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div className="w-full max-w-[560px] bg-[#111827] border border-red-500/30 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
+            <div className="p-6 sm:p-7 relative">
+              <button
+                type="button"
+                onClick={() => setIsConflictModalOpen(false)}
+                className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
+                aria-label="Cerrar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-6 h-6 text-red-400" />
+                </div>
+                <div className="pr-8">
+                  <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                    Conflicto detectado
+                  </h3>
+                  <p className="text-slate-400 text-sm mt-1 leading-relaxed">
+                    Tienes{" "}
+                    <span className="text-white font-semibold">{conflictedCount}</span>{" "}
+                    {conflictedCount === 1 ? "tarea" : "tareas"} en conflicto. Puedes resolverlo moviendo la tarea o reduciendo sus horas.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 bg-slate-900/40 border border-slate-800 rounded-2xl p-4">
+                {conflictedCount > 1 && (
+                  <div className="mb-4">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      Tarea en conflicto
+                    </label>
+                    <select
+                      value={selectedConflictId ?? selectedConflict.id}
+                      onChange={(e) => setSelectedConflictId(e.target.value)}
+                      className="mt-2 w-full h-11 rounded-xl bg-[#1F2937]/60 border border-slate-700/60 text-slate-200 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                    >
+                      {conflictedTasks.map((t: any) => (
+                        <option key={t.id} value={t.id}>
+                          {(t.activity?.title ? `${t.activity.title} — ` : "") + t.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <p className="text-sm font-bold text-white">
+                    {selectedConflict.title}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    Actividad:{" "}
+                    <span className="text-slate-200 font-semibold">
+                      {selectedConflict.activity?.title || "Actividad"}
+                    </span>
+                    {" · "}
+                    Horas actuales:{" "}
+                    <span className="text-slate-200 font-semibold">
+                      {parseFloat(String(selectedConflict.estimated_hours ?? 0)).toFixed(2)}h
+                    </span>
+                  </p>
+                </div>
+
+                <div className="mt-4">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Reducir horas (debe ser menor)
+                  </label>
+                  <div className="mt-2 flex gap-3 items-center">
+                    <Input
+                      type="number"
+                      step="0.25"
+                      min="0.25"
+                      value={reduceHours}
+                      onChange={(e) => setReduceHours(e.target.value)}
+                      className="h-11 bg-[#1F2937]/60 border-slate-700/60 text-slate-200 rounded-xl focus-visible:ring-blue-500"
+                    />
+                    <Button
+                      onClick={handleReduceConflictHours}
+                      disabled={isReducing}
+                      className="h-11 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-600/20"
+                    >
+                      Reducir horas
+                    </Button>
+                  </div>
+                  {reduceError && (
+                    <p className="text-red-400 text-xs font-semibold mt-2">
+                      {reduceError}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-5 flex flex-col sm:flex-row gap-3">
+                  <Button
+                    onClick={handleMoveConflictTask}
+                    className="h-11 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-extrabold shadow-lg shadow-emerald-500/20"
+                  >
+                    Mover tarea
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsConflictModalOpen(false)}
+                    className="h-11 rounded-xl bg-transparent border-slate-700 text-slate-200 hover:bg-slate-800/60 hover:text-white"
+                  >
+                    Más tarde
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
