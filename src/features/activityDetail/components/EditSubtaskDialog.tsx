@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Calendar, Clock, Loader2 } from "lucide-react";
+import { Clock, Loader2, CalendarRange } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -16,12 +16,10 @@ interface EditSubtaskDialogProps {
   onOpenChange: (open: boolean) => void;
   subtaskData?: {
     nombre?: string;
-    fechaObjetivo?: string;
     horas?: string;
   };
-  onSave: (data: { nombre: string; fechaObjetivo: string; horas: string }) => void;
+  onSave: (data: { nombre: string; horas: string }) => void;
   isSaving?: boolean;
-  deadlineDate?: string; // Fecha de entrega de la actividad para validar
 }
 
 export default function EditSubtaskDialog({
@@ -30,35 +28,18 @@ export default function EditSubtaskDialog({
   subtaskData = {},
   onSave,
   isSaving = false,
-  deadlineDate,
 }: EditSubtaskDialogProps) {
   const [nombre, setNombre] = useState("");
-  const [fechaObjetivo, setFechaObjetivo] = useState("");
   const [horas, setHoras] = useState("");
   const [errors, setErrors] = useState<{
     nombre?: string;
-    fechaObjetivo?: string;
     horas?: string;
   }>({});
-
-  const getTodayDate = (): string => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return today.toISOString().split('T')[0];
-  };
-
-  const getMaxDate = (): string | undefined => {
-    if (deadlineDate) {
-      return deadlineDate;
-    }
-    return undefined;
-  };
 
   // Cargar datos cuando se abre el modal
   useEffect(() => {
     if (open && subtaskData) {
       setNombre(subtaskData.nombre || "");
-      setFechaObjetivo(subtaskData.fechaObjetivo || "");
       setHoras(subtaskData.horas || "");
       setErrors({});
     }
@@ -91,12 +72,6 @@ export default function EditSubtaskDialog({
       newErrors.nombre = "El nombre de la subtarea es obligatorio.";
     }
 
-    if (!fechaObjetivo) {
-      newErrors.fechaObjetivo = "La fecha objetivo es obligatoria.";
-    } else if (deadlineDate && fechaObjetivo > deadlineDate) {
-      newErrors.fechaObjetivo = "La fecha objetivo no puede ser posterior a la fecha de entrega de la actividad.";
-    }
-
     if (!horas.trim()) {
       newErrors.horas = "Las horas estimadas son obligatorias.";
     } else if (!validateHours(horas)) {
@@ -111,7 +86,6 @@ export default function EditSubtaskDialog({
     if (validateForm()) {
       onSave({
         nombre: nombre.trim(),
-        fechaObjetivo,
         horas: horas.trim(),
       });
     }
@@ -128,7 +102,8 @@ export default function EditSubtaskDialog({
             Editar subtarea
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-sm">
-            Modifica los detalles de la subtarea.
+            Ajusta el título y las horas estimadas. Para cambiar la fecha, usa la opción{" "}
+            <span className="text-blue-300 font-semibold">Reprogramar</span>.
           </DialogDescription>
         </DialogHeader>
 
@@ -165,46 +140,6 @@ export default function EditSubtaskDialog({
                   </svg>
                 </div>
                 <p className="text-sm text-[#EF4444] flex-1">{errors.nombre}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Fecha objetivo */}
-          <div>
-            <label className="block text-sm font-medium mb-1.5">
-              <span className="text-white">Fecha objetivo:</span> <span className="text-[#9CA3AF]">¿Cuándo quieres completarla?</span> <span className="text-primary">*</span>
-              <InfoTooltip text="Fecha objetivo para completar esta subtarea." />
-            </label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-foreground pointer-events-none z-10" />
-              <input
-                type="date"
-                value={fechaObjetivo}
-                min={getTodayDate()}
-                max={getMaxDate()}
-                onChange={(e) => {
-                  setFechaObjetivo(e.target.value);
-                  setErrors((prev) => ({ ...prev, fechaObjetivo: undefined }));
-                }}
-                className={`${inputClass} pl-10 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer ${errors.fechaObjetivo ? 'border-[#EF4444] focus:ring-[#EF4444]' : ''}`}
-              />
-            </div>
-            {errors.fechaObjetivo && (
-              <div className="mt-2 flex items-start gap-2">
-                <div className="flex-shrink-0 mt-0.5">
-                  <svg
-                    className="h-4 w-4 text-[#EF4444]"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-                <p className="text-sm text-[#EF4444] flex-1">{errors.fechaObjetivo}</p>
               </div>
             )}
           </div>
@@ -249,7 +184,7 @@ export default function EditSubtaskDialog({
           </div>
         </div>
 
-        <DialogFooter className="mt-6">
+        <DialogFooter className="mt-6 flex flex-col sm:flex-row gap-3">
           <Button
             type="button"
             variant="outline"
@@ -257,6 +192,16 @@ export default function EditSubtaskDialog({
             className="cursor-pointer bg-[#1E293B] border-border text-muted-foreground hover:bg-[#1E293B]/80"
           >
             Cancelar
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              window.location.href = "/calendario";
+            }}
+            className="cursor-pointer bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 flex items-center gap-2"
+          >
+            <CalendarRange className="h-4 w-4" />
+            Reprogramar
           </Button>
           <Button
             type="button"

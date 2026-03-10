@@ -61,6 +61,21 @@ export default function Today() {
   const [isEditingLimit, setIsEditingLimit] = useState(false);
   const [tempLimit, setTempLimit] = useState(limitHours.toString());
   const [welcomeLimit, setWelcomeLimit] = useState("6");
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<any | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editHours, setEditHours] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const openEditModal = (task: any) => {
+    setEditError(null);
+    setEditingTask(task);
+    setEditTitle(String(task?.title ?? ""));
+    const h = task?.estimated_hours;
+    setEditHours(h === undefined || h === null ? "" : String(h));
+    setIsEditModalOpen(true);
+  };
 
   const handleSaveLimit = () => {
     let val = parseFloat(tempLimit);
@@ -413,6 +428,7 @@ export default function Today() {
                         badge={idx === 0 ? "MÁS ANTIGUA" : null}
                         theme="red"
                         onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
+                        onEdit={() => openEditModal(item)}
                       />
                     ))}
                     {filteredVencidas.length === 0 && (
@@ -445,6 +461,7 @@ export default function Today() {
                         badge={idx === 0 ? "LA MÁS CORTA" : null}
                         theme="emerald"
                         onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
+                        onEdit={() => openEditModal(item)}
                       />
                     ))}
                     {filteredParaHoy.length === 0 && (
@@ -487,6 +504,7 @@ export default function Today() {
                         badge={idx === 0 ? "MÁS CERCANA" : null}
                         theme="blue"
                         onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
+                        onEdit={() => openEditModal(item)}
                       />
                     ))}
                     {filteredProximas.length === 0 && (
@@ -509,7 +527,7 @@ export default function Today() {
 
       {/* RIGHT SIDE: INFO & FILTERS (Approx 40% of layout) */}
       <div className="lg:w-[35%] xl:w-[30%] flex flex-col gap-6 order-1 lg:order-2">
-        <div className="flex flex-col gap-6 w-full">
+        <div className="flex flex-col gap-8 w-full">
           {/* Welcome Card */}
           <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 lg:p-8 flex items-center justify-between shadow-xl shadow-black/20 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -mr-20 -mt-20"></div>
@@ -527,7 +545,7 @@ export default function Today() {
           </div>
 
           {/* Capacity Card */}
-          <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 lg:p-8 flex flex-col justify-center shadow-xl shadow-black/20 space-y-4">
+          <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 lg:p-7 flex flex-col justify-center shadow-xl shadow-black/20 space-y-4">
             <div className="flex items-start justify-between w-full">
               <div className="space-y-1 w-full">
                 <div className="flex items-center gap-2">
@@ -580,33 +598,55 @@ export default function Today() {
                 </div>
               </div>
             </div>
-            <div className="space-y-3 mt-1">
-              <div className="h-4 bg-slate-800 rounded-full w-full overflow-hidden flex">
-                {isOverloaded ? (
-                  <div
-                    className="h-full bg-gradient-to-r from-yellow-500 to-red-500 transition-all duration-500"
-                    style={{ width: '100%' }}
-                  />
-                ) : (
-                  <>
-                    <div
-                      className="h-full bg-emerald-400 transition-all duration-500"
-                      style={{ width: `${Math.min((doneHours / limitHours) * 100, 100)}%` }}
-                    />
-                    <div
-                      className="h-full bg-blue-500 transition-all duration-500"
-                      style={{ width: `${Math.min((pendingHours / limitHours) * 100, 100 - (doneHours / limitHours) * 100)}%` }}
-                    />
-                  </>
+            <div className="mt-4">
+              <div
+                className={`flex flex-col transition-all duration-300 ${isOverloaded ? "items-stretch gap-5" : "items-stretch gap-6"}`}
+              >
+                <div className="space-y-4">
+                  <div className="h-4 bg-slate-800 rounded-full w-full overflow-hidden flex">
+                    {isOverloaded ? (
+                      <div
+                        className="h-full bg-gradient-to-r from-yellow-500 to-red-500 transition-all duration-500"
+                        style={{ width: '100%' }}
+                      />
+                    ) : (
+                      <>
+                        <div
+                          className="h-full bg-emerald-400 transition-all duration-500"
+                          style={{ width: `${Math.min((doneHours / limitHours) * 100, 100)}%` }}
+                        />
+                        <div
+                          className="h-full bg-blue-500 transition-all duration-500"
+                          style={{ width: `${Math.min((pendingHours / limitHours) * 100, 100 - (doneHours / limitHours) * 100)}%` }}
+                        />
+                      </>
+                    )}
+                  </div>
+                  {!isOverloaded && (
+                    <div className="mt-3 space-y-2">
+                      <p className="flex items-center text-[13px] sm:text-sm text-slate-200 leading-snug">
+                        <span className="inline-block w-3.5 h-3.5 rounded-full bg-emerald-400 mr-2" />
+                        <span className="font-semibold mr-1">Verde</span>
+                        <span className="text-slate-400">= horas completadas</span>
+                      </p>
+                      <p className="flex items-center text-[13px] sm:text-sm text-slate-200 leading-snug">
+                        <span className="inline-block w-3.5 h-3.5 rounded-full bg-blue-500 mr-2" />
+                        <span className="font-semibold mr-1">Azul</span>
+                        <span className="text-slate-400">= horas pendientes hoy</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {isOverloaded && (
+                  <div className="mt-1">
+                    <OverloadAlert totalHours={totalHours} dailyLimit={limitHours} />
+                  </div>
                 )}
               </div>
             </div>
           </div>
         </div>
-
-        {isOverloaded && (
-          <OverloadAlert totalHours={totalHours} dailyLimit={limitHours} />
-        )}
         {/* FILTER BAR SECTION */}
         <div className="bg-[#111827] border border-slate-800/60 rounded-2xl p-4 shadow-lg shadow-black/10 flex flex-col gap-4 w-full">
           <div className="flex items-center gap-2">
@@ -1002,6 +1042,147 @@ export default function Today() {
           </div>
         </div>
       )}
+
+      {/* Edit Subtask Modal */}
+      {isEditModalOpen && editingTask && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div className="w-full max-w-[560px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
+            <div className="p-6 sm:p-7 relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setEditingTask(null);
+                }}
+                className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
+                aria-label="Cerrar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
+                  <Pencil className="w-6 h-6 text-blue-400" />
+                </div>
+                <div className="pr-8">
+                  <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                    Editar subtarea
+                  </h3>
+                  <p className="text-slate-400 text-sm mt-1 leading-relaxed">
+                    Puedes ajustar el título y las horas. Para cambiar la fecha, usa{" "}
+                    <span className="text-blue-300 font-semibold">Reprogramar</span>.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 bg-slate-900/40 border border-slate-800 rounded-2xl p-4 space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Título
+                  </label>
+                  <Input
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="h-11 bg-[#1F2937]/60 border-slate-700/60 text-slate-200 rounded-xl focus-visible:ring-blue-500"
+                    placeholder="Título de la subtarea"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Horas estimadas
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.25"
+                    min="0.25"
+                    value={editHours}
+                    onChange={(e) => setEditHours(e.target.value)}
+                    className="h-11 bg-[#1F2937]/60 border-slate-700/60 text-slate-200 rounded-xl focus-visible:ring-blue-500"
+                  />
+                </div>
+
+                {editError && (
+                  <p className="text-red-400 text-xs font-semibold">
+                    {editError}
+                  </p>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <Button
+                    onClick={() => navigate("/calendario")}
+                    className="h-11 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold border border-slate-700"
+                  >
+                    <CalendarRange className="w-4 h-4 mr-2" />
+                    Reprogramar
+                  </Button>
+                  <Button
+                    disabled={isSavingEdit}
+                    onClick={async () => {
+                      if (!editingTask) return;
+                      setEditError(null);
+
+                      const nextTitle = editTitle.trim();
+                      if (!nextTitle) {
+                        setEditError("El título no puede estar vacío.");
+                        return;
+                      }
+
+                      const nextHours = parseFloat(String(editHours));
+                      if (!Number.isFinite(nextHours) || nextHours <= 0) {
+                        setEditError("Ingresa horas válidas (mayores a 0).");
+                        return;
+                      }
+
+                      setIsSavingEdit(true);
+                      const activityId = editingTask.activity?.id;
+                      const subtaskId = editingTask.id;
+
+                      try {
+                        await patchSubtask(activityId, subtaskId, {
+                          title: nextTitle,
+                          estimated_hours: nextHours,
+                        });
+
+                        setData((prev: any) => {
+                          const updateList = (list: any[]) =>
+                            list.map((item) =>
+                              item.id === subtaskId
+                                ? { ...item, title: nextTitle, estimated_hours: nextHours }
+                                : item
+                            );
+                          return {
+                            ...prev,
+                            vencidas: updateList(prev.vencidas),
+                            para_hoy: updateList(prev.para_hoy),
+                            proximas: updateList(prev.proximas),
+                          };
+                        });
+                        setTiempoData((prev: any[]) =>
+                          prev.map((t: any) => (t.id === subtaskId ? { ...t, estimated_hours: nextHours } : t)) as any
+                        );
+
+                        refetch();
+                        refetchTiempo();
+
+                        setIsEditModalOpen(false);
+                        setEditingTask(null);
+                      } catch (e: any) {
+                        setEditError("No se pudo guardar. Intenta de nuevo.");
+                      } finally {
+                        setIsSavingEdit(false);
+                      }
+                    }}
+                    className="h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold shadow-lg shadow-blue-600/20"
+                  >
+                    Guardar cambios
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1109,8 +1290,10 @@ function ScrollableTaskSection({ children }: { children: React.ReactNode }) {
           ref={containerRef}
           className="task-scroll-container flex-1 overflow-y-auto overflow-x-hidden w-full"
           style={{
-            minHeight: '500px', // Altura mínima para mantener el tamaño cuando no hay cards
-            maxHeight: '500px', // Exactamente 3 tareas completas (altura estimada de tarjeta ~185px + gap 1rem)
+            // Altura fija para mostrar 3 tareas completas y algo de la 4ª antes de scrollear
+            // 3 * 185px (card aprox) + 2 * 16px (gap) + ~40px margen ≈ 630px
+            minHeight: '640px',
+            maxHeight: '740px',
           }}
         >
           <div ref={contentRef} className="flex flex-col gap-4 pt-4 min-h-full">
@@ -1134,7 +1317,7 @@ function ScrollableTaskSection({ children }: { children: React.ReactNode }) {
 }
 
 // Sub-component for individual tasks matching the requested UI
-function TaskCard({ item, badge, theme, onToggle }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void }) {
+function TaskCard({ item, badge, theme, onToggle, onEdit }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void, onEdit: () => void }) {
   const navigate = useNavigate();
   const isDone = item.status === "DONE";
   const courseName = item.activity?.course?.name || "Actividad";
@@ -1173,50 +1356,73 @@ function TaskCard({ item, badge, theme, onToggle }: { item: any, badge: string |
   const colors = themeColors[theme];
 
   return (
-    <div className={`relative flex flex-col gap-4 border ${colors.border} ${colors.bg} rounded-3xl p-4 w-full transition-all duration-300 ${colors.hover} shadow-lg ${isDone ? 'opacity-50 grayscale' : ''}`}>
+    <div
+      className={`relative flex flex-col gap-4 border ${colors.border} ${colors.bg} rounded-3xl p-4 w-full transition-all duration-300 ${colors.hover} shadow-lg ${isDone ? 'opacity-50 grayscale' : ''}`}
+    >
       {badge && (
         <div className={`absolute -top-3 left-6 px-3 py-1 font-black text-[10px] tracking-widest uppercase rounded-full ${colors.badge} shadow-lg`}>
           {badge}
         </div>
       )}
 
-      <div className="flex justify-between items-start pt-2">
-        <div className="space-y-1 pr-6 flex-1 min-w-0">
-          <p className={`font-black text-[10px] tracking-[0.15em] uppercase truncate ${colors.text} filter drop-shadow-md flex items-center gap-2`}>
-            <span className="opacity-50">{courseName}</span>
+      <div className="flex items-start gap-8">
+        <button
+          onClick={onToggle}
+          className={`flex-shrink-0 mt-1 w-7 h-7 border-2 rounded-lg cursor-pointer ${colors.checkbox} flex items-center justify-center transition-colors shadow-inner`}
+          aria-label={isDone ? "Marcar como pendiente" : "Marcar como completada"}
+        >
+          {isDone && (
+            <svg
+              className="w-4 h-4 text-white"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          )}
+        </button>
+
+        <div className="flex-1 min-w-0">
+          <p className={`font-black text-[10px] tracking-[0.15em] uppercase truncate ${colors.text} flex items-center gap-2`}>
+            <span className="opacity-60">{courseName}</span>
             <span className="opacity-30">•</span>
             <Link to={`/actividad/${item.activity.id}`} className="hover:underline transition-all hover:opacity-100">
               {item.activity?.title || "Actividad"}
             </Link>
           </p>
-          <h4 className={`text-lg font-bold ${isDone ? 'text-slate-400 line-through' : 'text-slate-100'} leading-tight tracking-tight pr-4`}>
+          <h4 className={`mt-1 text-lg font-bold ${isDone ? 'text-slate-400 line-through' : 'text-slate-100'} leading-tight tracking-tight pr-2`}>
             {title}
           </h4>
-        </div>
 
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <span className={`text-[11px] font-black tracking-widest uppercase ${colors.text}`}>
+              {getRelativeDateLabel(item.target_date)}
+            </span>
+            <div className={`flex items-center gap-1.5 text-[11px] font-black tracking-widest uppercase ${colors.text}`}>
+              <Clock className={`w-3.5 h-3.5 ${colors.icon}`} />
+              {formatHours(item.estimated_hours)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="pt-3 border-t border-slate-700/20 flex items-center justify-between gap-3">
         <button
-          onClick={onToggle}
-          className={`flex-shrink-0 mt-1 w-6 h-6 border-2 rounded cursor-pointer ${colors.checkbox} flex items-center justify-center transition-colors shadow-inner`}
+          type="button"
+          onClick={onEdit}
+          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer"
         >
-          {isDone && <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+          <Pencil className="w-4 h-4" />
+          Editar
         </button>
-      </div>
-
-      <div className="flex justify-between items-center mt-3 pt-4 border-t border-slate-700/30">
-        <span className={`text-[11px] font-black tracking-widest uppercase ${colors.text}`}>
-          {getRelativeDateLabel(item.target_date)}
-        </span>
-        <div className={`flex items-center gap-1.5 text-xs font-black tracking-widest uppercase ${colors.text}`}>
-          <Clock className={`w-3.5 h-3.5 ${colors.icon}`} />
-          {formatHours(item.estimated_hours)}
-        </div>
-      </div>
-
-      <div className="mt-3 pt-3 border-t border-slate-700/20">
         <button
           type="button"
           onClick={() => navigate("/calendario")}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-300 hover:text-blue-400 bg-slate-800/40 hover:bg-blue-500/15 px-3 py-2 rounded-lg border border-slate-700/50 hover:border-blue-500/30 transition-colors cursor-pointer"
+          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-blue-600/15 hover:bg-blue-600/25 px-3 py-2 rounded-lg border border-blue-500/30 transition-colors cursor-pointer"
         >
           <CalendarRange className="w-4 h-4" />
           Reprogramar
