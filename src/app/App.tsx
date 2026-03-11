@@ -3,6 +3,7 @@ import Create from "@/pages/Create";
 import ActivityDetail from "@/pages/ActivityDetail";
 import Progress from "@/pages/Progress";
 import CreateSuccess from "@/pages/CreateSuccess";
+import Calendar from "@/pages/Calendar";
 import { AppLayout } from "./AppLayout";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Register from "@/pages/Register";
@@ -27,6 +28,7 @@ export default function App() {
 
             <Route element={<ProtectedRoute />}>
               <Route path="/hoy" element={<Today />} />
+              <Route path="/calendario" element={<Calendar />} />
               <Route path="/crear" element={<Create />} />
               <Route path="/crear/exito" element={<CreateSuccess />} />
               <Route path="/actividad/:id" element={<ActivityDetail />} />

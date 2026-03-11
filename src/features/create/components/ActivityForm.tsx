@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Calendar, ChevronDown, ClipboardList, Save } from "lucide-react";
 import InfoTooltip from "@/features/create/components/InfoTooltip";
 import { getCourses, createCourse } from "@/api/services/course";
-import { createActivity, getActivities } from "@/api/services/activity";
+import { createActivity, getActivities, patchActivity } from "@/api/services/activity";
 import { createSubtask } from "@/api/services/subtack";
 import {
     Dialog,
@@ -356,16 +356,30 @@ const ActivityForm = () => {
                 type: tipo,
             };
 
-            // Validación de duplicados
+            // Si la actividad ya fue creada (usuario volvió del paso de subtareas), actualizar en lugar de crear
+            if (createdActivityId != null) {
+                await patchActivity(createdActivityId, payloadActivity);
+                setCurrentStep(2);
+                setModalType("success");
+                setModalTitle("Actividad actualizada");
+                setModalMessage(`La actividad "${payloadActivity.title}" se ha actualizado. Puedes continuar con las subtareas.`);
+                setModalOpen(true);
+                setIsSavingActivity(false);
+                return;
+            }
+
+            // Validación de duplicados (solo al crear; excluir la actividad actual si ya existe)
             if (payloadActivity.course_id && payloadActivity.title) {
                 try {
                     const existing = await getActivities();
                     const normalizedTitle = payloadActivity.title.trim().toLowerCase();
                     const normalizedCourseId = String(payloadActivity.course_id);
+                    const currentIdStr = createdActivityId != null ? String(createdActivityId) : null;
 
                     const isDuplicate =
                         Array.isArray(existing) &&
                         existing.some((a: any) => {
+                            if (currentIdStr != null && a?.id != null && String(a.id) === currentIdStr) return false;
                             const existingTitle = String(a?.title ?? "").trim().toLowerCase();
                             const existingCourseId =
                                 a?.course?.id != null

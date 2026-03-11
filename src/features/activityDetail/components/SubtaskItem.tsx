@@ -185,7 +185,7 @@ export default function SubtaskItem({
     setShowEditDialog(true);
   };
 
-  const handleSaveEdit = async (data: { nombre: string; fechaObjetivo: string; horas: string }) => {
+  const handleSaveEdit = async (data: { nombre: string; horas: string }) => {
     if (!activityId || !id) {
       showToast("Error: ID de actividad o subtarea no disponible.", "error");
       return;
@@ -207,7 +207,6 @@ export default function SubtaskItem({
       const subtaskUpdateData: any = {
         title: data.nombre.trim(),
         estimated_hours: estimatedHours.toString(),
-        target_date: data.fechaObjetivo || null,
       };
 
       // Llamar a la API para actualizar la subtarea
@@ -428,12 +427,10 @@ export default function SubtaskItem({
         onOpenChange={setShowEditDialog}
         subtaskData={{
           nombre: title,
-          fechaObjetivo: dateOriginal || "", // Usar la fecha original en formato YYYY-MM-DD
           horas: hours.replace("h", ""), // Remover la "h" para el input
         }}
         onSave={handleSaveEdit}
         isSaving={isSavingEdit}
-        deadlineDate={deadlineDate}
       />
 
       <Dialog open={showEditSuccessDialog} onOpenChange={setShowEditSuccessDialog}>
