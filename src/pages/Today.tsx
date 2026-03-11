@@ -197,6 +197,7 @@ export default function Today() {
   const conflictedCount = conflictedTasks.length;
 
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
+  const [showConflictResolvedModal, setShowConflictResolvedModal] = useState(false);
   const [selectedConflictId, setSelectedConflictId] = useState<string | null>(null);
   const [reduceHours, setReduceHours] = useState("");
   const [reduceError, setReduceError] = useState<string | null>(null);
@@ -273,10 +274,12 @@ export default function Today() {
     try {
       await patchSubtask(activityId, subtaskId, { estimated_hours: next });
 
-      // Optimistic update local UI
+      // Optimistic update local UI: nuevas horas y quitar marca de conflicto
       setData((prev: any) => {
         const updateList = (list: any[]) =>
-          list.map((item) => (item.id === subtaskId ? { ...item, estimated_hours: next } : item));
+          list.map((item) =>
+            item.id === subtaskId ? { ...item, estimated_hours: next, is_conflicted: false } : item
+          );
         return {
           ...prev,
           vencidas: updateList(prev.vencidas),
@@ -291,6 +294,8 @@ export default function Today() {
       // Re-fetch para recalcular conflictos desde backend
       refetch();
       refetchTiempo();
+      setIsConflictModalOpen(false);
+      setShowConflictResolvedModal(true);
     } catch (e: any) {
       setReduceError("No se pudo actualizar las horas. Intenta de nuevo.");
     } finally {
@@ -429,6 +434,7 @@ export default function Today() {
                         theme="red"
                         onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
                         onEdit={() => openEditModal(item)}
+                        onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
                       />
                     ))}
                     {filteredVencidas.length === 0 && (
@@ -462,6 +468,7 @@ export default function Today() {
                         theme="emerald"
                         onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
                         onEdit={() => openEditModal(item)}
+                        onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
                       />
                     ))}
                     {filteredParaHoy.length === 0 && (
@@ -505,6 +512,7 @@ export default function Today() {
                         theme="blue"
                         onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
                         onEdit={() => openEditModal(item)}
+                        onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
                       />
                     ))}
                     {filteredProximas.length === 0 && (
@@ -930,7 +938,7 @@ export default function Today() {
       {/* Conflict Alert Modal */}
       {isConflictModalOpen && conflictedCount > 0 && selectedConflict && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-          <div className="w-full max-w-[560px] bg-[#111827] border border-red-500/30 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
+          <div className="w-full max-w-[560px] bg-[#111827] border border-[#F59E0B]/30 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
             <div className="p-6 sm:p-7 relative">
               <button
                 type="button"
@@ -942,8 +950,8 @@ export default function Today() {
               </button>
 
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
-                  <AlertCircle className="w-6 h-6 text-red-400" />
+                <div className="w-12 h-12 rounded-2xl bg-[#F59E0B]/10 border border-[#F59E0B]/20 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-6 h-6 text-[#F59E0B]" />
                 </div>
                 <div className="pr-8">
                   <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
@@ -1016,7 +1024,7 @@ export default function Today() {
                     </Button>
                   </div>
                   {reduceError && (
-                    <p className="text-red-400 text-xs font-semibold mt-2">
+                    <p className="text-[#F59E0B] text-xs font-semibold mt-2">
                       {reduceError}
                     </p>
                   )}
@@ -1038,6 +1046,31 @@ export default function Today() {
                   </Button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Conflicto solucionado modal */}
+      {showConflictResolvedModal && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div className="w-full max-w-[400px] bg-[#111827] border border-emerald-500/30 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
+            <div className="p-6 sm:p-7 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto mb-4">
+                <CheckCircle2 className="w-8 h-8 text-emerald-400" strokeWidth={2} />
+              </div>
+              <h3 className="text-xl font-extrabold text-white tracking-tight">
+                Conflicto solucionado
+              </h3>
+              <p className="text-slate-400 text-sm mt-2">
+                Los cambios se aplicaron correctamente. Si el día ya no está sobrecargado, la tarea ya no aparecerá en conflicto.
+              </p>
+              <Button
+                onClick={() => setShowConflictResolvedModal(false)}
+                className="mt-5 w-full h-11 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold"
+              >
+                Entendido
+              </Button>
             </div>
           </div>
         </div>
@@ -1317,9 +1350,10 @@ function ScrollableTaskSection({ children }: { children: React.ReactNode }) {
 }
 
 // Sub-component for individual tasks matching the requested UI
-function TaskCard({ item, badge, theme, onToggle, onEdit }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void, onEdit: () => void }) {
+function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void, onEdit: () => void, onViewConflict?: () => void }) {
   const navigate = useNavigate();
   const isDone = item.status === "DONE";
+  const isConflicted = !isDone && !!item?.is_conflicted;
   const courseName = item.activity?.course?.name || "Actividad";
   const title = item.title;
 
@@ -1357,11 +1391,16 @@ function TaskCard({ item, badge, theme, onToggle, onEdit }: { item: any, badge: 
 
   return (
     <div
-      className={`relative flex flex-col gap-4 border ${colors.border} ${colors.bg} rounded-3xl p-4 w-full transition-all duration-300 ${colors.hover} shadow-lg ${isDone ? 'opacity-50 grayscale' : ''}`}
+      className={`relative flex flex-col gap-4 border ${colors.border} ${isConflicted ? 'ring-2 ring-[#F59E0B]/50 border-[#F59E0B]/40' : ''} ${colors.bg} rounded-3xl p-4 w-full transition-all duration-300 ${colors.hover} shadow-lg ${isDone ? 'opacity-50 grayscale' : ''}`}
     >
       {badge && (
         <div className={`absolute -top-3 left-6 px-3 py-1 font-black text-[10px] tracking-widest uppercase rounded-full ${colors.badge} shadow-lg`}>
           {badge}
+        </div>
+      )}
+      {isConflicted && (
+        <div className="absolute -top-3 right-6 px-3 py-1 font-bold text-[10px] tracking-widest uppercase rounded-full bg-[#F59E0B]/90 text-amber-950 shadow-lg">
+          En conflicto
         </div>
       )}
 
@@ -1410,7 +1449,17 @@ function TaskCard({ item, badge, theme, onToggle, onEdit }: { item: any, badge: 
         </div>
       </div>
 
-      <div className="pt-3 border-t border-slate-700/20 flex items-center justify-between gap-3">
+      <div className="pt-3 border-t border-slate-700/20 flex flex-wrap items-center justify-between gap-3">
+        {isConflicted && onViewConflict && (
+          <button
+            type="button"
+            onClick={onViewConflict}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-[#F59E0B]/90 hover:text-[#F59E0B] bg-[#F59E0B]/20 hover:bg-[#F59E0B]/30 px-3 py-2 rounded-lg border border-[#F59E0B]/40 transition-colors cursor-pointer"
+          >
+            <AlertCircle className="w-4 h-4" />
+            Ver conflicto
+          </button>
+        )}
         <button
           type="button"
           onClick={onEdit}

@@ -11,11 +11,11 @@ export const OverloadAlert = ({ totalHours, dailyLimit, conflictedCount }: Overl
   const isOverloaded = totalHours > dailyLimit;
   const count = conflictedCount ?? 0;
   return (
-    <Card className="border-yellow-500/40 bg-gradient-to-r from-yellow-500/15 via-orange-500/10 to-red-500/10 shadow-lg shadow-yellow-500/10">
+    <Card className="border-[#F59E0B]/40 bg-gradient-to-r from-[#F59E0B]/15 via-[#F59E0B]/10 to-[#F59E0B]/10 shadow-lg shadow-[#F59E0B]/10">
       <CardContent className="flex items-start gap-3 py-4">
-        <AlertTriangle className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
+        <AlertTriangle className="h-5 w-5 text-[#F59E0B] shrink-0 mt-0.5" />
         <div className="flex-1">
-          <p className="font-semibold text-orange-500">
+          <p className="font-semibold text-[#F59E0B]">
             {isOverloaded ? "Límite diario excedido" : "Conflicto de planificación detectado"}
           </p>
           <p className="text-sm text-slate-300/90 mt-1">
