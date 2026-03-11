@@ -7,7 +7,7 @@ import Progress from "@/pages/Progress";
 import CreateSuccess from "@/pages/CreateSuccess";
 import Register from "@/pages/Register";
 import Login from "@/pages/Login";
-import Calendario from "@/pages/Calendario";
+import Calendar from "@/pages/Calendar";
 
 export const router = createBrowserRouter([
 
@@ -49,7 +49,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "calendario",
-        element: <Calendario />,
+        element: <Calendar />,
       },
     ],
   },
