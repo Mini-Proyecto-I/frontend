@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import { useAuth } from "@/app/authContext";
 import { patchSubtask } from "@/api/services/subtack";
+import { getUserConfig, updateUserConfig } from "@/api/services/config";
 import { queryCache } from "@/lib/queryCache";
 import { Input } from "@/shared/components/input";
 import { Button } from "@/shared/components/button";
@@ -78,15 +79,25 @@ export default function Today() {
     setIsEditModalOpen(true);
   };
 
-  const handleSaveLimit = () => {
+  const handleSaveLimit = async () => {
     let val = parseFloat(tempLimit);
     if (isNaN(val)) val = limitHours;
     if (val < 0.5) val = 0.5;
     if (val > 24) val = 24;
 
     setLimitHours(val);
-    setTempLimit(val.toString());
-    window.localStorage.setItem("studyLimitHours", val.toString());
+    const normalized = val.toString();
+    setTempLimit(normalized);
+    window.localStorage.setItem("studyLimitHours", normalized);
+
+    // También actualizar la configuración en el backend
+    try {
+      await updateUserConfig(val);
+    } catch (error) {
+      console.error("Error updating user config (daily_hours_limit):", error);
+      // No interrumpimos la experiencia de usuario si falla el backend
+    }
+
     setIsEditingLimit(false);
   };
 
@@ -103,6 +114,29 @@ export default function Today() {
       }
     }
   }, [location.state, navigate]);
+
+  // Sincronizar el límite diario con la configuración del backend al montar
+  useEffect(() => {
+    const fetchUserLimit = async () => {
+      try {
+        const data = await getUserConfig();
+        const backendLimit = data?.daily_hours_limit;
+        if (backendLimit !== undefined && backendLimit !== null) {
+          const num = parseFloat(String(backendLimit));
+          if (!isNaN(num)) {
+            setLimitHours(num);
+            setTempLimit(num.toString());
+            window.localStorage.setItem("studyLimitHours", num.toString());
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching user config (daily_hours_limit):", error);
+        // Si falla, seguimos usando el valor de localStorage o el default de 6h
+      }
+    };
+
+    fetchUserLimit();
+  }, []);
 
   const [filters, setFilters] = useState({
     status: "",
@@ -892,14 +926,24 @@ export default function Today() {
                     Atrás
                   </Button>
                   <Button
-                    onClick={() => {
+                    onClick={async () => {
                       let val = parseFloat(welcomeLimit);
                       if (isNaN(val)) val = 6;
                       if (val < 0.5) val = 0.5;
                       if (val > 24) val = 24;
+
                       setLimitHours(val);
-                      setTempLimit(val.toString());
-                      window.localStorage.setItem("studyLimitHours", val.toString());
+                      const normalized = val.toString();
+                      setTempLimit(normalized);
+                      window.localStorage.setItem("studyLimitHours", normalized);
+
+                      // Persistir también en el backend como configuración del usuario
+                      try {
+                        await updateUserConfig(val);
+                      } catch (error) {
+                        console.error("Error updating user config from welcome modal:", error);
+                      }
+
                       window.localStorage.removeItem("welcomeInProgress");
                       setShowWelcomeModal(false);
                     }}
