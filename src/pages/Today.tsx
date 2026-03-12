@@ -53,6 +53,7 @@ export default function Today() {
   const location = useLocation();
   const navigate = useNavigate();
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [welcomeStep, setWelcomeStep] = useState(1);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [limitHours, setLimitHours] = useState(() => {
     const saved = window.localStorage.getItem("studyLimitHours");
@@ -90,10 +91,16 @@ export default function Today() {
   };
 
   useEffect(() => {
-    if (location.state?.justRegistered) {
+    // Verificar si el welcome está en progreso (persiste ante recargas)
+    const isFirstTime = window.localStorage.getItem("welcomeInProgress") === "true";
+    if (location.state?.justRegistered || isFirstTime) {
       setShowWelcomeModal(true);
-      // Limpiar state al montarse el componente para evitar que aparezca de nuevo al refrescar
-      navigate("/hoy", { replace: true, state: {} });
+      window.localStorage.setItem("welcomeInProgress", "true");
+      // Limpiar state al montarse el componente para evitar que aparezca de nuevo por state, 
+      // pero mantenemos el flag de localStorage hasta que termine.
+      if (location.state?.justRegistered) {
+        navigate("/hoy", { replace: true, state: {} });
+      }
     }
   }, [location.state, navigate]);
 
@@ -321,7 +328,7 @@ export default function Today() {
 
   const pendingTodayCount = filteredParaHoy.filter((t: any) => t.status !== "DONE").length;
 
-  if (!loading && !hasActiveFilters && vencidas.length === 0 && para_hoy.length === 0 && proximas.length === 0) {
+  if (!loading && !hasActiveFilters && vencidas.length === 0 && para_hoy.length === 0 && proximas.length === 0 && !showWelcomeModal) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-120px)] w-full px-4 text-center animate-in fade-in zoom-in-[0.98] duration-700">
         <div className="relative mb-14">
@@ -772,98 +779,137 @@ export default function Today() {
       {/* Welcome Modal */}
       {showWelcomeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#111827] border border-slate-800 rounded-3xl p-8 flex flex-col items-center text-center shadow-2xl max-w-[520px] w-full mx-4 relative overflow-hidden">
+          <div className="bg-[#111827] border border-slate-800 rounded-3xl p-8 flex flex-col items-center text-center shadow-2xl max-w-[520px] w-full mx-4 relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
 
-            <div className="w-12 h-12 bg-blue-500/20 border border-blue-500/30 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/10">
-              <Info className="w-6 h-6 text-blue-400" />
-            </div>
-
-            <h3 className="text-2xl font-extrabold text-white mb-4 tracking-tight">
-              Vista <span className="text-blue-400">Hoy</span>: orden de prioridad
-            </h3>
-            <p className="text-slate-400 text-sm mb-6 px-2">
-              Esta pantalla sigue una regla clara para que sepas qué atender primero:
-            </p>
-
-            <div className="flex flex-col gap-5 text-left w-full mb-8 pl-8 pr-4">
-              <div className="flex items-start gap-4">
-                <div className="bg-emerald-400/10 p-2.5 rounded-xl border border-emerald-400/20 mt-0.5">
-                  <CalendarDays className="w-5 h-5 text-emerald-400 shrink-0" />
+            {welcomeStep === 1 ? (
+              <>
+                <div className="w-12 h-12 bg-blue-500/20 border border-blue-500/30 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/10">
+                  <Info className="w-6 h-6 text-blue-400" />
                 </div>
-                <div>
-                  <p className="text-emerald-400 text-[15px] font-bold leading-snug mb-1">
-                    1. Tareas de hoy (prioridad)
-                  </p>
-                  <p className="text-slate-400 text-[13px] leading-relaxed">
-                    Lo primero que verás son las tareas del día. Son tu prioridad: complétalas primero. Se muestran ordenadas de menor a mayor tiempo estimado.
-                  </p>
-                </div>
-              </div>
 
-              <div className="flex items-start gap-4">
-                <div className="bg-orange-500/10 p-2.5 rounded-xl border border-orange-500/20 mt-0.5">
-                  <Clock className="w-5 h-5 text-orange-500 shrink-0" />
-                </div>
-                <div>
-                  <p className="text-orange-500 text-[15px] font-bold leading-snug mb-1">
-                    2. Límite de horas
-                  </p>
-                  <p className="text-slate-400 text-[13px] leading-relaxed">
-                    En segundo lugar, revisa tu tiempo de estudio diario. No te pases del límite que definiste; si te pasas, la barra te avisará.
-                  </p>
-                </div>
-              </div>
+                <h3 className="text-2xl font-extrabold text-white mb-4 tracking-tight">
+                  Vista <span className="text-blue-400">Hoy</span>: orden de prioridad
+                </h3>
+                <p className="text-slate-400 text-sm mb-6 px-2">
+                  Esta pantalla sigue una regla clara para que sepas qué atender primero:
+                </p>
 
-              <div className="flex items-start gap-4">
-                <div className="bg-blue-500/10 p-2.5 rounded-xl border border-blue-500/20 mt-0.5">
-                  <CalendarClock className="w-5 h-5 text-blue-400 shrink-0" />
+                <div className="flex flex-col gap-5 text-left w-full mb-8 pl-8 pr-4">
+                  <div className="flex items-start gap-4">
+                    <div className="bg-emerald-400/10 p-2.5 rounded-xl border border-emerald-400/20 mt-0.5">
+                      <CalendarDays className="w-5 h-5 text-emerald-400 shrink-0" />
+                    </div>
+                    <div>
+                      <p className="text-emerald-400 text-[15px] font-bold leading-snug mb-1">
+                        1. Tareas de hoy (prioridad)
+                      </p>
+                      <p className="text-slate-400 text-[13px] leading-relaxed">
+                        Lo primero que verás son las tareas del día. Son tu prioridad: complétalas primero. Se muestran ordenadas de menor a mayor tiempo estimado.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <div className="bg-orange-500/10 p-2.5 rounded-xl border border-orange-500/20 mt-0.5">
+                      <Clock className="w-5 h-5 text-orange-500 shrink-0" />
+                    </div>
+                    <div>
+                      <p className="text-orange-500 text-[15px] font-bold leading-snug mb-1">
+                        2. Límite de horas
+                      </p>
+                      <p className="text-slate-400 text-[13px] leading-relaxed">
+                        En segundo lugar, revisa tu tiempo de estudio diario. No te pases del límite que definiste; si te pasas, la barra te avisará.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <div className="bg-blue-500/10 p-2.5 rounded-xl border border-blue-500/20 mt-0.5">
+                      <CalendarClock className="w-5 h-5 text-blue-400 shrink-0" />
+                    </div>
+                    <div>
+                      <p className="text-blue-400 text-[15px] font-bold leading-snug mb-1">
+                        3. Vencidas y próximas
+                      </p>
+                      <p className="text-slate-400 text-[13px] leading-relaxed">
+                        Por último, usa las pestañas para ver lo atrasado (vencidas) y lo que viene (próximas), y así tener el panorama completo.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-blue-400 text-[15px] font-bold leading-snug mb-1">
-                    3. Vencidas y próximas
-                  </p>
-                  <p className="text-slate-400 text-[13px] leading-relaxed">
-                    Por último, usa las pestañas para ver lo atrasado (vencidas) y lo que viene (próximas), y así tener el panorama completo.
-                  </p>
+
+                <p className="text-slate-400 text-[13px] font-medium mt-2 mb-8 px-4">
+                  Puedes filtrar por nombre, curso y estado cuando lo necesites.
+                </p>
+
+                <Button
+                  onClick={() => setWelcomeStep(2)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-10 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all w-full sm:w-auto"
+                >
+                  Continuar
+                </Button>
+              </>
+            ) : (
+              <>
+                <div className="w-14 h-14 bg-blue-500/20 border border-blue-500/30 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-500/10">
+                  <Clock className="w-7 h-7 text-blue-400" />
                 </div>
-              </div>
-            </div>
 
-            <p className="text-slate-400 text-[13px] font-medium mt-2 mb-6 px-4">
-              Puedes filtrar por nombre, curso y estado cuando lo necesites.
-            </p>
+                <h3 className="text-2xl font-extrabold text-white mb-4 tracking-tight">
+                  Límite de <span className="text-blue-400">estudio</span>
+                </h3>
+                <p className="text-slate-400 text-[15px] mb-8 px-4 leading-relaxed">
+                  ¿Cuántas horas quieres dedicar al estudio cada día? Te avisaremos si tus tareas superan este límite.
+                </p>
 
-            <div className="mb-8 w-full px-4">
-              <label className="text-sm font-semibold text-slate-300 block mb-3">
-                ¿Cuántas horas planeas estudiar al día?
-              </label>
-              <Input
-                type="number"
-                step="0.5"
-                min="0.5"
-                max="24"
-                value={welcomeLimit}
-                onChange={(e) => setWelcomeLimit(e.target.value)}
-                className="w-full h-12 text-center bg-[#1F2937]/50 border-slate-700/50 focus-visible:ring-blue-500 text-white font-bold text-lg rounded-xl"
-              />
-            </div>
+                <div className="mb-10 w-full px-6">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-3">
+                    Horas diarias sugeridas
+                  </label>
+                  <div className="relative group">
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      max="24"
+                      value={welcomeLimit}
+                      onChange={(e) => setWelcomeLimit(e.target.value)}
+                      className="w-full h-16 text-center bg-slate-900/50 border-slate-700/50 focus-visible:ring-blue-500 text-white font-black text-3xl rounded-2xl transition-all group-hover:bg-slate-900"
+                    />
+                    <div className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-lg pointer-events-none">
+                      Horas
+                    </div>
+                  </div>
+                </div>
 
-            <Button
-              onClick={() => {
-                let val = parseFloat(welcomeLimit);
-                if (isNaN(val)) val = 6;
-                if (val < 0.5) val = 0.5;
-                if (val > 24) val = 24;
-                setLimitHours(val);
-                setTempLimit(val.toString());
-                window.localStorage.setItem("studyLimitHours", val.toString());
-                setShowWelcomeModal(false);
-              }}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all w-full sm:w-auto"
-            >
-              Comenzar
-            </Button>
+                <div className="flex flex-col sm:flex-row gap-3 w-full justify-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => setWelcomeStep(1)}
+                    className="h-11 px-8 rounded-xl border-slate-700 text-slate-400 hover:bg-slate-800"
+                  >
+                    Atrás
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      let val = parseFloat(welcomeLimit);
+                      if (isNaN(val)) val = 6;
+                      if (val < 0.5) val = 0.5;
+                      if (val > 24) val = 24;
+                      setLimitHours(val);
+                      setTempLimit(val.toString());
+                      window.localStorage.setItem("studyLimitHours", val.toString());
+                      window.localStorage.removeItem("welcomeInProgress");
+                      setShowWelcomeModal(false);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-10 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all"
+                  >
+                    Comenzar ahora
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
