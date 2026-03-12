@@ -15,6 +15,7 @@ import {
 } from "@/shared/components/dialog";
 import { Button } from "@/shared/components/button";
 import { MessageModal } from "@/shared/components/MessageModal";
+import ConflictModal from "@/shared/components/ConflictModal";
 import {
     Select,
     SelectContent,
@@ -77,6 +78,24 @@ const ActivityForm = () => {
     const [modalType, setModalType] = useState<"success" | "error" | "warning">("success");
     const [modalTitle, setModalTitle] = useState("");
     const [modalMessage, setModalMessage] = useState("");
+
+    // Estados para el modal de conflicto de horas
+    const [showConflictModal, setShowConflictModal] = useState(false);
+    const [conflictData, setConflictData] = useState<{
+        singleTask?: {
+            nombre: string;
+            horasAntiguas: number;
+            horasIntentadas: number;
+            horasOcupadas: number;
+            limiteDiario: number;
+            fecha: string;
+        };
+        multipleTasks?: {
+            tasks: Array<{ nombre: string; horas: number; fecha: string }>;
+            limiteDiario: number;
+            horasOcupadasPorFecha: Record<string, number>;
+        };
+    } | null>(null);
 
     // Función helper para obtener la fecha de hoy en formato YYYY-MM-DD
     const getTodayDate = (): string => {
@@ -303,6 +322,17 @@ const ActivityForm = () => {
             return String(eventError) || "La fecha del evento no es válida. Por favor, revisa la fecha seleccionada.";
         }
 
+        // Manejar error de límite diario de horas (estimated_hours)
+        if (errorData?.estimated_hours) {
+            const hoursError = Array.isArray(errorData.estimated_hours) ? errorData.estimated_hours[0] : errorData.estimated_hours;
+            if (hoursError?.toLowerCase().includes("limite diario") || 
+                hoursError?.toLowerCase().includes("excede") ||
+                hoursError?.toLowerCase().includes("límite")) {
+                return String(hoursError) || "Se excede el límite diario de horas planificadas. Por favor, reduce las horas o cambia la fecha objetivo.";
+            }
+            return String(hoursError) || "Las horas estimadas no son válidas. Por favor, revisa el valor ingresado.";
+        }
+
         if (error?.message) {
             if (error.message.includes("Network Error") || error.message.includes("Failed to fetch")) {
                 return "No se pudo conectar con el servidor. Verifica tu conexión a internet e intenta de nuevo.";
@@ -315,6 +345,17 @@ const ActivityForm = () => {
         }
 
         if (status === 400) {
+            // Si hay múltiples errores, intentar mostrar el más relevante
+            if (errorData && typeof errorData === 'object') {
+                const errorKeys = Object.keys(errorData);
+                if (errorKeys.length > 0) {
+                    const firstError = errorData[errorKeys[0]];
+                    const firstErrorMessage = Array.isArray(firstError) ? firstError[0] : firstError;
+                    if (firstErrorMessage) {
+                        return String(firstErrorMessage);
+                    }
+                }
+            }
             return "Los datos ingresados no son válidos. Por favor, revisa el formulario.";
         }
 
@@ -496,7 +537,8 @@ const ActivityForm = () => {
 
         setIsSavingSubtasks(true);
         try {
-            await Promise.all(
+            // Usar Promise.allSettled para capturar todos los resultados, incluso los que fallan
+            const results = await Promise.allSettled(
                 subtareas.map((sub) =>
                     createSubtask(createdActivityId, {
                         title: sub.nombre.trim(),
@@ -507,6 +549,176 @@ const ActivityForm = () => {
                 )
             );
 
+            // Verificar si todas las subtareas se crearon exitosamente
+            const failedResults = results.filter((result) => result.status === 'rejected');
+            
+            if (failedResults.length > 0) {
+                // Hay errores, identificar cuáles subtareas fallaron
+                const newErrors: typeof errors = { ...errors };
+                const subtareasConErrorHoras: Array<{ nombre: string; fecha: string; indice: number }> = [];
+                let generalErrorMessage = "";
+
+                // Función helper para formatear fecha en español
+                const formatearFecha = (fechaStr: string): string => {
+                    if (!fechaStr) return "sin fecha";
+                    try {
+                        const fecha = new Date(fechaStr + 'T00:00:00');
+                        const opciones: Intl.DateTimeFormatOptions = { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                        };
+                        return fecha.toLocaleDateString('es-ES', opciones);
+                    } catch {
+                        return fechaStr;
+                    }
+                };
+
+                results.forEach((result, index) => {
+                    if (result.status === 'rejected') {
+                        const error = result.reason;
+                        const subtarea = subtareas[index];
+                        
+                        // Verificar si es un error de estimated_hours (límite diario)
+                        if (error?.response?.data?.estimated_hours) {
+                            const hoursError = Array.isArray(error.response.data.estimated_hours) 
+                                ? error.response.data.estimated_hours[0] 
+                                : error.response.data.estimated_hours;
+                            
+                            if (!newErrors.subtareas) {
+                                newErrors.subtareas = {};
+                            }
+                            if (!newErrors.subtareas[subtarea.id]) {
+                                newErrors.subtareas[subtarea.id] = {};
+                            }
+                            newErrors.subtareas[subtarea.id].horas = String(hoursError);
+                            
+                            // Guardar información de la subtarea con error
+                            subtareasConErrorHoras.push({
+                                nombre: subtarea.nombre.trim() || `Subtarea ${index + 1}`,
+                                fecha: subtarea.fechaObjetivo || "sin fecha",
+                                indice: index + 1
+                            });
+                        } else {
+                            // Otro tipo de error
+                            const errorMessage = getErrorMessage(error);
+                            if (!generalErrorMessage) {
+                                generalErrorMessage = errorMessage;
+                            }
+                        }
+                    }
+                });
+
+                // Manejar conflictos de horas con el modal de conflicto
+                if (subtareasConErrorHoras.length > 0) {
+                    // Obtener límite diario del localStorage
+                    const limiteDiario = (() => {
+                        const saved = window.localStorage.getItem("studyLimitHours");
+                        return saved ? parseFloat(saved) : 6;
+                    })();
+
+                    // Calcular horas totales que estamos intentando agregar cada día (incluyendo todas las subtareas con esa fecha)
+                    const horasNuevasPorFecha: Record<string, number> = {};
+                    subtareas.forEach((sub) => {
+                        if (sub.fechaObjetivo) {
+                            if (!horasNuevasPorFecha[sub.fechaObjetivo]) {
+                                horasNuevasPorFecha[sub.fechaObjetivo] = 0;
+                            }
+                            horasNuevasPorFecha[sub.fechaObjetivo] += parseFloat(sub.horas) || 0;
+                        }
+                    });
+
+                    // Preparar datos para el modal de conflicto
+                    if (subtareasConErrorHoras.length === 1) {
+                        // Una sola subtarea con error - usar formato de tarea única
+                        const subtarea = subtareasConErrorHoras[0];
+                        const fecha = subtarea.fecha || "sin fecha";
+                        const horasDeLaSubtarea = parseFloat(subtareas.find(s => s.fechaObjetivo === fecha && s.nombre.trim() === subtarea.nombre)?.horas || "0");
+                        const horasNuevas = horasNuevasPorFecha[fecha] || 0;
+                        
+                        // Estimar horas ocupadas: el backend rechaza cuando horas_existentes + horas_nuevas > limite
+                        // Como no sabemos horas_existentes, estimamos que horasOcupadas = limite + exceso mínimo
+                        // El exceso mínimo es al menos las horas nuevas que intentamos agregar
+                        // Para una estimación más realista, asumimos que hay al menos algunas horas ya ocupadas
+                        const horasOcupadas = Math.max(horasNuevas, limiteDiario + horasDeLaSubtarea * 0.5);
+                        
+                        setConflictData({
+                            singleTask: {
+                                nombre: subtarea.nombre,
+                                horasAntiguas: 0, // No hay horas antiguas al crear
+                                horasIntentadas: horasDeLaSubtarea,
+                                horasOcupadas: horasOcupadas,
+                                limiteDiario: limiteDiario,
+                                fecha: fecha,
+                            }
+                        });
+                    } else {
+                        // Múltiples subtareas con error - usar formato de múltiples tareas
+                        const conflictTasks = subtareasConErrorHoras.map(sub => {
+                            const subtareaOriginal = subtareas.find(s => s.fechaObjetivo === sub.fecha && s.nombre.trim() === sub.nombre);
+                            return {
+                                nombre: sub.nombre,
+                                horas: parseFloat(subtareaOriginal?.horas || "0"),
+                                fecha: sub.fecha || "sin fecha",
+                            };
+                        });
+
+                        // Calcular horas ocupadas por fecha
+                        // Solo incluir fechas que tienen conflictos
+                        const fechasConConflicto = [...new Set(subtareasConErrorHoras.map(sub => sub.fecha))];
+                        const horasOcupadasPorFecha: Record<string, number> = {};
+                        
+                        fechasConConflicto.forEach(fecha => {
+                            const horasNuevas = horasNuevasPorFecha[fecha] || 0;
+                            // Estimar horas ocupadas: al menos las horas nuevas que intentamos agregar
+                            // El backend rechaza cuando horas_existentes + horas_nuevas > limite
+                            // Para una estimación más realista, asumimos que hay al menos algunas horas ya ocupadas
+                            horasOcupadasPorFecha[fecha] = Math.max(horasNuevas, limiteDiario + horasNuevas * 0.3);
+                        });
+
+                        setConflictData({
+                            multipleTasks: {
+                                tasks: conflictTasks,
+                                limiteDiario: limiteDiario,
+                                horasOcupadasPorFecha: horasOcupadasPorFecha,
+                            }
+                        });
+                    }
+
+                    // Actualizar errores en el estado
+                    setErrors(newErrors);
+
+                    // Mostrar modal de conflicto
+                    setShowConflictModal(true);
+                } else if (generalErrorMessage) {
+                    // Otros errores que no son de conflicto de horas
+                    setErrors(newErrors);
+                    setModalType("error");
+                    setModalTitle("Error al guardar subtareas");
+                    setModalMessage(generalErrorMessage || "Algunas subtareas no pudieron ser guardadas. Por favor, revisa los errores marcados.");
+                    setModalOpen(true);
+                } else {
+                    // Actualizar errores en el estado
+                    setErrors(newErrors);
+                    setModalType("error");
+                    setModalTitle("Error al guardar subtareas");
+                    setModalMessage("Algunas subtareas no pudieron ser guardadas. Por favor, revisa los errores marcados.");
+                    setModalOpen(true);
+                }
+
+                // Hacer scroll a la sección de subtareas para que el usuario vea los errores
+                setTimeout(() => {
+                    const subtaskSection = document.querySelector('[data-field="subtareas"]');
+                    if (subtaskSection) {
+                        subtaskSection.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }
+                }, 200);
+
+                setIsSavingSubtasks(false);
+                return;
+            }
+
+            // Todas las subtareas se crearon exitosamente
             setModalType("success");
             setModalTitle("Subtareas guardadas");
             setModalMessage(`Se han guardado ${subtareas.length} subtarea${subtareas.length > 1 ? 's' : ''} exitosamente.`);
@@ -523,7 +735,7 @@ const ActivityForm = () => {
                 });
             }, 1500);
         } catch (error: any) {
-            console.error("[ActivityForm] Error al crear las subtareas:", error);
+            console.error("[ActivityForm] Error inesperado al crear las subtareas:", error);
 
             const errorMessage = getErrorMessage(error);
 
@@ -562,6 +774,12 @@ const ActivityForm = () => {
                 type={modalType}
                 title={modalTitle}
                 message={modalMessage}
+            />
+            <ConflictModal
+                open={showConflictModal}
+                onOpenChange={setShowConflictModal}
+                singleTask={conflictData?.singleTask}
+                multipleTasks={conflictData?.multipleTasks}
             />
             {(isSavingActivity || isSavingSubtasks) && (
                 <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm">

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Pencil, Trash2, Calendar, Clock, Loader2, CheckCircle2 } from "lucide-react";
+import { Pencil, Trash2, Calendar, Clock, Loader2, CheckCircle2, AlertCircle, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +48,16 @@ export default function SubtaskItem({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [showEditSuccessDialog, setShowEditSuccessDialog] = useState(false);
+  const [pendingEditData, setPendingEditData] = useState<{ nombre: string; horas: string } | null>(null);
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [conflictData, setConflictData] = useState<{
+    fecha: string;
+    horasAntiguas: number;
+    horasIntentadas: number;
+    horasOcupadas: number;
+    limiteDiario: number;
+  } | null>(null);
+  const [isLoadingConflictData, setIsLoadingConflictData] = useState(false);
   const { showToast, ToastComponent } = useToast();
   const localChangeRef = useRef(false); // Ref para rastrear si el cambio fue iniciado localmente
   const lastLocalStateRef = useRef<boolean | null>(null); // Ref para rastrear el último estado establecido localmente
@@ -185,11 +195,25 @@ export default function SubtaskItem({
     setShowEditDialog(true);
   };
 
+  const handleCloseEditDialog = (open: boolean) => {
+    // Si se cierra el modal de edición, descartamos el borrador
+    if (!open) {
+      setPendingEditData(null);
+    }
+    setShowEditDialog(open);
+  };
+
   const handleSaveEdit = async (data: { nombre: string; horas: string }) => {
     if (!activityId || !id) {
       showToast("Error: ID de actividad o subtarea no disponible.", "error");
       return;
     }
+
+    // Guardar temporalmente lo que el usuario está intentando editar
+    setPendingEditData({
+      nombre: data.nombre,
+      horas: data.horas,
+    });
 
     try {
       // Convertir horas de string a número (remover "h" si está presente)
@@ -227,9 +251,73 @@ export default function SubtaskItem({
       if (onSubtaskUpdated) {
         onSubtaskUpdated();
       }
+      // Limpiar el borrador porque ya se guardó correctamente
+      setPendingEditData(null);
     } catch (error: any) {
       console.error("Error al actualizar subtarea:", error);
 
+      // Detectar si es un error de conflicto de horas
+      let isConflictError = false;
+      let conflictErrorMessage = "";
+
+      if (error?.response?.data) {
+        if (error.response.data.estimated_hours) {
+          const hoursError = Array.isArray(error.response.data.estimated_hours)
+            ? error.response.data.estimated_hours[0]
+            : error.response.data.estimated_hours;
+          
+          // Verificar si el mensaje indica conflicto de límite diario
+          if (typeof hoursError === 'string' && hoursError.includes("excede el limite diario")) {
+            isConflictError = true;
+            conflictErrorMessage = hoursError;
+          }
+        } else if (error.response.data.detail) {
+          const detailError = error.response.data.detail;
+          if (typeof detailError === 'string' && detailError.includes("excede el limite diario")) {
+            isConflictError = true;
+            conflictErrorMessage = detailError;
+          }
+        }
+      }
+
+      // Si es un error de conflicto, obtener información y mostrar el modal de conflicto
+      if (isConflictError) {
+        const cleanHours = data.horas.trim().replace(/h/gi, "").trim();
+        const estimatedHours = parseFloat(cleanHours);
+        const fechaSubtask = dateOriginal || date.split(' ')[0]; // Usar dateOriginal si está disponible, sino parsear date
+        
+        // Obtener límite diario del localStorage
+        const limiteDiario = (() => {
+          const saved = window.localStorage.getItem("studyLimitHours");
+          return saved ? parseFloat(saved) : 6;
+        })();
+
+        // Obtener horas actuales de la subtarea (antes de editar)
+        const horasActualesSubtask = parseFloat(hours.replace("h", "").trim()) || 0;
+        const horasIntentadas = estimatedHours;
+        
+        // Calcular horas ocupadas del día
+        // Las horas ocupadas serían: horas de otras subtareas del día + horas actuales de esta subtarea
+        // Como no tenemos acceso directo a todas las subtareas del día,
+        // estimaremos que las horas ocupadas = límite diario + (horas intentadas - horas actuales)
+        // Esto es una aproximación, pero nos da una idea del conflicto
+        const diferenciaHoras = horasIntentadas - horasActualesSubtask;
+        const horasOcupadasEstimadas = limiteDiario + diferenciaHoras;
+        
+        setConflictData({
+          fecha: fechaSubtask,
+          horasAntiguas: horasActualesSubtask,
+          horasIntentadas: horasIntentadas,
+          horasOcupadas: Math.max(horasOcupadasEstimadas, horasIntentadas), // Al menos las horas intentadas
+          limiteDiario: limiteDiario,
+        });
+        
+        setShowConflictModal(true);
+        setShowEditDialog(false); // Cerrar el modal de editar
+        return;
+      }
+
+      // Si no es conflicto, mostrar el error normal
       let errorMessage = "Error al actualizar la subtarea. Intenta de nuevo.";
 
       if (error?.response?.data) {
@@ -424,11 +512,13 @@ export default function SubtaskItem({
 
       <EditSubtaskDialog
         open={showEditDialog}
-        onOpenChange={setShowEditDialog}
-        subtaskData={{
-          nombre: title,
-          horas: hours.replace("h", ""), // Remover la "h" para el input
-        }}
+        onOpenChange={handleCloseEditDialog}
+        subtaskData={
+          pendingEditData ?? {
+            nombre: title,
+            horas: hours.replace("h", ""), // Remover la "h" para el input
+          }
+        }
         onSave={handleSaveEdit}
         isSaving={isSavingEdit}
       />
@@ -454,6 +544,94 @@ export default function SubtaskItem({
           </DialogHeader>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de conflicto de horas */}
+      {showConflictModal && conflictData && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div className="w-full max-w-[560px] bg-[#111827] border border-[#F59E0B]/30 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
+            <div className="p-6 sm:p-7 relative">
+              {/*
+                Usar el último nombre editado si existe (para consistencia entre el modal de edición y el de conflicto)
+              */}
+              {(() => {
+                const conflictTitle = pendingEditData?.nombre?.trim() ? pendingEditData.nombre.trim() : title;
+                return (
+                  <>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConflictModal(false);
+                  setConflictData(null);
+                  setPendingEditData(null);
+                }}
+                className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
+                aria-label="Cerrar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-[#F59E0B]/10 border border-[#F59E0B]/20 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-6 h-6 text-[#F59E0B]" />
+                </div>
+                <div className="pr-8">
+                  <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                    Conflicto de horas detectado
+                  </h3>
+                </div>
+              </div>
+
+              <p className="mt-6 text-sm text-slate-300 leading-relaxed">
+                No pudimos actualizar{" "}
+                <span className="font-semibold text-white">"{conflictTitle}"</span> de{" "}
+                <span className="font-semibold text-white">{conflictData.horasAntiguas.toFixed(1)}h</span> a{" "}
+                <span className="font-semibold text-white">{conflictData.horasIntentadas.toFixed(1)}h</span> porque ese día se superaría tu límite de horas de estudio.
+              </p>
+
+              <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                <div className="mt-3 flex items-center justify-center gap-2">
+                  <span className="text-2xl font-black text-red-400">
+                    {conflictData.horasOcupadas.toFixed(1)}h
+                  </span>
+                  <span className="text-slate-400">/</span>
+                  <span className="text-xl font-bold text-slate-300">
+                    {conflictData.limiteDiario.toFixed(1)}h
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-2 text-center">
+                  Horas resultantes / Límite diario de estudio
+                </p>
+              </div>
+
+              <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={() => {
+                    setShowConflictModal(false);
+                    setConflictData(null);
+                    setShowEditDialog(true); // Volver a abrir el modal de editar
+                  }}
+                  className="flex-1 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-600/20 transition-all"
+                >
+                  Reajustar
+                </button>
+                <button
+                  onClick={() => {
+                    setShowConflictModal(false);
+                    setConflictData(null);
+                    setPendingEditData(null);
+                  }}
+                  className="flex-1 h-11 rounded-xl bg-white hover:bg-slate-100 text-blue-600 font-bold border border-slate-200 transition-all"
+                >
+                  Cerrar
+                </button>
+              </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

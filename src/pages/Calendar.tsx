@@ -5,18 +5,36 @@ import { ChevronLeft, ChevronRight, Clock, MoreVertical, Loader2, CalendarRange,
 import { Button } from "@/shared/components/button";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import { patchSubtask, deleteSubtask } from "@/api/services/subtack";
-import { Link, useNavigate } from "react-router-dom";
+import { queryCache } from "@/lib/queryCache";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 export default function Calendar() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
     const [selectedSubtask, setSelectedSubtask] = useState<any | null>(null);
     const [isMoving, setIsMoving] = useState(false);
     const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
     const [overriddenDates, setOverriddenDates] = useState<Record<string, string>>({});
+    // Estado local para actualizaciones optimistas del conflicto
+    const [conflictOverrides, setConflictOverrides] = useState<Record<string, boolean>>({});
 
     const { vencidas, para_hoy, proximas, loading, refetch } = useHoy({ days_ahead: 30 });
+
+    // Si venimos desde el flujo "Ver conflicto → Mover tarea" (Hoy), enfocamos la semana de la tarea.
+    useEffect(() => {
+        const focusDate = (location.state as any)?.focusDate as string | undefined;
+        if (!focusDate) return;
+        try {
+            setCurrentDate(startOfDay(parseISO(focusDate)));
+        } catch {
+            // Ignorar si llega un valor inválido
+        }
+        // Limpiamos el state para que no re-aplique en futuros re-renders o navegaciones internas.
+        navigate(location.pathname, { replace: true, state: {} });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const studyLimitHours = useMemo(() => {
         const saved = window.localStorage.getItem("studyLimitHours");
@@ -42,6 +60,10 @@ export default function Calendar() {
         return combined.map(item => {
             const overridenDate = overriddenDates[item.id];
             const dateStr = overridenDate || item.target_date;
+            
+            // Usar el override de conflicto si existe, sino el valor del backend
+            const hasConflictOverride = item.id in conflictOverrides;
+            const isConflicted = hasConflictOverride ? conflictOverrides[item.id] : item.is_conflicted;
 
             return {
                 id: item.id,
@@ -55,10 +77,10 @@ export default function Calendar() {
                 courseId: item.activity?.course?.id,
                 activityId: item.activity?.id,
                 deadline: item.activity?.deadline,
-                isConflicted: item.is_conflicted
+                isConflicted: isConflicted
             };
         });
-    }, [vencidas, para_hoy, proximas, overriddenDates]);
+    }, [vencidas, para_hoy, proximas, overriddenDates, conflictOverrides]);
 
     // Calculate hours used per day
     const dayStats = useMemo(() => {
@@ -101,11 +123,32 @@ export default function Calendar() {
         const newDateKey = format(day, "yyyy-MM-dd");
         const subtaskId = selectedSubtask.id;
         const activityId = selectedSubtask.activityId;
+        const subtaskHours = selectedSubtask.durationNum;
 
-        // Optimistic update
+        // Calcular horas del nuevo día (optimista)
+        // dayStats ya incluye esta tarea en su día actual, así que:
+        // - Si se mueve a otro día: nuevo día = horas actuales + horas de esta tarea
+        // - Si se mueve al mismo día: no hay cambio
+        const oldDateKey = selectedSubtask.dateKey;
+        let currentHoursNewDay = dayStats[newDateKey] || 0;
+        
+        if (oldDateKey !== newDateKey) {
+            // Si se mueve a un día diferente, agregar las horas de esta tarea al nuevo día
+            currentHoursNewDay = currentHoursNewDay + subtaskHours;
+        }
+        
+        const willHaveConflict = currentHoursNewDay > studyLimitHours;
+
+        // Actualización optimista: fecha y conflicto
         setOverriddenDates(prev => ({
             ...prev,
             [subtaskId]: newDateKey
+        }));
+        
+        // Actualizar estado de conflicto optimista solo para esta tarjeta
+        setConflictOverrides(prev => ({
+            ...prev,
+            [subtaskId]: willHaveConflict
         }));
 
         handleCancelMove();
@@ -114,15 +157,35 @@ export default function Calendar() {
             await patchSubtask(activityId, subtaskId, {
                 target_date: newDateKey
             });
+            
+            // Refrescar datos en segundo plano sin bloquear la UI
+            queryCache.invalidate('activities');
+            Promise.resolve(refetch()).then(() => {
+                // Limpiar el override después de que el refetch termine
+                // El backend ahora tiene el valor correcto
+                setConflictOverrides(prev => {
+                    const next = { ...prev };
+                    delete next[subtaskId];
+                    return next;
+                });
+            }).catch(() => {
+                // Si falla, mantener el override optimista
+            });
         } catch (error) {
             console.error("Error al reprogramar:", error);
-            refetch();
-            // Revert on error
+            // Revertir cambios optimistas en caso de error
             setOverriddenDates(prev => {
                 const next = { ...prev };
                 delete next[subtaskId];
                 return next;
             });
+            setConflictOverrides(prev => {
+                const next = { ...prev };
+                delete next[subtaskId];
+                return next;
+            });
+            // Refrescar para obtener el estado correcto del backend
+            refetch();
         }
     };
 

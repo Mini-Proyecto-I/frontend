@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { parseISO, startOfDay, differenceInDays, format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, Info, CheckCircle2, Calendar, Pencil, Check, ChevronUp, ChevronDown, HelpCircle, CalendarRange } from "lucide-react";
+import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, Info, CheckCircle2, Calendar, Pencil, Check, ChevronUp, ChevronDown, HelpCircle, CalendarRange, Trash2 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import { useAuth } from "@/app/authContext";
-import { patchSubtask } from "@/api/services/subtack";
+import { patchSubtask, deleteSubtask } from "@/api/services/subtack";
+import { updateConfig, getConfig } from "@/api/services/config";
 import { queryCache } from "@/lib/queryCache";
 import { Input } from "@/shared/components/input";
 import { Button } from "@/shared/components/button";
@@ -68,6 +69,9 @@ export default function Today() {
   const [editHours, setEditHours] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletingTask, setDeletingTask] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const openEditModal = (task: any) => {
     setEditError(null);
@@ -78,16 +82,74 @@ export default function Today() {
     setIsEditModalOpen(true);
   };
 
-  const handleSaveLimit = () => {
+  const openDeleteModal = (task: any) => {
+    setDeletingTask(task);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deletingTask) return;
+
+    setIsDeleting(true);
+    const activityId = deletingTask.activity?.id;
+    const subtaskId = deletingTask.id;
+
+    try {
+      await deleteSubtask(activityId, subtaskId);
+
+      // Remove from local state
+      setData((prev: any) => {
+        const filterList = (list: any[]) => list.filter((item) => item.id !== subtaskId);
+        return {
+          ...prev,
+          vencidas: filterList(prev.vencidas),
+          para_hoy: filterList(prev.para_hoy),
+          proximas: filterList(prev.proximas),
+        };
+      });
+
+      setTiempoData((prev: any[]) => prev.filter((t: any) => t.id !== subtaskId) as any);
+
+      queryCache.invalidate('activities');
+      refetch();
+      refetchTiempo();
+
+      setIsDeleteModalOpen(false);
+      setDeletingTask(null);
+    } catch (e: any) {
+      console.error("Error al eliminar subtarea:", e);
+      // You could add an error state here if needed
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleSaveLimit = async () => {
     let val = parseFloat(tempLimit);
     if (isNaN(val)) val = limitHours;
     if (val < 0.5) val = 0.5;
     if (val > 24) val = 24;
 
-    setLimitHours(val);
-    setTempLimit(val.toString());
-    window.localStorage.setItem("studyLimitHours", val.toString());
-    setIsEditingLimit(false);
+    try {
+      // Sincronizar con el backend
+      await updateConfig(val);
+      
+      // Actualizar estado local
+      setLimitHours(val);
+      setTempLimit(val.toString());
+      window.localStorage.setItem("studyLimitHours", val.toString());
+      setIsEditingLimit(false);
+      
+      // Refrescar datos para recalcular conflictos con el nuevo límite
+      refetch();
+    } catch (error) {
+      console.error("Error al actualizar límite diario:", error);
+      // Aún así guardar en localStorage para que el usuario vea el cambio
+      setLimitHours(val);
+      setTempLimit(val.toString());
+      window.localStorage.setItem("studyLimitHours", val.toString());
+      setIsEditingLimit(false);
+    }
   };
 
   useEffect(() => {
@@ -129,6 +191,32 @@ export default function Today() {
     tiempoData,
     refetchTiempo
   } = useHoy(filters);
+
+  // Cargar límite desde el backend al montar el componente
+  useEffect(() => {
+    const loadLimitFromBackend = async () => {
+      try {
+        const config = await getConfig();
+        if (config?.daily_hours_limit) {
+          const backendLimit = parseFloat(config.daily_hours_limit);
+          const currentLimit = parseFloat(window.localStorage.getItem("studyLimitHours") || "6");
+          
+          // Solo actualizar si es diferente para evitar refrescos innecesarios
+          if (Math.abs(backendLimit - currentLimit) > 0.01) {
+            setLimitHours(backendLimit);
+            setTempLimit(backendLimit.toString());
+            window.localStorage.setItem("studyLimitHours", backendLimit.toString());
+            // Refrescar datos para recalcular conflictos con el límite correcto
+            refetch();
+          }
+        }
+      } catch (error) {
+        console.error("Error al cargar límite desde backend:", error);
+        // Si falla, usar el valor de localStorage como fallback
+      }
+    };
+    loadLimitFromBackend();
+  }, [refetch]);
 
   const handleToggleSubtask = async (activityId: string, subtaskId: string, currentStatus: string) => {
     const newStatus = currentStatus === "DONE" ? "PENDING" : "DONE";
@@ -247,7 +335,8 @@ export default function Today() {
 
   const handleMoveConflictTask = () => {
     setIsConflictModalOpen(false);
-    navigate("/calendario");
+    // En este flujo específico, queremos que el calendario abra la semana de la tarea en conflicto.
+    navigate("/calendario", { state: { focusDate: selectedConflict?.target_date } });
   };
 
   const handleReduceConflictHours = async () => {
@@ -441,6 +530,7 @@ export default function Today() {
                         theme="red"
                         onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
                         onEdit={() => openEditModal(item)}
+                        onDelete={() => openDeleteModal(item)}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
                       />
                     ))}
@@ -475,6 +565,7 @@ export default function Today() {
                         theme="emerald"
                         onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
                         onEdit={() => openEditModal(item)}
+                        onDelete={() => openDeleteModal(item)}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
                       />
                     ))}
@@ -519,6 +610,7 @@ export default function Today() {
                         theme="blue"
                         onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
                         onEdit={() => openEditModal(item)}
+                        onDelete={() => openDeleteModal(item)}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
                       />
                     ))}
@@ -1262,6 +1354,74 @@ export default function Today() {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && deletingTask && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div className="w-full max-w-[560px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
+            <div className="p-6 sm:p-7 relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setDeletingTask(null);
+                }}
+                className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
+                aria-label="Cerrar"
+                disabled={isDeleting}
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-6 h-6 text-red-400" />
+                </div>
+                <div className="pr-8">
+                  <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                    Eliminar subtarea
+                  </h3>
+                  <p className="text-slate-400 text-sm mt-1 leading-relaxed">
+                    ¿Estás seguro que quieres eliminar la subtarea{" "}
+                    <span className="text-red-300 font-semibold">"{deletingTask.title}"</span>?
+                    Esta acción no se puede deshacer.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                <Button
+                  onClick={() => {
+                    setIsDeleteModalOpen(false);
+                    setDeletingTask(null);
+                  }}
+                  disabled={isDeleting}
+                  className="h-11 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold border border-slate-700"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  disabled={isDeleting}
+                  onClick={handleDelete}
+                  className="h-11 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold shadow-lg shadow-red-600/20 flex items-center justify-center gap-2"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Eliminando...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Eliminar
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1396,7 +1556,7 @@ function ScrollableTaskSection({ children }: { children: React.ReactNode }) {
 }
 
 // Sub-component for individual tasks matching the requested UI
-function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void, onEdit: () => void, onViewConflict?: () => void }) {
+function TaskCard({ item, badge, theme, onToggle, onEdit, onDelete, onViewConflict }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void, onEdit: () => void, onDelete: () => void, onViewConflict?: () => void }) {
   const navigate = useNavigate();
   const isDone = item.status === "DONE";
   const isConflicted = !isDone && !!item?.is_conflicted;
@@ -1506,6 +1666,7 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict }: { it
             Ver conflicto
           </button>
         )}
+
         <button
           type="button"
           onClick={onEdit}
@@ -1514,6 +1675,17 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict }: { it
           <Pencil className="w-4 h-4" />
           Editar
         </button>
+
+
+        <button
+          type="button"
+          onClick={onDelete}
+          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer"
+        >
+          <Trash2 className="w-4 h-4" />
+          Eliminar
+        </button>
+
         <button
           type="button"
           onClick={() => navigate("/calendario")}
