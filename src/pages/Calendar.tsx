@@ -148,6 +148,7 @@ export default function Calendar() {
     };
 
     const weekRangeLabel = `Semana del ${format(startDate, "d")} al ${format(addDays(startDate, 6), "d 'de' MMMM, yyyy", { locale: es })}`;
+    const today = useMemo(() => startOfDay(new Date()), []);
 
     if (loading) {
         return (
@@ -220,6 +221,7 @@ export default function Calendar() {
                     const dayKey = format(day, "yyyy-MM-dd");
                     const dayActivities = getActivitiesForDay(day);
                     const isToday = isSameDay(day, new Date());
+                    const isPastDay = day < today;
                     const isWeekend = index >= 5;
                     const isExpanded = expandedDays[dayKey];
                     
@@ -235,19 +237,22 @@ export default function Calendar() {
                         <div key={day.toString()} className="flex flex-col gap-5 min-h-[450px]">
                             <div 
                                 onDragOver={(e) => {
-                                    if (!isMoving) return;
+                                    if (!isMoving || isPastDay) return;
                                     e.preventDefault();
                                     e.dataTransfer.dropEffect = "move";
                                 }}
                                 onDrop={(e) => {
-                                    if (!isMoving) return;
+                                    if (!isMoving || isPastDay) return;
                                     e.preventDefault();
                                     handleConfirmMove(day);
                                 }}
-                                className={`flex flex-col items-center p-4 rounded-2xl border-t-4 transition-all ${isToday
+                                className={`flex flex-col items-center p-4 rounded-2xl border-t-4 transition-all 
+                                    ${isPastDay ? "opacity-40 pointer-events-none" : ""}
+                                    ${isToday
                                 ? "bg-blue-500/10 border-blue-500 shadow-lg shadow-blue-500/5"
                                 : "bg-slate-800/30 border-slate-800"
-                                } ${isWeekend ? "opacity-90" : ""} ${isMoving && canFitSelected ? 'ring-2 ring-emerald-500/50 bg-emerald-500/5' : ''}`}
+                                } 
+                                 ${isWeekend ? "opacity-90" : ""} ${isMoving && canFitSelected ? 'ring-2 ring-emerald-500/50 bg-emerald-500/5' : ''}`}
                             >
                                 <span className={`text-xs font-black uppercase tracking-wider ${isToday ? "text-blue-500" : "text-slate-400"
                                     }`}>
@@ -386,7 +391,7 @@ export default function Calendar() {
                                     )
                                 )}
 
-                                {isMoving && canFitSelected && (
+                                {isMoving && canFitSelected && !isPastDay && (
                                     <button
                                         onClick={() => handleConfirmMove(day)}
                                         className="w-full flex flex-col items-center justify-center p-6 border-2 border-dashed border-blue-500/50 bg-blue-500/5 rounded-2xl group cursor-pointer hover:bg-blue-500/10 transition-all animate-pulse"
