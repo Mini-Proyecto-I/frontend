@@ -1,5 +1,9 @@
+import { useState } from "react";
 import { Calendar, Trash2, ClipboardList, Plus, ListTodo } from "lucide-react";
+import { format, parseISO } from "date-fns";
+import { es } from "date-fns/locale";
 import InfoTooltip from "@/features/create/components/InfoTooltip";
+import WeeklyDatePicker from "@/features/create/components/WeeklyDatePicker";
 
 export interface Subtarea {
     id: number;
@@ -19,6 +23,9 @@ interface SubtaskFormProps {
 }
 
 const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearError, fechaEntrega }: SubtaskFormProps) => {
+    // Estado para controlar qué subtarea tiene abierto el date picker
+    const [openDatePickerFor, setOpenDatePickerFor] = useState<number | null>(null);
+
     // Función helper para obtener la fecha de hoy en formato YYYY-MM-DD
     const getTodayDate = (): string => {
         const today = new Date();
@@ -27,11 +34,22 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
     };
 
     // Función helper para obtener la fecha máxima (fecha de entrega o hoy)
-    const getMaxDate = (): string => {
+    const getMaxDate = (): string | undefined => {
         if (fechaEntrega) {
             return fechaEntrega;
         }
-        return getTodayDate();
+        return undefined;
+    };
+
+    // Helper para formatear fecha para mostrar al usuario
+    const formatDisplayDate = (dateStr: string): string => {
+        if (!dateStr) return "";
+        try {
+            const date = parseISO(dateStr);
+            return format(date, "d 'de' MMM, yyyy", { locale: es });
+        } catch {
+            return dateStr;
+        }
     };
 
     return (
@@ -131,20 +149,24 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                                         )}
                                     </div>
                                     <div className="flex flex-col py-1.5">
-                                        <div className="relative">
-                                            <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 pointer-events-none z-10" />
-                                            <input
-                                                type="date"
-                                                value={sub.fechaObjetivo}
-                                                min={getTodayDate()}
-                                                max={getMaxDate()}
-                                                onChange={(e) => {
-                                                    onUpdate(sub.id, "fechaObjetivo", e.target.value);
-                                                    onClearError?.(sub.id, "fechaObjetivo");
-                                                }}
-                                                className={`w-full h-10 rounded-lg text-sm pl-7 pr-2 py-1.5 focus:outline-none border transition-colors bg-[#1F2937]/50 border-slate-700/50 text-slate-200 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer ${subErrors.fechaObjetivo ? 'border-red-500 focus:ring-red-500' : 'focus:ring-blue-500 focus:border-blue-500'}`}
-                                            />
-                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setOpenDatePickerFor(sub.id)}
+                                            className={`relative w-full h-10 rounded-lg text-sm pl-7 pr-2 py-1.5 border transition-colors bg-[#1F2937]/50 text-left cursor-pointer hover:border-blue-500/50 hover:bg-[#1F2937]/70 ${
+                                                subErrors.fechaObjetivo
+                                                    ? 'border-red-500'
+                                                    : sub.fechaObjetivo
+                                                    ? 'border-blue-500/40 text-slate-200'
+                                                    : 'border-slate-700/50 text-slate-500'
+                                            }`}
+                                        >
+                                            <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                                            <span className={sub.fechaObjetivo ? 'text-slate-200' : 'text-slate-500'}>
+                                                {sub.fechaObjetivo
+                                                    ? formatDisplayDate(sub.fechaObjetivo)
+                                                    : 'Seleccionar fecha'}
+                                            </span>
+                                        </button>
                                         {subErrors.fechaObjetivo && (
                                             <div className="flex items-start gap-1.5 mt-1">
                                                 <svg
@@ -160,6 +182,33 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                                                 </svg>
                                                 <p className="text-xs text-red-500 font-medium leading-tight">{subErrors.fechaObjetivo}</p>
                                             </div>
+                                        )}
+                                        {openDatePickerFor === sub.id && (
+                                            <WeeklyDatePicker
+                                                value={sub.fechaObjetivo}
+                                                onChange={(date) => {
+                                                    onUpdate(sub.id, "fechaObjetivo", date);
+                                                    onClearError?.(sub.id, "fechaObjetivo");
+                                                }}
+                                                minDate={getTodayDate()}
+                                                maxDate={getMaxDate()}
+                                                // Pasamos las demás subtareas ya planificadas
+                                                plannedSubtasks={subtareas
+                                                    .filter(
+                                                        (s) =>
+                                                            s.id !== sub.id &&
+                                                            s.fechaObjetivo &&
+                                                            s.horas &&
+                                                            parseFloat(s.horas) > 0
+                                                    )
+                                                    .map((s) => ({
+                                                        id: s.id,
+                                                        title: s.nombre || "Subtarea",
+                                                        hours: parseFloat(s.horas),
+                                                        date: s.fechaObjetivo,
+                                                    }))}
+                                                onClose={() => setOpenDatePickerFor(null)}
+                                            />
                                         )}
                                     </div>
                                     <div className="flex flex-col py-1.5">
