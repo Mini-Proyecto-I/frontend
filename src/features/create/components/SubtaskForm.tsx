@@ -20,9 +20,12 @@ interface SubtaskFormProps {
     errors?: { [key: number]: { nombre?: string; fechaObjetivo?: string; horas?: string } };
     onClearError?: (subtaskId: number, field: string) => void;
     fechaEntrega?: string; // Fecha de entrega de la actividad para validar
+    // Nuevas props para resolución de conflictos
+    highlightedSubtasks?: Record<number, "horas" | "fecha">;
+    conflictDates?: Set<string>;
 }
 
-const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearError, fechaEntrega }: SubtaskFormProps) => {
+const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearError, fechaEntrega, highlightedSubtasks = {}, conflictDates = new Set() }: SubtaskFormProps) => {
     // Estado para controlar qué subtarea tiene abierto el date picker
     const [openDatePickerFor, setOpenDatePickerFor] = useState<number | null>(null);
 
@@ -114,11 +117,21 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                 ) : (
                     subtareas.map((sub) => {
                         const subErrors = errors?.[sub.id] || {};
-                        const hasErrors = Object.keys(subErrors).length > 0;
+                        const highlight = highlightedSubtasks[sub.id];
+                        const isDateConflicted = sub.fechaObjetivo && conflictDates.has(sub.fechaObjetivo);
+                        const highlightHoras = highlight === "horas";
+                        const highlightFecha = highlight === "fecha";
+
                         return (
-                            <div key={sub.id} className="space-y-2">
+                            <div key={sub.id} className="space-y-2" data-subtask-id={sub.id}>
                                 <div
-                                    className="grid grid-cols-[1fr_160px_100px_48px] gap-3 bg-[#1F2937]/50 border border-slate-700/50 rounded-xl px-3 py-2"
+                                    className={`grid grid-cols-[1fr_160px_100px_48px] gap-3 rounded-xl px-3 py-2 transition-all ${
+                                        highlightHoras || highlightFecha
+                                            ? "bg-amber-500/5 border border-amber-500/30 ring-1 ring-amber-500/20"
+                                            : isDateConflicted
+                                            ? "bg-red-500/5 border border-red-500/20"
+                                            : "bg-[#1F2937]/50 border border-slate-700/50"
+                                    }`}
                                 >
                                     <div className="flex flex-col py-1.5">
                                         <input
@@ -153,20 +166,32 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                                             type="button"
                                             onClick={() => setOpenDatePickerFor(sub.id)}
                                             className={`relative w-full h-10 rounded-lg text-sm pl-7 pr-2 py-1.5 border transition-colors bg-[#1F2937]/50 text-left cursor-pointer hover:border-blue-500/50 hover:bg-[#1F2937]/70 ${
-                                                subErrors.fechaObjetivo
+                                                highlightFecha
+                                                    ? 'border-amber-500 ring-2 ring-amber-500/40 animate-pulse'
+                                                    : subErrors.fechaObjetivo
                                                     ? 'border-red-500'
+                                                    : isDateConflicted
+                                                    ? 'border-red-500/50'
                                                     : sub.fechaObjetivo
                                                     ? 'border-blue-500/40 text-slate-200'
                                                     : 'border-slate-700/50 text-slate-500'
                                             }`}
                                         >
-                                            <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                                            <Calendar className={`absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 ${highlightFecha ? 'text-amber-400' : 'text-slate-500'}`} />
                                             <span className={sub.fechaObjetivo ? 'text-slate-200' : 'text-slate-500'}>
                                                 {sub.fechaObjetivo
                                                     ? formatDisplayDate(sub.fechaObjetivo)
                                                     : 'Seleccionar fecha'}
                                             </span>
                                         </button>
+                                        {highlightFecha && (
+                                            <p className="text-xs text-amber-400 font-medium mt-1 flex items-center gap-1">
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                                </svg>
+                                                Cambia la fecha para resolver el conflicto
+                                            </p>
+                                        )}
                                         {subErrors.fechaObjetivo && (
                                             <div className="flex items-start gap-1.5 mt-1">
                                                 <svg
@@ -192,7 +217,6 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                                                 }}
                                                 minDate={getTodayDate()}
                                                 maxDate={getMaxDate()}
-                                                // Pasamos las demás subtareas ya planificadas
                                                 plannedSubtasks={subtareas
                                                     .filter(
                                                         (s) =>
@@ -222,12 +246,26 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                                                     onUpdate(sub.id, "horas", e.target.value);
                                                     onClearError?.(sub.id, "horas");
                                                 }}
-                                                className={`w-full h-10 rounded-lg text-sm text-center py-1.5 focus:outline-none border pr-7 transition-colors bg-[#1F2937]/50 border-slate-700/50 text-slate-200 ${subErrors.horas ? 'border-red-500 focus:ring-red-500' : 'focus:ring-blue-500 focus:border-blue-500'}`}
+                                                className={`w-full h-10 rounded-lg text-sm text-center py-1.5 focus:outline-none border pr-7 transition-colors bg-[#1F2937]/50 text-slate-200 ${
+                                                    highlightHoras
+                                                        ? 'border-amber-500 ring-2 ring-amber-500/40 animate-pulse'
+                                                        : subErrors.horas
+                                                        ? 'border-red-500 focus:ring-red-500'
+                                                        : 'border-slate-700/50 focus:ring-blue-500 focus:border-blue-500'
+                                                }`}
                                             />
                                             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-500">
                                                 hr
                                             </span>
                                         </div>
+                                        {highlightHoras && (
+                                            <p className="text-xs text-amber-400 font-medium mt-1 flex items-center gap-1">
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                                </svg>
+                                                Reduce las horas
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="flex items-start py-1.5">
                                         <button

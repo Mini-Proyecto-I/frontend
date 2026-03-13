@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Pencil, Trash2, Calendar, Clock, Loader2, CheckCircle2, AlertCircle, X } from "lucide-react";
 import {
   Dialog,
@@ -7,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/dialog";
-import EditSubtaskDialog from "./EditSubtaskDialog";
+import EditSubtaskModal from "@/shared/components/EditSubtaskModal";
 import { patchSubtask, updateSubtask, deleteSubtask } from "@/api/services/subtack";
 import { useToast } from "@/shared/components/toast";
 
@@ -40,13 +41,13 @@ export default function SubtaskItem({
   onSubtaskUpdated,
   deadlineDate,
 }: SubtaskItemProps) {
+  const navigate = useNavigate();
   const [isChecked, setIsChecked] = useState(completed);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [deleteArmed, setDeleteArmed] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [showEditSuccessDialog, setShowEditSuccessDialog] = useState(false);
   const [pendingEditData, setPendingEditData] = useState<{ nombre: string; horas: string } | null>(null);
   const [showConflictModal, setShowConflictModal] = useState(false);
@@ -203,123 +204,87 @@ export default function SubtaskItem({
     setShowEditDialog(open);
   };
 
-  const handleSaveEdit = async (data: { nombre: string; horas: string }) => {
+  const handleSaveEditFromTodayModal = async (payload: { title: string; estimatedHours: number }) => {
     if (!activityId || !id) {
       showToast("Error: ID de actividad o subtarea no disponible.", "error");
-      return;
+      return { ok: false as const, error: "ID de actividad o subtarea no disponible." };
     }
 
     // Guardar temporalmente lo que el usuario está intentando editar
     setPendingEditData({
-      nombre: data.nombre,
-      horas: data.horas,
+      nombre: payload.title,
+      horas: String(payload.estimatedHours),
     });
 
     try {
-      // Convertir horas de string a número (remover "h" si está presente)
-      const cleanHours = data.horas.trim().replace(/h/gi, "").trim();
-      const estimatedHours = parseFloat(cleanHours);
-
-      if (isNaN(estimatedHours) || estimatedHours <= 0) {
-        showToast("Las horas estimadas deben ser un número válido mayor a 0.", "error");
-        return;
-      }
-
-      setIsSavingEdit(true);
-
-      // Preparar los datos para el backend
       const subtaskUpdateData: any = {
-        title: data.nombre.trim(),
-        estimated_hours: estimatedHours.toString(),
+        title: payload.title.trim(),
+        estimated_hours: String(payload.estimatedHours),
       };
 
-      // Llamar a la API para actualizar la subtarea
       await updateSubtask(activityId, id, subtaskUpdateData);
 
-      // Mostrar mensaje de éxito primero
       showToast("¡Todo salió bien! La subtarea se actualizó correctamente.", "success");
 
-      // Cerrar el modal de editar
+      // Cerrar modal (el modal también se cierra al recibir ok:true, esto es solo por consistencia)
       setShowEditDialog(false);
 
-      // Mostrar el modal de éxito después de un breve delay
       setTimeout(() => {
         setShowEditSuccessDialog(true);
       }, 200);
 
-      // Refrescar solo las subtareas mediante el callback
-      if (onSubtaskUpdated) {
-        onSubtaskUpdated();
-      }
-      // Limpiar el borrador porque ya se guardó correctamente
+      if (onSubtaskUpdated) onSubtaskUpdated();
       setPendingEditData(null);
+
+      return { ok: true as const };
     } catch (error: any) {
       console.error("Error al actualizar subtarea:", error);
 
-      // Detectar si es un error de conflicto de horas
+      // Detectar si es un error de conflicto de horas (mismo criterio que antes)
       let isConflictError = false;
-      let conflictErrorMessage = "";
-
       if (error?.response?.data) {
         if (error.response.data.estimated_hours) {
           const hoursError = Array.isArray(error.response.data.estimated_hours)
             ? error.response.data.estimated_hours[0]
             : error.response.data.estimated_hours;
-          
-          // Verificar si el mensaje indica conflicto de límite diario
-          if (typeof hoursError === 'string' && hoursError.includes("excede el limite diario")) {
+          if (typeof hoursError === "string" && hoursError.includes("excede el limite diario")) {
             isConflictError = true;
-            conflictErrorMessage = hoursError;
           }
         } else if (error.response.data.detail) {
           const detailError = error.response.data.detail;
-          if (typeof detailError === 'string' && detailError.includes("excede el limite diario")) {
+          if (typeof detailError === "string" && detailError.includes("excede el limite diario")) {
             isConflictError = true;
-            conflictErrorMessage = detailError;
           }
         }
       }
 
-      // Si es un error de conflicto, obtener información y mostrar el modal de conflicto
       if (isConflictError) {
-        const cleanHours = data.horas.trim().replace(/h/gi, "").trim();
-        const estimatedHours = parseFloat(cleanHours);
-        const fechaSubtask = dateOriginal || date.split(' ')[0]; // Usar dateOriginal si está disponible, sino parsear date
-        
-        // Obtener límite diario del localStorage
+        const fechaSubtask = dateOriginal || date.split(" ")[0];
         const limiteDiario = (() => {
           const saved = window.localStorage.getItem("studyLimitHours");
           return saved ? parseFloat(saved) : 6;
         })();
 
-        // Obtener horas actuales de la subtarea (antes de editar)
         const horasActualesSubtask = parseFloat(hours.replace("h", "").trim()) || 0;
-        const horasIntentadas = estimatedHours;
-        
-        // Calcular horas ocupadas del día
-        // Las horas ocupadas serían: horas de otras subtareas del día + horas actuales de esta subtarea
-        // Como no tenemos acceso directo a todas las subtareas del día,
-        // estimaremos que las horas ocupadas = límite diario + (horas intentadas - horas actuales)
-        // Esto es una aproximación, pero nos da una idea del conflicto
+        const horasIntentadas = payload.estimatedHours;
         const diferenciaHoras = horasIntentadas - horasActualesSubtask;
         const horasOcupadasEstimadas = limiteDiario + diferenciaHoras;
-        
+
         setConflictData({
           fecha: fechaSubtask,
           horasAntiguas: horasActualesSubtask,
           horasIntentadas: horasIntentadas,
-          horasOcupadas: Math.max(horasOcupadasEstimadas, horasIntentadas), // Al menos las horas intentadas
+          horasOcupadas: Math.max(horasOcupadasEstimadas, horasIntentadas),
           limiteDiario: limiteDiario,
         });
-        
+
         setShowConflictModal(true);
-        setShowEditDialog(false); // Cerrar el modal de editar
-        return;
+        setShowEditDialog(false);
+        return { ok: false as const, handled: true };
       }
 
-      // Si no es conflicto, mostrar el error normal
+      // Error normal
       let errorMessage = "Error al actualizar la subtarea. Intenta de nuevo.";
-
       if (error?.response?.data) {
         if (error.response.data.title) {
           errorMessage = Array.isArray(error.response.data.title)
@@ -331,11 +296,11 @@ export default function SubtaskItem({
             : error.response.data.estimated_hours;
         } else if (error.response.data.detail) {
           errorMessage = error.response.data.detail;
-        } else if (typeof error.response.data === 'object') {
+        } else if (typeof error.response.data === "object") {
           const firstError = Object.values(error.response.data)[0];
           if (Array.isArray(firstError) && firstError.length > 0) {
             errorMessage = firstError[0];
-          } else if (typeof firstError === 'string') {
+          } else if (typeof firstError === "string") {
             errorMessage = firstError;
           }
         }
@@ -344,8 +309,7 @@ export default function SubtaskItem({
       }
 
       showToast(errorMessage, "error");
-    } finally {
-      setIsSavingEdit(false);
+      return { ok: false as const, error: errorMessage };
     }
   };
 
@@ -510,17 +474,29 @@ export default function SubtaskItem({
         </DialogContent>
       </Dialog>
 
-      <EditSubtaskDialog
+      <EditSubtaskModal
         open={showEditDialog}
         onOpenChange={handleCloseEditDialog}
-        subtaskData={
-          pendingEditData ?? {
-            nombre: title,
-            horas: hours.replace("h", ""), // Remover la "h" para el input
-          }
-        }
-        onSave={handleSaveEdit}
-        isSaving={isSavingEdit}
+        initialTitle={(pendingEditData?.nombre ?? title) as string}
+        initialHours={(pendingEditData?.horas ?? hours.replace("h", "")) as string}
+        onReprogram={() => {
+          const dateKey = dateOriginal || date.split(" ")[0];
+          const estimatedHours = parseFloat(hours.replace("h", "").trim()) || 0;
+          navigate("/calendario", {
+            state: {
+              focusDate: dateKey,
+              reprogramSubtask: {
+                id,
+                activityId,
+                title,
+                deadline: deadlineDate,
+                dateKey,
+                durationNum: estimatedHours,
+              },
+            },
+          });
+        }}
+        onSave={handleSaveEditFromTodayModal}
       />
 
       <Dialog open={showEditSuccessDialog} onOpenChange={setShowEditSuccessDialog}>

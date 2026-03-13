@@ -1,5 +1,18 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { format, startOfWeek, addDays, subWeeks, addWeeks, isSameDay, parseISO, startOfDay } from "date-fns";
+import {
+    format,
+    startOfWeek,
+    addDays,
+    subWeeks,
+    addWeeks,
+    isSameDay,
+    parseISO,
+    startOfDay,
+    startOfMonth,
+    endOfMonth,
+    addMonths,
+    subMonths,
+} from "date-fns";
 import { es } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Clock, MoreVertical, Loader2, CalendarRange, CalendarCheck, Move, CirclePlus, X, Eye, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/shared/components/button";
@@ -19,18 +32,56 @@ export default function Calendar() {
     const [overriddenDates, setOverriddenDates] = useState<Record<string, string>>({});
     // Estado local para actualizaciones optimistas del conflicto
     const [conflictOverrides, setConflictOverrides] = useState<Record<string, boolean>>({});
+    // Picker de semanas tipo "Mes" (mini calendario)
+    const [showWeekPicker, setShowWeekPicker] = useState(false);
+    const [weekPickerDate, setWeekPickerDate] = useState<Date>(new Date());
 
     const { vencidas, para_hoy, proximas, loading, refetch } = useHoy({ days_ahead: 30 });
 
-    // Si venimos desde el flujo "Ver conflicto → Mover tarea" (Hoy), enfocamos la semana de la tarea.
+    const returnTo = useMemo(() => {
+        const state = location.state as any;
+        return state?.returnTo as string | undefined;
+    }, [location.state]);
+
+    const conflictDateKeyFromState = useMemo(() => {
+        const state = location.state as any;
+        return state?.conflictDateKey as string | undefined;
+    }, [location.state]);
+
+    // Si venimos desde algún flujo externo (Hoy / Detalle) con tarea a reprogramar,
+    // enfocamos la semana de la tarea y activamos directamente el modo reubicación.
     useEffect(() => {
-        const focusDate = (location.state as any)?.focusDate as string | undefined;
-        if (!focusDate) return;
-        try {
-            setCurrentDate(startOfDay(parseISO(focusDate)));
-        } catch {
-            // Ignorar si llega un valor inválido
+        const state = location.state as any;
+        const focusDate = state?.focusDate as string | undefined;
+        const incomingSubtask = state?.reprogramSubtask as
+            | {
+                  id: string;
+                  activityId: string;
+                  title: string;
+                  deadline?: string;
+                  dateKey?: string;
+                  durationNum?: number;
+              }
+            | undefined;
+
+        if (focusDate) {
+            try {
+                setCurrentDate(startOfDay(parseISO(focusDate)));
+            } catch {
+                // Ignorar si llega un valor inválido
+            }
         }
+
+        if (incomingSubtask) {
+            const dateKey = incomingSubtask.dateKey;
+            const date = dateKey ? startOfDay(parseISO(dateKey)) : null;
+            setSelectedSubtask({
+                ...incomingSubtask,
+                date,
+            });
+            setIsMoving(true);
+        }
+
         // Limpiamos el state para que no re-aplique en futuros re-renders o navegaciones internas.
         navigate(location.pathname, { replace: true, state: {} });
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -46,6 +97,22 @@ export default function Calendar() {
 
     const handlePrevWeek = () => setCurrentDate(subWeeks(currentDate, 1));
     const handleNextWeek = () => setCurrentDate(addWeeks(currentDate, 1));
+
+    const handleOpenWeekPicker = () => {
+        setWeekPickerDate(currentDate);
+        setShowWeekPicker(true);
+    };
+
+    const handleCloseWeekPicker = () => {
+        setShowWeekPicker(false);
+    };
+
+    const handleGoToToday = () => {
+        const today = startOfDay(new Date());
+        setCurrentDate(today);
+        setWeekPickerDate(today);
+        setShowWeekPicker(false);
+    };
 
     const toggleDayExpansion = (dayKey: string) => {
         setExpandedDays(prev => ({
@@ -98,6 +165,32 @@ export default function Calendar() {
         return allActivities.filter(a => a.date && isSameDay(a.date, day));
     };
 
+    // Semanas que se muestran dentro del mini picker (por mes), igual que en el botón "Mes" de subtareas
+    const weekPickerWeeks = useMemo(() => {
+        const monthStart = startOfMonth(weekPickerDate);
+        const monthEnd = endOfMonth(weekPickerDate);
+        const startW = startOfWeek(monthStart, { weekStartsOn: 1 });
+        const weeks: Date[][] = [];
+        let day = startW;
+        while (day <= monthEnd || weeks.length < 6) {
+            const week: Date[] = [];
+            for (let i = 0; i < 7; i++) {
+                week.push(day);
+                day = addDays(day, 1);
+            }
+            weeks.push(week);
+            if (day > monthEnd && weeks.length >= 4) break;
+        }
+        return weeks;
+    }, [weekPickerDate]);
+
+    const handleSelectWeekFromPicker = (weekStart: Date) => {
+        // Sincronizar semana mostrada en /calendario con la semana elegida en el mini calendario
+        setCurrentDate(weekStart);
+        setWeekPickerDate(weekStart);
+        setShowWeekPicker(false);
+    };
+
     const handleSelectForMove = (activity: any) => {
         setSelectedSubtask(activity);
         setIsMoving(true);
@@ -139,6 +232,19 @@ export default function Calendar() {
         
         const willHaveConflict = currentHoursNewDay > studyLimitHours;
 
+        // Calcular también el estado del día "origen" (donde estaba la subtarea) tras quitarla
+        // para poder informar a Hoy si el conflicto se resolvió.
+        const conflictDateKey = conflictDateKeyFromState || oldDateKey;
+        const oldDayHoursBefore = conflictDateKey ? (dayStats[conflictDateKey] || 0) : 0;
+        const oldDayHoursAfter =
+            conflictDateKey && oldDateKey === conflictDateKey && oldDateKey !== newDateKey
+                ? Math.max(0, oldDayHoursBefore - subtaskHours)
+                : oldDayHoursBefore;
+
+        const availableOldDay = Math.max(0, studyLimitHours - oldDayHoursAfter);
+        const overworkOldDay = Math.max(0, oldDayHoursAfter - studyLimitHours);
+        const resolvedOldDay = oldDayHoursAfter <= studyLimitHours;
+
         // Actualización optimista: fecha y conflicto
         setOverriddenDates(prev => ({
             ...prev,
@@ -171,6 +277,22 @@ export default function Calendar() {
             }).catch(() => {
                 // Si falla, mantener el override optimista
             });
+
+            // Si venimos desde Hoy por conflicto, volver a Hoy con un resultado para mostrar modal.
+            if (returnTo === "hoy" && conflictDateKey) {
+                navigate("/hoy", {
+                    state: {
+                        conflictOutcome: {
+                            dateKey: conflictDateKey,
+                            usedHours: oldDayHoursAfter,
+                            limitHours: studyLimitHours,
+                            availableHours: availableOldDay,
+                            overworkHours: overworkOldDay,
+                            resolved: resolvedOldDay,
+                        },
+                    },
+                });
+            }
         } catch (error) {
             console.error("Error al reprogramar:", error);
             // Revertir cambios optimistas en caso de error
@@ -220,7 +342,28 @@ export default function Calendar() {
         return themes[index];
     };
 
-    const weekRangeLabel = `Semana del ${format(startDate, "d")} al ${format(addDays(startDate, 6), "d 'de' MMMM, yyyy", { locale: es })}`;
+    const weekRangeLabel = (() => {
+        const endDate = addDays(startDate, 6);
+        const startMonth = format(startDate, "MMMM", { locale: es });
+        const endMonth = format(endDate, "MMMM", { locale: es });
+        const year = format(startDate, "yyyy", { locale: es });
+
+        if (startMonth === endMonth) {
+            // Mismo mes: Semana del 10 al 16 de marzo, 2026
+            return `Semana del ${format(startDate, "d")} al ${format(
+                endDate,
+                "d 'de' MMMM, yyyy",
+                { locale: es }
+            )}`;
+        }
+
+        // Mes distinto: Semana del 28 de febrero al 3 de marzo, 2026
+        return `Semana del ${format(startDate, "d 'de' MMMM", {
+            locale: es,
+        })} al ${format(endDate, "d 'de' MMMM", {
+            locale: es,
+        })}, ${year}`;
+    })();
     const today = useMemo(() => startOfDay(new Date()), []);
 
     if (loading) {
@@ -275,11 +418,16 @@ export default function Calendar() {
                             <CalendarRange className="w-8 h-8" />
                         </div>
                     )}
-                    <h2 className="text-3xl font-black text-white tracking-tight">
-                        {weekRangeLabel}
-                    </h2>
+                    <div className="flex flex-col gap-1">
+                        <h2 className="text-3xl font-black text-white tracking-tight">
+                            {weekRangeLabel}
+                        </h2>
+                        <p className="text-xs text-slate-400 font-medium">
+                            Usa el selector para saltar a semanas de otros meses sin mover este calendario.
+                        </p>
+                    </div>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3 items-center">
                     <Button
                         variant="outline"
                         size="icon"
@@ -295,6 +443,20 @@ export default function Calendar() {
                         className="rounded-xl bg-slate-800/50 border-slate-700 hover:bg-blue-500/20 hover:text-blue-400 hover:border-blue-500/50 transition-all"
                     >
                         <ChevronRight className="w-5 h-5" />
+                    </Button>
+                    <Button
+                        variant="outline"
+                        onClick={handleOpenWeekPicker}
+                        className="rounded-xl bg-slate-800/60 border-slate-700/80 text-slate-200 text-xs font-bold uppercase tracking-widest hover:bg-blue-600/20 hover:text-blue-300 hover:border-blue-500/60 transition-all px-4 py-2"
+                    >
+                        Elegir semana
+                    </Button>
+                    <Button
+                        variant="outline"
+                        onClick={handleGoToToday}
+                        className="rounded-xl bg-slate-800/60 border-slate-700/80 text-slate-200 text-xs font-bold uppercase tracking-widest hover:bg-blue-600/20 hover:text-blue-300 hover:border-blue-500/60 transition-all px-4 py-2"
+                    >
+                        Hoy
                     </Button>
                 </div>
             </div>
@@ -518,6 +680,113 @@ export default function Calendar() {
                     );
                 })}
             </div>
+            {/* Modal para elegir semana: mini calendario tipo "Mes" del WeeklyDatePicker */}
+            {showWeekPicker && (
+                <div
+                    className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) handleCloseWeekPicker();
+                    }}
+                >
+                    <div
+                        className="w-full max-w-[680px] bg-transparent border-none shadow-none animate-in fade-in zoom-in-95 duration-300"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Copia del overlay de "Mes" del WeeklyDatePicker */}
+                        <div className="px-6 pb-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                            <div className="relative bg-slate-900/80 border border-slate-700/60 rounded-2xl p-4 pt-5">
+                                {/* Botón cerrar arriba a la derecha, dentro del contenedor */}
+                                <button
+                                    type="button"
+                                    onClick={handleCloseWeekPicker}
+                                    className="absolute right-3 top-3 inline-flex items-center justify-center h-7 w-7 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer"
+                                    aria-label="Cerrar selector de semana"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+
+                                {/* Month nav */}
+                                <div className="flex items-center justify-between mb-3 pr-6">
+                                    <button
+                                        type="button"
+                                        onClick={() => setWeekPickerDate(subMonths(weekPickerDate, 1))}
+                                        className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                                    >
+                                        <ChevronLeft className="w-4 h-4" />
+                                    </button>
+                                    <span className="text-sm font-bold text-white capitalize">
+                                        {format(weekPickerDate, "MMMM yyyy", { locale: es })}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setWeekPickerDate(addMonths(weekPickerDate, 1))}
+                                        className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                                    >
+                                        <ChevronRight className="w-4 h-4" />
+                                    </button>
+                                </div>
+
+                                {/* Day headers */}
+                                <div className="grid grid-cols-7 gap-1 mb-1">
+                                    {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => (
+                                        <div
+                                            key={d}
+                                            className="text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider py-1"
+                                        >
+                                            {d}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Week rows - clickable */}
+                                {weekPickerWeeks.map((week, wi) => {
+                                    const weekStart = startOfWeek(week[0], { weekStartsOn: 1 });
+                                    const isCurrentWeek = weekDays.some((wd) =>
+                                        isSameDay(wd, week[0])
+                                    );
+                                    return (
+                                        <button
+                                            key={wi}
+                                            type="button"
+                                            onClick={() => handleSelectWeekFromPicker(weekStart)}
+                                            className={`grid grid-cols-7 gap-1 w-full rounded-xl py-1 transition-all cursor-pointer ${
+                                                isCurrentWeek
+                                                    ? "bg-blue-500/15 border border-blue-500/30"
+                                                    : "hover:bg-slate-800/60 border border-transparent"
+                                            }`}
+                                        >
+                                            {week.map((day, di) => {
+                                                const isInMonth =
+                                                    day.getMonth() === weekPickerDate.getMonth();
+                                                const isToday2 = isSameDay(
+                                                    day,
+                                                    startOfDay(new Date())
+                                                );
+                                                return (
+                                                    <div
+                                                        key={di}
+                                                        className={`text-center text-xs py-1 rounded-lg ${
+                                                            isToday2
+                                                                ? "bg-blue-600 text-white font-bold"
+                                                                : isInMonth
+                                                                ? "text-slate-300"
+                                                                : "text-slate-600"
+                                                        }`}
+                                                    >
+                                                        {format(day, "d")}
+                                                    </div>
+                                                );
+                                            })}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        {/* Espacio inferior para que el modal respire visualmente */}
+                        <div className="h-2" />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
