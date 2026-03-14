@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
     format,
     startOfWeek,
@@ -12,12 +12,14 @@ import {
     endOfMonth,
     addMonths,
     subMonths,
+    isBefore,
 } from "date-fns";
 import { es } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Clock, MoreVertical, Loader2, CalendarRange, CalendarCheck, Move, CirclePlus, X, Eye, Pencil, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, MoreVertical, Loader2, CalendarRange, CalendarCheck, Move, CirclePlus, X, Eye, Pencil, Trash2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Button } from "@/shared/components/button";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import { patchSubtask, deleteSubtask } from "@/api/services/subtack";
+import { patchActivity } from "@/api/services/activity";
 import { queryCache } from "@/lib/queryCache";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
@@ -35,6 +37,29 @@ export default function Calendar() {
     // Picker de semanas tipo "Mes" (mini calendario)
     const [showWeekPicker, setShowWeekPicker] = useState(false);
     const [weekPickerDate, setWeekPickerDate] = useState<Date>(new Date());
+    const [showReprogramActivityModal, setShowReprogramActivityModal] = useState(false);
+    const [newDeadlineForActivity, setNewDeadlineForActivity] = useState("");
+    const [savingDeadline, setSavingDeadline] = useState(false);
+    const [reprogramSuccessMessage, setReprogramSuccessMessage] = useState<string | null>(null);
+    const [showMoveSuccessModal, setShowMoveSuccessModal] = useState(false);
+    const [moveSuccessData, setMoveSuccessData] = useState<{ taskTitle: string; dateLabel: string } | null>(null);
+    const [showConflictResolvedModal, setShowConflictResolvedModal] = useState(false);
+    const [conflictResolvedData, setConflictResolvedData] = useState<{ taskTitle: string; dateLabel: string } | null>(null);
+    const [showConflictProcessingModal, setShowConflictProcessingModal] = useState(false);
+    const [conflictProcessingMessage, setConflictProcessingMessage] = useState("Estamos revisando tu planificación...");
+    const [showOverloadModal, setShowOverloadModal] = useState(false);
+    const [pendingConflictDay, setPendingConflictDay] = useState<Date | null>(null);
+    const [reduceHoursForConflict, setReduceHoursForConflict] = useState("");
+    const [reduceConflictError, setReduceConflictError] = useState<string | null>(null);
+    const [isResolvingConflict, setIsResolvingConflict] = useState(false);
+    const [overloadModalStep, setOverloadModalStep] = useState<"menu" | "reduce">("menu");
+    const [showMoveOtherTasksModal, setShowMoveOtherTasksModal] = useState(false);
+    const [strictMoveMode, setStrictMoveMode] = useState(false);
+    const [conflictResolutionContext, setConflictResolutionContext] = useState<{
+        originalSubtask: any;
+        targetDateKey: string;
+    } | null>(null);
+    const pendingNavigateAfterModalRef = useRef<{ to: string; state?: object } | null>(null);
 
     const { vencidas, para_hoy, proximas, loading, refetch } = useHoy({ days_ahead: 30 });
 
@@ -194,11 +219,214 @@ export default function Calendar() {
     const handleSelectForMove = (activity: any) => {
         setSelectedSubtask(activity);
         setIsMoving(true);
+        setStrictMoveMode(false);
     };
 
-    const handleCancelMove = () => {
+    const handleCancelMove = (keepProcessingModal = false) => {
         setSelectedSubtask(null);
         setIsMoving(false);
+        setShowOverloadModal(false);
+        setPendingConflictDay(null);
+        setReduceHoursForConflict("");
+        setReduceConflictError(null);
+        setOverloadModalStep("menu");
+        setShowMoveOtherTasksModal(false);
+        setStrictMoveMode(false);
+        setConflictResolutionContext(null);
+        if (!keepProcessingModal) {
+            setShowConflictProcessingModal(false);
+            setConflictProcessingMessage("Estamos revisando tu planificación...");
+        }
+        setReprogramSuccessMessage(null);
+    };
+
+    const formatHours = (hours: number) => (hours % 1 === 0 ? `${hours}h` : `${hours.toFixed(1)}h`);
+
+    const computeProjectedHours = (day: Date, hoursForSelected: number, taskOverride?: any) => {
+        const task = taskOverride ?? selectedSubtask;
+        if (!task) return 0;
+        const newDateKey = format(day, "yyyy-MM-dd");
+        const oldDateKey = task.dateKey;
+        const currentHoursInTarget = dayStats[newDateKey] || 0;
+
+        if (oldDateKey === newDateKey) {
+            const oldHours = task.durationNum || 0;
+            return Math.max(0, currentHoursInTarget - oldHours + hoursForSelected);
+        }
+        return currentHoursInTarget + hoursForSelected;
+    };
+
+    const executeMove = async (
+        day: Date,
+        hoursForSelected: number,
+        options?: {
+            resetUI?: boolean;
+            showSuccessModal?: boolean;
+            taskOverride?: any;
+            awaitRefetch?: boolean;
+            preserveProcessingModal?: boolean;
+            deferSync?: boolean;
+        }
+    ): Promise<boolean> => {
+        const task = options?.taskOverride ?? selectedSubtask;
+        if (!task) return false;
+
+        const newDateKey = format(day, "yyyy-MM-dd");
+        const subtaskId = task.id;
+        const activityId = task.activityId;
+        const oldDateKey = task.dateKey;
+        const oldSubtaskHours = task.durationNum;
+        const projectedHoursNewDay = computeProjectedHours(day, hoursForSelected, task);
+        const willHaveConflict = projectedHoursNewDay > studyLimitHours;
+
+        // Calcular el estado del día origen para retroalimentar a "Hoy".
+        const conflictDateKey = conflictDateKeyFromState || oldDateKey;
+        const oldDayHoursBefore = conflictDateKey ? (dayStats[conflictDateKey] || 0) : 0;
+        const oldDayHoursAfter =
+            conflictDateKey && oldDateKey === conflictDateKey && oldDateKey !== newDateKey
+                ? Math.max(0, oldDayHoursBefore - oldSubtaskHours)
+                : oldDayHoursBefore;
+
+        const availableOldDay = Math.max(0, studyLimitHours - oldDayHoursAfter);
+        const overworkOldDay = Math.max(0, oldDayHoursAfter - studyLimitHours);
+        const resolvedOldDay = oldDayHoursAfter <= studyLimitHours;
+
+        const taskTitle = task.title;
+        const dateLabel = format(day, "d 'de' MMMM 'de' yyyy", { locale: es });
+        const shouldPatchEstimatedHours =
+            Number.isFinite(hoursForSelected) &&
+            Math.abs(hoursForSelected - oldSubtaskHours) > 0.0001;
+
+        // Actualización optimista: fecha y conflicto.
+        setOverriddenDates(prev => ({
+            ...prev,
+            [subtaskId]: newDateKey
+        }));
+        setConflictOverrides(prev => ({
+            ...prev,
+            [subtaskId]: willHaveConflict
+        }));
+
+        const shouldResetUI = options?.resetUI !== false;
+        const shouldShowSuccessModal = options?.showSuccessModal !== false;
+
+        if (shouldResetUI) {
+            handleCancelMove(options?.preserveProcessingModal === true);
+        }
+
+        try {
+            await patchSubtask(activityId, subtaskId, {
+                target_date: newDateKey,
+                ...(shouldPatchEstimatedHours ? { estimated_hours: hoursForSelected } : {}),
+            });
+
+            if (options?.awaitRefetch) {
+                await refetch();
+            }
+
+            if (options?.deferSync) {
+                // Mantenemos la UI optimista; sincronizamos luego del flujo completo.
+                setConflictOverrides(prev => {
+                    const next = { ...prev };
+                    delete next[subtaskId];
+                    return next;
+                });
+            } else {
+                // Refrescar datos en segundo plano sin bloquear la UI.
+                queryCache.invalidate("activities");
+                Promise.resolve()
+                    .then(() => {
+                        setConflictOverrides(prev => {
+                            const next = { ...prev };
+                            delete next[subtaskId];
+                            return next;
+                        });
+                    })
+                    .catch(() => {
+                        // Si falla, mantenemos el override optimista.
+                    });
+            }
+
+            if (shouldShowSuccessModal) {
+                setMoveSuccessData({ taskTitle, dateLabel });
+                setShowMoveSuccessModal(true);
+                setConflictResolutionContext(null);
+            }
+
+            if (returnTo === "hoy" && conflictDateKey) {
+                pendingNavigateAfterModalRef.current = {
+                    to: "/hoy",
+                    state: {
+                        conflictOutcome: {
+                            dateKey: conflictDateKey,
+                            usedHours: oldDayHoursAfter,
+                            limitHours: studyLimitHours,
+                            availableHours: availableOldDay,
+                            overworkHours: overworkOldDay,
+                            resolved: resolvedOldDay,
+                        },
+                    },
+                };
+            }
+            return true;
+        } catch (error) {
+            console.error("Error al reprogramar:", error);
+            // Revertir cambios optimistas en caso de error.
+            setOverriddenDates(prev => {
+                const next = { ...prev };
+                delete next[subtaskId];
+                return next;
+            });
+            setConflictOverrides(prev => {
+                const next = { ...prev };
+                delete next[subtaskId];
+                return next;
+            });
+            refetch();
+            return false;
+        }
+    };
+
+    const handleResolveByReducingHours = async () => {
+        if (!selectedSubtask || !pendingConflictDay) return;
+        setReduceConflictError(null);
+
+        const current = parseFloat(String(selectedSubtask.durationNum ?? 0));
+        const next = parseFloat(String(reduceHoursForConflict));
+
+        if (!Number.isFinite(next)) {
+            setReduceConflictError("Ingresa un número válido.");
+            return;
+        }
+        if (next < 0.5) {
+            setReduceConflictError("La estimación mínima es 0.5h.");
+            return;
+        }
+        if (!Number.isFinite(current) || current <= 0) {
+            setReduceConflictError("No se pudo leer las horas actuales de la subtarea.");
+            return;
+        }
+        if (next >= current) {
+            setReduceConflictError(`Debe ser menor a ${formatHours(current)}.`);
+            return;
+        }
+
+        setIsResolvingConflict(true);
+        try {
+            await executeMove(pendingConflictDay, next);
+        } finally {
+            setIsResolvingConflict(false);
+        }
+    };
+
+    const handleMoveOtherTaskFromConflictDay = (task: any) => {
+        setSelectedSubtask(task);
+        setIsMoving(true);
+        setStrictMoveMode(true);
+        setShowMoveOtherTasksModal(false);
+        setShowOverloadModal(false);
+        setReduceConflictError(null);
+        setOverloadModalStep("menu");
     };
 
     const handleConfirmMove = async (day: Date) => {
@@ -213,102 +441,113 @@ export default function Calendar() {
             }
         }
 
-        const newDateKey = format(day, "yyyy-MM-dd");
-        const subtaskId = selectedSubtask.id;
-        const activityId = selectedSubtask.activityId;
-        const subtaskHours = selectedSubtask.durationNum;
+        const projectedHours = computeProjectedHours(day, selectedSubtask.durationNum);
+        const hasConflict = projectedHours > studyLimitHours;
 
-        // Calcular horas del nuevo día (optimista)
-        // dayStats ya incluye esta tarea en su día actual, así que:
-        // - Si se mueve a otro día: nuevo día = horas actuales + horas de esta tarea
-        // - Si se mueve al mismo día: no hay cambio
-        const oldDateKey = selectedSubtask.dateKey;
-        let currentHoursNewDay = dayStats[newDateKey] || 0;
-        
-        if (oldDateKey !== newDateKey) {
-            // Si se mueve a un día diferente, agregar las horas de esta tarea al nuevo día
-            currentHoursNewDay = currentHoursNewDay + subtaskHours;
+        if (strictMoveMode && hasConflict) {
+            return;
         }
-        
-        const willHaveConflict = currentHoursNewDay > studyLimitHours;
 
-        // Calcular también el estado del día "origen" (donde estaba la subtarea) tras quitarla
-        // para poder informar a Hoy si el conflicto se resolvió.
-        const conflictDateKey = conflictDateKeyFromState || oldDateKey;
-        const oldDayHoursBefore = conflictDateKey ? (dayStats[conflictDateKey] || 0) : 0;
-        const oldDayHoursAfter =
-            conflictDateKey && oldDateKey === conflictDateKey && oldDateKey !== newDateKey
-                ? Math.max(0, oldDayHoursBefore - subtaskHours)
-                : oldDayHoursBefore;
+        if (strictMoveMode && !hasConflict && conflictResolutionContext) {
+            const movedTask = selectedSubtask;
+            const originalSubtask = conflictResolutionContext.originalSubtask;
+            const targetDateKey = conflictResolutionContext.targetDateKey;
+            const targetDayForOriginal = startOfDay(parseISO(targetDateKey));
+            setShowConflictProcessingModal(true);
+            setConflictProcessingMessage("Estamos revisando el conflicto de nuevo...");
 
-        const availableOldDay = Math.max(0, studyLimitHours - oldDayHoursAfter);
-        const overworkOldDay = Math.max(0, oldDayHoursAfter - studyLimitHours);
-        const resolvedOldDay = oldDayHoursAfter <= studyLimitHours;
-
-        // Actualización optimista: fecha y conflicto
-        setOverriddenDates(prev => ({
-            ...prev,
-            [subtaskId]: newDateKey
-        }));
-        
-        // Actualizar estado de conflicto optimista solo para esta tarjeta
-        setConflictOverrides(prev => ({
-            ...prev,
-            [subtaskId]: willHaveConflict
-        }));
-
-        handleCancelMove();
-
-        try {
-            await patchSubtask(activityId, subtaskId, {
-                target_date: newDateKey
+            // 1) Mover la otra tarea seleccionada (sin modal de éxito intermedio).
+            const movedOtherOk = await executeMove(day, movedTask.durationNum, {
+                resetUI: false,
+                showSuccessModal: false,
+                taskOverride: movedTask,
+                deferSync: true,
             });
-            
-            // Refrescar datos en segundo plano sin bloquear la UI
-            queryCache.invalidate('activities');
-            Promise.resolve(refetch()).then(() => {
-                // Limpiar el override después de que el refetch termine
-                // El backend ahora tiene el valor correcto
-                setConflictOverrides(prev => {
-                    const next = { ...prev };
-                    delete next[subtaskId];
-                    return next;
-                });
-            }).catch(() => {
-                // Si falla, mantener el override optimista
-            });
-
-            // Si venimos desde Hoy por conflicto, volver a Hoy con un resultado para mostrar modal.
-            if (returnTo === "hoy" && conflictDateKey) {
-                navigate("/hoy", {
-                    state: {
-                        conflictOutcome: {
-                            dateKey: conflictDateKey,
-                            usedHours: oldDayHoursAfter,
-                            limitHours: studyLimitHours,
-                            availableHours: availableOldDay,
-                            overworkHours: overworkOldDay,
-                            resolved: resolvedOldDay,
-                        },
-                    },
-                });
+            if (!movedOtherOk) {
+                setShowConflictProcessingModal(false);
+                return;
             }
-        } catch (error) {
-            console.error("Error al reprogramar:", error);
-            // Revertir cambios optimistas en caso de error
-            setOverriddenDates(prev => {
-                const next = { ...prev };
-                delete next[subtaskId];
-                return next;
+
+            // 2) Recalcular si el conflicto original persiste al intentar mover la tarea original.
+            const currentHoursTarget = dayStats[targetDateKey] || 0;
+            const movedOutHours = movedTask.dateKey === targetDateKey ? movedTask.durationNum : 0;
+            const hoursAfterMovingOther = Math.max(0, currentHoursTarget - movedOutHours);
+            const projectedWithOriginal = hoursAfterMovingOther + (originalSubtask.durationNum || 0);
+            const stillConflicted = projectedWithOriginal > studyLimitHours;
+
+            if (stillConflicted) {
+                const overload = projectedWithOriginal - studyLimitHours;
+                const suggestedHours = Math.max(
+                    0.5,
+                    Math.round(((originalSubtask.durationNum || 0) - overload) * 10) / 10
+                );
+
+                // Volver al menú de resolución para la tarea original.
+                setSelectedSubtask(originalSubtask);
+                setIsMoving(true);
+                setStrictMoveMode(false);
+                setPendingConflictDay(targetDayForOriginal);
+                setReduceHoursForConflict(String(suggestedHours));
+                setReduceConflictError(null);
+                setOverloadModalStep("menu");
+                setShowOverloadModal(true);
+                setShowMoveOtherTasksModal(false);
+                setShowConflictProcessingModal(false);
+                setConflictProcessingMessage("Estamos revisando tu planificación...");
+                return;
+            }
+
+            // 3) Si ya no hay conflicto, mover automáticamente la tarea original al día objetivo.
+            setConflictProcessingMessage("Estamos guardando tus cambios...");
+            setSelectedSubtask(originalSubtask);
+            setIsMoving(true);
+            setStrictMoveMode(false);
+            const originalMovedOk = await executeMove(targetDayForOriginal, originalSubtask.durationNum, {
+                resetUI: true,
+                showSuccessModal: false,
+                taskOverride: originalSubtask,
+                preserveProcessingModal: true,
+                deferSync: true,
             });
-            setConflictOverrides(prev => {
-                const next = { ...prev };
-                delete next[subtaskId];
-                return next;
-            });
-            // Refrescar para obtener el estado correcto del backend
-            refetch();
+            if (originalMovedOk) {
+                setConflictResolvedData({
+                    taskTitle: originalSubtask.title,
+                    dateLabel: format(targetDayForOriginal, "d 'de' MMMM 'de' yyyy", { locale: es }),
+                });
+                setShowConflictResolvedModal(true);
+                setConflictResolutionContext(null);
+                queryCache.invalidate("activities");
+            }
+            setShowConflictProcessingModal(false);
+            setConflictProcessingMessage("Estamos revisando tu planificación...");
+            return;
         }
+
+        if (hasConflict) {
+            const overload = projectedHours - studyLimitHours;
+            const suggestedHours = Math.max(0.5, Math.round((selectedSubtask.durationNum - overload) * 10) / 10);
+            setConflictResolutionContext({
+                originalSubtask: selectedSubtask,
+                targetDateKey: format(day, "yyyy-MM-dd"),
+            });
+            setPendingConflictDay(day);
+            setReduceHoursForConflict(String(suggestedHours));
+            setReduceConflictError(null);
+            setOverloadModalStep("menu");
+            setShowOverloadModal(true);
+            return;
+        }
+
+        setConflictResolutionContext(null);
+        setShowConflictProcessingModal(true);
+        setConflictProcessingMessage("Estamos guardando tus cambios...");
+        const moveOk = await executeMove(day, selectedSubtask.durationNum, {
+            preserveProcessingModal: true,
+            deferSync: true,
+        });
+        setShowConflictProcessingModal(false);
+        setConflictProcessingMessage("Estamos revisando tu planificación...");
+        if (!moveOk) return;
     };
 
     const handleDelete = async (activityId: any, subtaskId: any) => {
@@ -318,6 +557,32 @@ export default function Calendar() {
             refetch();
         } catch (error) {
             console.error("Error deleting task:", error);
+        }
+    };
+
+    const todayForDeadline = useMemo(() => startOfDay(new Date()), []);
+    const handleOpenReprogramActivityModal = () => {
+        setNewDeadlineForActivity(format(todayForDeadline, "yyyy-MM-dd"));
+        setShowReprogramActivityModal(true);
+    };
+
+    const handleSaveNewDeadline = async () => {
+        if (!selectedSubtask?.activityId || !newDeadlineForActivity) return;
+        setSavingDeadline(true);
+        try {
+            await patchActivity(selectedSubtask.activityId, { deadline: newDeadlineForActivity });
+            queryCache.invalidate("activities");
+            queryCache.invalidateByPrefix("hoy:");
+            await refetch();
+            setSelectedSubtask((prev: typeof selectedSubtask) =>
+                prev ? { ...prev, deadline: newDeadlineForActivity } : null
+            );
+            setShowReprogramActivityModal(false);
+            setReprogramSuccessMessage("Actividad reprogramada. Ahora ya puedes mover tu tarea.");
+        } catch (error) {
+            console.error("Error al reprogramar actividad:", error);
+        } finally {
+            setSavingDeadline(false);
         }
     };
 
@@ -376,92 +641,58 @@ export default function Calendar() {
     }
 
     return (
-        <div className="flex-1 flex flex-col w-full max-w-[1550px] mx-auto px-4 sm:px-6 lg:px-10 py-8 animate-in fade-in duration-500">
-            {/* Relocation Mode Banner */}
-            {isMoving && selectedSubtask && (
-                <div className="flex flex-col md:flex-row items-center justify-between p-5 mb-8 rounded-2xl bg-blue-500/10 border border-blue-500/20 animate-in slide-in-from-top duration-300 gap-4">
-                    <div className="flex items-center gap-4 text-blue-500">
-                        <div className="bg-blue-500 text-white p-2 rounded-lg shrink-0">
-                            <CalendarRange className="w-5 h-5" />
+        <div className="flex-1 flex flex-col min-h-0 w-full max-w-[1550px] mx-auto px-4 sm:px-6 lg:px-10 py-8 animate-in fade-in duration-500 overflow-hidden">
+            <div className="mb-4 shrink-0">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+                    <div className="flex items-center gap-4 min-w-0">
+                        <div className="bg-blue-600/10 p-3 rounded-2xl border border-blue-500/20 text-blue-500 shrink-0">
+                            <CalendarRange className="w-8 h-8" />
                         </div>
-                        <div>
-                            <span className="font-black text-xs uppercase tracking-[0.2em]">Modo Reubicación Activo</span>
-                            <p className="text-slate-400 text-sm mt-0.5">
-                                Selecciona un espacio antes del <span className="text-white font-bold">{selectedSubtask.deadline ? format(parseISO(selectedSubtask.deadline), "d 'de' MMMM", { locale: es }) : 'límite'}</span> para mover <span className="text-white font-bold">'{selectedSubtask.title}'</span>
-                            </p>
-                        </div>
+                        <h2 className="text-3xl font-black text-white tracking-tight truncate">
+                            {weekRangeLabel}
+                        </h2>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                        {selectedSubtask.deadline && (
-                            <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/30 rounded-xl">
-                                <Clock className="w-4 h-4 text-amber-500" />
-                                <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">
-                                    Límite: {format(parseISO(selectedSubtask.deadline), "d 'de' MMM", { locale: es })}
-                                </span>
-                            </div>
-                        )}
+                    <div className="flex flex-wrap gap-2 items-center md:shrink-0 md:justify-end">
                         <Button
                             variant="outline"
-                            onClick={handleCancelMove}
-                            className="px-6 py-2 text-xs font-black uppercase tracking-widest text-rose-500 border-rose-500/30 hover:bg-rose-500/10 transition-all rounded-xl"
+                            size="icon"
+                            onClick={handlePrevWeek}
+                            className="rounded-xl bg-slate-800/50 border-slate-700 hover:bg-blue-500/20 hover:text-blue-400 hover:border-blue-500/50 transition-all"
                         >
-                            Cancelar
+                            <ChevronLeft className="w-5 h-5" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={handleNextWeek}
+                            className="rounded-xl bg-slate-800/50 border-slate-700 hover:bg-blue-500/20 hover:text-blue-400 hover:border-blue-500/50 transition-all"
+                        >
+                            <ChevronRight className="w-5 h-5" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={handleOpenWeekPicker}
+                            className="rounded-xl bg-slate-800/60 border-slate-700/80 text-slate-200 text-xs font-bold uppercase tracking-widest hover:bg-blue-600/20 hover:text-blue-300 hover:border-blue-500/60 transition-all px-4 py-2 flex items-center gap-2"
+                        >
+                            <CalendarRange className="w-4 h-4" />
+                            Seleccionar semana
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={handleGoToToday}
+                            className="rounded-xl bg-slate-800/60 border-slate-700/80 text-slate-200 text-xs font-bold uppercase tracking-widest hover:bg-blue-600/20 hover:text-blue-300 hover:border-blue-500/60 transition-all px-4 py-2"
+                        >
+                            Hoy
                         </Button>
                     </div>
                 </div>
-            )}
-
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-                <div className="flex items-center gap-4">
-                    {!isMoving && (
-                        <div className="bg-blue-600/10 p-3 rounded-2xl border border-blue-500/20 text-blue-500">
-                            <CalendarRange className="w-8 h-8" />
-                        </div>
-                    )}
-                    <div className="flex flex-col gap-1">
-                        <h2 className="text-3xl font-black text-white tracking-tight">
-                            {weekRangeLabel}
-                        </h2>
-                        <p className="text-xs text-slate-400 font-medium">
-                            Usa el selector para saltar a semanas de otros meses sin mover este calendario.
-                        </p>
-                    </div>
-                </div>
-                <div className="flex flex-wrap gap-3 items-center">
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handlePrevWeek}
-                        className="rounded-xl bg-slate-800/50 border-slate-700 hover:bg-blue-500/20 hover:text-blue-400 hover:border-blue-500/50 transition-all"
-                    >
-                        <ChevronLeft className="w-5 h-5" />
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handleNextWeek}
-                        className="rounded-xl bg-slate-800/50 border-slate-700 hover:bg-blue-500/20 hover:text-blue-400 hover:border-blue-500/50 transition-all"
-                    >
-                        <ChevronRight className="w-5 h-5" />
-                    </Button>
-                    <Button
-                        variant="outline"
-                        onClick={handleOpenWeekPicker}
-                        className="rounded-xl bg-slate-800/60 border-slate-700/80 text-slate-200 text-xs font-bold uppercase tracking-widest hover:bg-blue-600/20 hover:text-blue-300 hover:border-blue-500/60 transition-all px-4 py-2"
-                    >
-                        Elegir semana
-                    </Button>
-                    <Button
-                        variant="outline"
-                        onClick={handleGoToToday}
-                        className="rounded-xl bg-slate-800/60 border-slate-700/80 text-slate-200 text-xs font-bold uppercase tracking-widest hover:bg-blue-600/20 hover:text-blue-300 hover:border-blue-500/60 transition-all px-4 py-2"
-                    >
-                        Hoy
-                    </Button>
-                </div>
+                <p className="text-xs text-slate-400 font-medium max-w-2xl">
+                    En tu calendario puedes reprogramar tareas con «Mover aquí». Si un día queda sobrecargado, verás una guía para resolverlo moviendo, reduciendo horas o posponiendo la decisión. Puedes moverte entre semanas con las flechas o el botón «Seleccionar semana».
+                </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-5 h-full overflow-visible items-start mt-2">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-2 scrollbar-gray">
+                <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-5 items-start pt-4 ${isMoving && selectedSubtask ? "pb-36" : "pb-2"}`}>
                 {weekDays.map((day, index) => {
                     const dayKey = format(day, "yyyy-MM-dd");
                     const dayActivities = getActivitiesForDay(day);
@@ -479,31 +710,49 @@ export default function Calendar() {
 
                     const isAfterDeadline = selectedSubtask?.deadline && day > startOfDay(parseISO(selectedSubtask.deadline));
                     const isDeadlineDay = selectedSubtask?.deadline && isSameDay(day, parseISO(selectedSubtask.deadline));
-                    const canFitSelected = selectedSubtask && !isSameDay(day, selectedSubtask.date) && availableHours >= selectedSubtask.durationNum && !isAfterDeadline;
+                    const isSameDayAsSelected = !!selectedSubtask && !!selectedSubtask.date && isSameDay(day, selectedSubtask.date);
+                    const projectedHoursForMove =
+                        !!selectedSubtask ? computeProjectedHours(day, selectedSubtask.durationNum) : 0;
+                    const willConflictForMove =
+                        !!selectedSubtask &&
+                        !isSameDayAsSelected &&
+                        !isAfterDeadline &&
+                        projectedHoursForMove > studyLimitHours;
+                    const blockedByStrictConflict = !!selectedSubtask && strictMoveMode && willConflictForMove;
+                    const canMoveSelected =
+                        !!selectedSubtask &&
+                        !isSameDayAsSelected &&
+                        !isAfterDeadline &&
+                        !blockedByStrictConflict;
+                    const isBlockedInMoveMode = isMoving && (isPastDay || !!isAfterDeadline);
+                    const hasAvailability = availableHours > 0;
+                    const availabilityColor = hasAvailability ? "text-emerald-400" : "text-amber-400";
 
                     return (
                         <div key={day.toString()} className="flex flex-col gap-5 min-h-[450px]">
                             <div
                                 onDragOver={(e) => {
-                                    if (!isMoving || isPastDay) return;
+                                    if (!isMoving || isBlockedInMoveMode || isSameDayAsSelected || blockedByStrictConflict) return;
                                     e.preventDefault();
                                     e.dataTransfer.dropEffect = "move";
                                 }}
                                 onDrop={(e) => {
-                                    if (!isMoving || isPastDay) return;
+                                    if (!isMoving || isBlockedInMoveMode || isSameDayAsSelected || blockedByStrictConflict) return;
                                     e.preventDefault();
                                     handleConfirmMove(day);
                                 }}
-                                className={`flex flex-col items-center p-4 rounded-2xl border-t-4 transition-all 
-                                    ${isPastDay ? "opacity-40 pointer-events-none" : ""}
+                                className={`sticky top-0 z-10 flex flex-col items-center p-4 rounded-2xl border-t-4 transition-all shadow-[0_4px_12px_0_rgba(0,0,0,0.25)]
+                                    ${isBlockedInMoveMode ? "opacity-35 pointer-events-none grayscale-[0.2]" : ""}
+                                    ${!isMoving && isPastDay ? "opacity-40 pointer-events-none" : ""}
                                     ${isToday
-                                        ? "bg-blue-500/10 border-blue-500 shadow-lg shadow-blue-500/5"
-                                        : "bg-slate-800/30 border-slate-800"
+                                        ? "bg-slate-900 border-blue-500 shadow-lg shadow-blue-500/5"
+                                        : "bg-slate-900 border-slate-800"
                                     } 
-                                 ${isWeekend ? "opacity-90" : ""} 
-                                 ${isMoving && canFitSelected ? 'ring-2 ring-emerald-500/50 bg-emerald-500/5' : ''}
-                                 ${isMoving && isAfterDeadline ? 'opacity-20 pointer-events-none grayscale' : ''}
-                                 ${isMoving && isDeadlineDay ? 'ring-2 ring-amber-500 bg-amber-500/10 animate-pulse transition-all scale-[1.02] z-10' : ''}`}
+                                 ${isWeekend && !isBlockedInMoveMode ? "opacity-90" : ""} 
+                                 ${isMoving && !isBlockedInMoveMode && canMoveSelected && !willConflictForMove ? 'ring-2 ring-emerald-500/50 bg-emerald-500/10' : ''}
+                                 ${isMoving && !isBlockedInMoveMode && canMoveSelected && willConflictForMove ? 'ring-2 ring-amber-500/35 bg-amber-500/10' : ''}
+                                 ${isMoving && !isBlockedInMoveMode && blockedByStrictConflict ? 'ring-2 ring-amber-500/35 bg-amber-500/10' : ''}
+                                 ${isMoving && isDeadlineDay ? 'ring-2 ring-amber-500 bg-amber-500/10 animate-pulse transition-all scale-[1.02]' : ''}`}
                             >
                                 {isMoving && isDeadlineDay && (
                                     <div className="absolute -top-3 px-3 py-1 bg-amber-500 text-white text-[9px] font-black rounded-full shadow-lg z-20">
@@ -512,14 +761,45 @@ export default function Calendar() {
                                 )}
                                 <span className={`text-xs font-black uppercase tracking-wider ${isToday ? "text-blue-500" : isMoving && isDeadlineDay ? "text-amber-500" : "text-slate-400"
                                     }`}>
-                                    {format(day, "EEEE d", { locale: es })}
+                                    {format(day, "EEEE", { locale: es })}
                                 </span>
-                                <span className={`text-[10px] mt-2 font-black uppercase tracking-widest ${canFitSelected ? 'text-emerald-400' : isMoving && isDeadlineDay ? 'text-amber-400' : 'text-slate-500'}`}>
-                                    {isMoving && isAfterDeadline ? 'BLOQUEADO' : `Disponibilidad: ${availableHours % 1 === 0 ? availableHours : availableHours.toFixed(1)}h`}
+                                <span className={`text-2xl font-black mt-1 leading-none ${isToday ? "text-blue-300" : isMoving && isDeadlineDay ? "text-amber-300" : "text-slate-200"}`}>
+                                    {format(day, "d")}
+                                </span>
+                                <span className={`text-[10px] mt-2 font-black uppercase tracking-widest ${
+                                    isBlockedInMoveMode ? "text-slate-500" : willConflictForMove ? "text-amber-400" : availabilityColor
+                                }`}>
+                                    {isMoving && (isAfterDeadline || isPastDay)
+                                        ? 'BLOQUEADO'
+                                        : blockedByStrictConflict
+                                        ? 'EXCEDE EL LÍMITE'
+                                        : willConflictForMove
+                                        ? `QUEDARÍA EN ${formatHours(projectedHoursForMove)}`
+                                        : `Disponibilidad: ${availableHours % 1 === 0 ? availableHours : availableHours.toFixed(1)}h`}
                                 </span>
                             </div>
 
                             <div className="flex-1 space-y-4">
+                                {isMoving && canMoveSelected && !isPastDay && (
+                                    <button
+                                        onClick={() => handleConfirmMove(day)}
+                                        className={`w-full flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-2xl group cursor-pointer transition-all ${
+                                            willConflictForMove
+                                                ? "border-amber-500/60 bg-amber-500/10 hover:bg-amber-500/15"
+                                                : "border-blue-500/50 bg-blue-500/5 hover:bg-blue-500/10 animate-pulse"
+                                        }`}
+                                    >
+                                        <CirclePlus className={`w-8 h-8 mb-2 group-hover:scale-110 transition-transform ${
+                                            willConflictForMove ? "text-amber-400" : "text-blue-500"
+                                        }`} />
+                                        <span className={`text-xs font-black uppercase tracking-widest ${
+                                            willConflictForMove ? "text-amber-300" : "text-blue-500"
+                                        }`}>
+                                            {willConflictForMove ? "Mover aquí (con conflicto)" : "Mover aquí"}
+                                        </span>
+                                        
+                                    </button>
+                                )}
                                 {dayActivities.length > 0 ? (
                                     <>
                                         <div className="space-y-4">
@@ -538,8 +818,8 @@ export default function Calendar() {
                                                     ring: "ring-[#F59E0B]/60 shadow-[#F59E0B]/40",
                                                     glow: "shadow-[0_0_15px_rgba(245,158,11,0.2)]"
                                                 };
-
-                                                const activeTheme = isConflicted ? conflictTheme : theme;
+                                                // Si está seleccionada, usar tema azul para no chocar con el borde amarillo de conflicto
+                                                const activeTheme = isConflicted && !isSelected ? conflictTheme : theme;
 
                                                 return (
                                                     <div
@@ -665,21 +945,465 @@ export default function Calendar() {
                                         </div>
                                     )
                                 )}
-
-                                {isMoving && canFitSelected && !isPastDay && (
-                                    <button
-                                        onClick={() => handleConfirmMove(day)}
-                                        className="w-full flex flex-col items-center justify-center p-6 border-2 border-dashed border-blue-500/50 bg-blue-500/5 rounded-2xl group cursor-pointer hover:bg-blue-500/10 transition-all animate-pulse"
-                                    >
-                                        <CirclePlus className="w-8 h-8 text-blue-500 mb-2 group-hover:scale-110 transition-transform" />
-                                        <span className="text-blue-500 text-xs font-black uppercase tracking-widest">Mover aquí</span>
-                                    </button>
-                                )}
                             </div>
                         </div>
                     );
                 })}
+                </div>
             </div>
+
+            {/* Modo reprogramación activo: fijo abajo para no bajar con muchas tareas */}
+            {isMoving && selectedSubtask && (() => {
+                const deadlineInPast = selectedSubtask.deadline && isBefore(startOfDay(parseISO(selectedSubtask.deadline)), todayForDeadline);
+                const taskDateInPast = selectedSubtask.date && isBefore(selectedSubtask.date, todayForDeadline);
+                const showReprogramPrompt = deadlineInPast && taskDateInPast;
+                return (
+                <div className="fixed bottom-0 left-0 right-0 z-30 px-4 sm:px-6 lg:px-10 py-4 bg-[#0f172a]/95 backdrop-blur-sm border-t border-slate-800/80 animate-in slide-in-from-bottom duration-300">
+                    <div className="max-w-[1550px] mx-auto flex flex-col md:flex-row items-center justify-between p-4 md:p-5 rounded-2xl bg-blue-500/10 border border-blue-500/20 gap-4 md:gap-5">
+                    <div className="flex items-center gap-5 text-blue-500">
+                        <div className="bg-blue-500 text-white p-3 rounded-xl shrink-0">
+                            <CalendarRange className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <span className="font-black text-sm uppercase tracking-[0.2em]">Modo reprogramación activo</span>
+                            {reprogramSuccessMessage ? (
+                                <p className="text-emerald-400 text-base mt-1 font-medium">
+                                    {reprogramSuccessMessage}
+                                </p>
+                            ) : showReprogramPrompt ? (
+                                <>
+                                    <p className="text-slate-300 text-base mt-1">
+                                        No puedes reprogramar tu tarea porque la fecha límite de la actividad está antes del día de hoy.
+                                    </p>
+                                    <p className="text-slate-400 text-sm mt-2">
+                                        ¿Deseas reprogramar tu actividad?
+                                    </p>
+                                </>
+                            ) : (
+                                <p className="text-slate-400 text-base mt-1">
+                                    Selecciona un espacio antes de la <span className="text-white font-bold">{selectedSubtask.deadline ? format(parseISO(selectedSubtask.deadline), "d 'de' MMMM", { locale: es }) : 'fecha límite'}</span> para mover <span className="text-white font-bold">'{selectedSubtask.title}'</span>
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                        {!showReprogramPrompt && !reprogramSuccessMessage && selectedSubtask.deadline && (
+                            <div className="hidden sm:flex items-center gap-2 px-4 py-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+                                <Clock className="w-5 h-5 text-amber-500" />
+                                <span className="text-xs font-black text-amber-500 uppercase tracking-widest">
+                                    Fecha límite: {format(parseISO(selectedSubtask.deadline), "d 'de' MMM", { locale: es })}
+                                </span>
+                            </div>
+                        )}
+                        {showReprogramPrompt && !reprogramSuccessMessage && (
+                            <Button
+                                variant="outline"
+                                onClick={handleOpenReprogramActivityModal}
+                                className="px-6 py-2.5 text-sm font-black uppercase tracking-widest text-blue-400 border-blue-500/50 hover:bg-blue-500/10 transition-all rounded-xl"
+                            >
+                                Reprogramar actividad
+                            </Button>
+                        )}
+                        <Button
+                            variant="outline"
+                            onClick={() => handleCancelMove()}
+                            className="px-6 py-2.5 text-sm font-black uppercase tracking-widest text-rose-500 border-rose-500/30 hover:bg-rose-500/10 transition-all rounded-xl"
+                        >
+                            Cancelar
+                        </Button>
+                    </div>
+                    </div>
+                </div>
+                );
+            })()}
+
+            {/* Modal: resolver sobrecarga al reprogramar */}
+            {showOverloadModal && isMoving && selectedSubtask && pendingConflictDay && (() => {
+                const projectedHours = computeProjectedHours(pendingConflictDay, selectedSubtask.durationNum);
+                const overload = Math.max(0, projectedHours - studyLimitHours);
+
+                return (
+                    <div
+                        className="fixed inset-0 z-[95] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+                        onClick={(e) => {
+                            if (e.target === e.currentTarget) {
+                                setShowOverloadModal(false);
+                                setReduceConflictError(null);
+                                setOverloadModalStep("menu");
+                            }
+                        }}
+                    >
+                        <div
+                            className="w-full max-w-[620px] bg-[#111827] border border-slate-700/70 rounded-3xl shadow-2xl p-6 sm:p-7"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-start gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0">
+                                    <AlertTriangle className="w-6 h-6 text-amber-400" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="text-2xl font-extrabold text-white tracking-tight">Conflicto de sobrecarga detectado</h3>
+                                    <p className="text-slate-300 mt-1.5 leading-relaxed">
+                                        Quedarías con <span className="text-amber-300 font-bold">{formatHours(projectedHours)} planificadas</span> (límite {formatHours(studyLimitHours)}).
+                                    </p>
+                                    <p className="text-slate-400 text-sm mt-2">
+                                        Día elegido: <span className="text-slate-200 font-semibold capitalize">{format(pendingConflictDay, "EEEE d 'de' MMMM", { locale: es })}</span> · sobrecarga de{" "}
+                                        <span className="text-amber-300 font-semibold">{formatHours(overload)}</span>.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {overloadModalStep === "menu" && (
+                                <div className="mt-6 grid gap-3">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => {
+                                            setReduceConflictError(null);
+                                            setOverloadModalStep("reduce");
+                                        }}
+                                        className="h-auto min-h-12 py-3 rounded-xl border-slate-600 bg-slate-800/40 hover:bg-slate-700/60 text-slate-100 font-bold justify-start px-4"
+                                    >
+                                        <span className="flex flex-col items-start text-left">
+                                            <span>1) Reducir horas de la tarea actual</span>
+                                            <span className="text-[11px] font-medium text-slate-400 mt-0.5">
+                                                Ajusta las horas actuales para guardar en este día.
+                                            </span>
+                                        </span>
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => {
+                                            setShowOverloadModal(false);
+                                            setReduceConflictError(null);
+                                            setOverloadModalStep("menu");
+                                        }}
+                                        className="h-auto min-h-12 py-3 rounded-xl border-slate-600 bg-slate-800/40 hover:bg-slate-700/60 text-slate-100 font-bold justify-start px-4"
+                                    >
+                                        <span className="flex flex-col items-start text-left">
+                                            <span>2) Mover tarea a otro día</span>
+                                            <span className="text-[11px] font-medium text-slate-400 mt-0.5">
+                                                Elige otro día directamente en el calendario.
+                                            </span>
+                                        </span>
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => {
+                                            setShowMoveOtherTasksModal(true);
+                                        }}
+                                        className="h-auto min-h-12 py-3 rounded-xl border-slate-600 bg-slate-800/40 hover:bg-slate-700/60 text-slate-100 font-bold justify-start px-4"
+                                    >
+                                        <span className="flex flex-col items-start text-left">
+                                            <span>3) Mover otras tareas</span>
+                                            <span className="text-[11px] font-medium text-slate-400 mt-0.5">
+                                                Mueve otra tarea de este día para liberar horas y resolver este conflicto.
+                                            </span>
+                                        </span>
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => handleCancelMove()}
+                                        className="h-auto min-h-12 py-3 rounded-xl border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold justify-start px-4"
+                                    >
+                                        <span className="flex flex-col items-start text-left">
+                                            <span>4) Posponer la solución</span>
+                                            <span className="text-[11px] font-medium text-amber-200/80 mt-0.5">
+                                                Pospón la reprogramación de esta tarea.
+                                            </span>
+                                        </span>
+                                    </Button>
+                                </div>
+                            )}
+
+                            {overloadModalStep === "reduce" && (
+                                <div className="mt-6">
+                                    <div className="bg-slate-900/50 border border-slate-700/60 rounded-2xl p-4">
+                                        <p className="text-sm text-slate-300 mb-3">
+                                            Define las nuevas horas para guardar en este día. Rango permitido:{" "}
+                                            <span className="font-semibold text-white">0.5h</span> a{" "}
+                                            <span className="font-semibold text-white">{formatHours(selectedSubtask.durationNum)}</span>.
+                                        </p>
+                                        <div className="flex gap-3 items-center flex-wrap">
+                                            <input
+                                                type="number"
+                                                step="0.25"
+                                                min="0.5"
+                                                max={selectedSubtask.durationNum}
+                                                value={reduceHoursForConflict}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "-" || e.key === "Minus") e.preventDefault();
+                                                }}
+                                                onChange={(e) => {
+                                                    const raw = e.target.value;
+                                                    if (raw === "") {
+                                                        setReduceHoursForConflict(raw);
+                                                        return;
+                                                    }
+                                                    const parsed = parseFloat(raw);
+                                                    if (!Number.isFinite(parsed)) {
+                                                        setReduceHoursForConflict(raw);
+                                                        return;
+                                                    }
+                                                    const clamped = Math.min(
+                                                        selectedSubtask.durationNum,
+                                                        Math.max(0.5, parsed)
+                                                    );
+                                                    setReduceHoursForConflict(String(clamped));
+                                                }}
+                                                className="h-11 w-24 text-base font-semibold bg-[#1F2937]/60 border border-slate-700/60 text-slate-200 rounded-xl px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            />
+                                            <Button
+                                                onClick={handleResolveByReducingHours}
+                                                disabled={isResolvingConflict}
+                                                className="h-11 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                                            >
+                                                {isResolvingConflict ? "Guardando..." : "Guardar y reprogramar"}
+                                            </Button>
+                                        </div>
+                                        {reduceConflictError && (
+                                            <p className="text-amber-300 text-sm mt-2 font-semibold">{reduceConflictError}</p>
+                                        )}
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => {
+                                            setReduceConflictError(null);
+                                            setOverloadModalStep("menu");
+                                        }}
+                                        className="mt-4 h-11 rounded-xl border-slate-600 bg-slate-800/40 hover:bg-slate-700/60 text-slate-200 font-bold"
+                                    >
+                                        Volver a opciones
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* Modal: mover otras tareas del día en conflicto */}
+            {showMoveOtherTasksModal && pendingConflictDay && (() => {
+                const dayTasks = getActivitiesForDay(pendingConflictDay).filter(
+                    (task) => task.status !== "DONE" && task.id !== selectedSubtask?.id
+                );
+
+                return (
+                    <div
+                        className="fixed inset-0 z-[96] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+                        onClick={(e) => {
+                            if (e.target === e.currentTarget) setShowMoveOtherTasksModal(false);
+                        }}
+                    >
+                        <div
+                            className="w-full max-w-[620px] bg-[#111827] border border-slate-700/70 rounded-3xl shadow-2xl p-6 sm:p-7"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-start gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center shrink-0">
+                                    <Move className="w-6 h-6 text-blue-400" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="text-2xl font-extrabold text-white tracking-tight">Mover otras tareas</h3>
+                                    <p className="text-slate-400 text-sm mt-1.5">
+                                        Selecciona una tarea del día{" "}
+                                        <span className="text-slate-200 font-semibold capitalize">
+                                            {format(pendingConflictDay, "EEEE d 'de' MMMM", { locale: es })}
+                                        </span>
+                                        {" "}para moverla. Esta tarea se moverá con restricción: no podrá guardarse en días con conflicto.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="mt-5 space-y-3 max-h-[45vh] overflow-y-auto pr-1">
+                                {dayTasks.length > 0 ? (
+                                    dayTasks.map((task) => (
+                                        <button
+                                            key={task.id}
+                                            type="button"
+                                            onClick={() => handleMoveOtherTaskFromConflictDay(task)}
+                                            className="w-full text-left p-4 rounded-2xl border border-slate-700 bg-slate-900/50 hover:bg-slate-800/60 transition-colors"
+                                        >
+                                            <p className="text-sm font-bold text-white leading-tight">{task.title}</p>
+                                            <p className="text-[11px] text-slate-400 mt-1">
+                                                {task.course} · {formatHours(task.durationNum)}
+                                            </p>
+                                        </button>
+                                    ))
+                                ) : (
+                                    <div className="rounded-2xl border border-slate-700 bg-slate-900/40 p-4">
+                                        <p className="text-sm text-slate-400">
+                                            No hay otras tareas pendientes para mover en este día.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="mt-5 flex gap-3">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowMoveOtherTasksModal(false)}
+                                    className="h-11 rounded-xl border-slate-600 bg-slate-800/40 hover:bg-slate-700/60 text-slate-200 font-bold"
+                                >
+                                    Volver
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => handleCancelMove()}
+                                    className="h-11 rounded-xl border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold"
+                                >
+                                    Posponer solución
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* Modal: reprogramar actividad (nueva fecha límite) */}
+            {showReprogramActivityModal && selectedSubtask && (
+                <div
+                    className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+                    onClick={(e) => e.target === e.currentTarget && setShowReprogramActivityModal(false)}
+                >
+                    <div className="w-full max-w-md bg-[#111827] border border-slate-700 rounded-2xl shadow-2xl p-6 animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="bg-blue-500/10 p-2 rounded-xl">
+                                <CalendarRange className="w-6 h-6 text-blue-500" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-white">Reprogramar actividad</h3>
+                                <p className="text-xs text-slate-400">Establece una nueva fecha límite para poder mover la tarea.</p>
+                            </div>
+                        </div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Nueva fecha límite</label>
+                        <input
+                            type="date"
+                            value={newDeadlineForActivity}
+                            min={format(todayForDeadline, "yyyy-MM-dd")}
+                            onChange={(e) => setNewDeadlineForActivity(e.target.value)}
+                            className="w-full rounded-xl bg-[#1F2937]/50 border border-slate-600 px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        <div className="flex gap-3 mt-6">
+                            <Button
+                                variant="outline"
+                                onClick={() => setShowReprogramActivityModal(false)}
+                                className="flex-1 rounded-xl border-slate-600 text-slate-400 hover:bg-slate-800"
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                onClick={handleSaveNewDeadline}
+                                disabled={savingDeadline || !newDeadlineForActivity}
+                                className="flex-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                            >
+                                {savingDeadline ? "Guardando..." : "Guardar"}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de éxito al reprogramar (mismo diseño que Hoy: orden de prioridad) */}
+            {showMoveSuccessModal && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) {
+                            setShowMoveSuccessModal(false);
+                            setMoveSuccessData(null);
+                            const pending = pendingNavigateAfterModalRef.current;
+                            pendingNavigateAfterModalRef.current = null;
+                            if (pending) navigate(pending.to, { state: pending.state });
+                        }
+                    }}
+                >
+                    <div className="bg-[#111827] border border-slate-800 rounded-3xl p-8 flex flex-col items-center text-center shadow-2xl max-w-[520px] w-full mx-4 relative overflow-hidden animate-in fade-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
+                        <div className="w-12 h-12 bg-emerald-400/20 border border-emerald-400/30 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/10">
+                            <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                        </div>
+                        <h3 className="text-2xl font-extrabold text-white mb-4 tracking-tight">
+                            Tarea <span className="text-blue-400">reprogramada</span> con éxito
+                        </h3>
+                        <p className="text-slate-400 text-[15px] leading-relaxed mb-8 px-2">
+                            {moveSuccessData
+                                ? <>Moviste &quot;{moveSuccessData.taskTitle}&quot; al día {moveSuccessData.dateLabel}.</>
+                                : ""}
+                        </p>
+                        <Button
+                            onClick={() => {
+                                setShowMoveSuccessModal(false);
+                                setMoveSuccessData(null);
+                                const pending = pendingNavigateAfterModalRef.current;
+                                pendingNavigateAfterModalRef.current = null;
+                                if (pending) navigate(pending.to, { state: pending.state });
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-8 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all w-full sm:w-auto"
+                        >
+                            Entendido
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: conflicto solucionado tras mover otras tareas */}
+            {showConflictResolvedModal && (
+                <div
+                    className="fixed inset-0 z-[55] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) {
+                            setShowConflictResolvedModal(false);
+                            setConflictResolvedData(null);
+                        }
+                    }}
+                >
+                    <div
+                        className="bg-[#111827] border border-emerald-500/30 rounded-3xl p-8 flex flex-col items-center text-center shadow-2xl max-w-[520px] w-full mx-4 relative overflow-hidden animate-in fade-in zoom-in-95 duration-300"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
+                        <div className="w-12 h-12 bg-emerald-400/20 border border-emerald-400/30 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/10">
+                            <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+                        </div>
+                        <h3 className="text-2xl font-extrabold text-white mb-4 tracking-tight">
+                            Conflicto <span className="text-emerald-400">solucionado</span>
+                        </h3>
+                        <p className="text-slate-400 text-[15px] leading-relaxed mb-8 px-2">
+                            {conflictResolvedData
+                                ? <>Se liberó carga del día y se reprogramó &quot;{conflictResolvedData.taskTitle}&quot; para {conflictResolvedData.dateLabel} sin sobrepasar tu límite.</>
+                                : "La reprogramación quedó en un estado viable."}
+                        </p>
+                        <Button
+                            onClick={() => {
+                                setShowConflictResolvedModal(false);
+                                setConflictResolvedData(null);
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-8 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all w-full sm:w-auto"
+                        >
+                            Entendido
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: procesando resolución de conflicto */}
+            {showConflictProcessingModal && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+                    <div className="w-full max-w-[420px] bg-[#111827] border border-slate-700 rounded-3xl p-7 text-center shadow-2xl">
+                        <div className="w-14 h-14 rounded-2xl bg-blue-500/15 border border-blue-500/25 flex items-center justify-center mx-auto mb-5">
+                            <Loader2 className="w-7 h-7 text-blue-400 animate-spin" />
+                        </div>
+                        <h3 className="text-xl font-extrabold text-white tracking-tight">Ajustando tu calendario</h3>
+                        <p className="text-slate-400 text-sm mt-2 leading-relaxed">
+                            {conflictProcessingMessage}
+                        </p>
+                        <p className="text-slate-500 text-xs mt-3">
+                            Esto puede tardar unos segundos.
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {/* Modal para elegir semana: mini calendario tipo "Mes" del WeeklyDatePicker */}
             {showWeekPicker && (
                 <div
