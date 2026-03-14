@@ -1306,7 +1306,7 @@ export default function Today() {
                 {/* Reducir horas */}
                 <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5">
                   <label className="text-sm font-bold text-slate-400 uppercase tracking-wider block mb-3">
-                    Reducir horas (debe ser menor)
+                    Reestablecer nueva estimación de horas (Debe ser menor a la actual)
                   </label>
                   <div className="flex gap-3 items-center flex-wrap">
                     <Input
@@ -1355,7 +1355,7 @@ export default function Today() {
                       disabled={isReducing}
                       className="h-12 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-600/20 text-base"
                     >
-                      Reducir horas
+                      Establecer
                     </Button>
                   </div>
                   {reduceError && (
