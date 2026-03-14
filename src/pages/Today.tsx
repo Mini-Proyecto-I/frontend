@@ -5,7 +5,7 @@ import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, In
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import { useAuth } from "@/app/authContext";
-import { patchSubtask, deleteSubtask } from "@/api/services/subtack";
+import { patchSubtask, deleteSubtask, putSubtaskWithConflictTolerance } from "@/api/services/subtack";
 import { updateConfig, getConfig } from "@/api/services/config";
 import { queryCache } from "@/lib/queryCache";
 import { Input } from "@/shared/components/input";
@@ -319,6 +319,7 @@ export default function Today() {
 
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
   const [showConflictOutcomeModal, setShowConflictOutcomeModal] = useState(false);
+  const [conflictOutcomeSource, setConflictOutcomeSource] = useState<"calendar" | "reduce" | null>(null);
   const [conflictOutcome, setConflictOutcome] = useState<null | {
     dateKey: string;
     usedHours: number;
@@ -461,17 +462,19 @@ export default function Today() {
     }
 
     setIsReducing(true);
-    const activityId = selectedConflict.activity?.id;
-    const subtaskId = selectedConflict.id;
-
     try {
-      await patchSubtask(activityId, subtaskId, { estimated_hours: next });
+      // Usar endpoint tolerante a conflictos: siempre acepta la nueva estimación
+      // aunque todavía haya sobrecarga en ese día. Solo enviamos `estimated_hours`
+      // para evitar que se rechace por validaciones de fecha pasada.
+      const updated = await putSubtaskWithConflictTolerance(selectedConflict.id, {
+        estimated_hours: next,
+      });
 
-      // Optimistic update local UI: nuevas horas y quitar marca de conflicto
+      // Optimistic update local UI: nuevas horas
       setData((prev: any) => {
         const updateList = (list: any[]) =>
           list.map((item) =>
-            item.id === subtaskId ? { ...item, estimated_hours: next, is_conflicted: false } : item
+            item.id === selectedConflict.id ? { ...item, estimated_hours: next } : item
           );
         return {
           ...prev,
@@ -481,20 +484,35 @@ export default function Today() {
         };
       });
       setTiempoData((prev: any[]) =>
-        prev.map((t: any) => (t.id === subtaskId ? { ...t, estimated_hours: next } : t)) as any
+        prev.map((t: any) => (t.id === selectedConflict.id ? { ...t, estimated_hours: next } : t)) as any
       );
 
       // Re-fetch para recalcular conflictos desde backend
       refetch();
       refetchTiempo();
-      setIsConflictModalOpen(false);
 
-      // Determinar resultado (éxito vs pendiente) con el estado del día al que pertenece la subtarea
-      const outcome = computeDayLoadForDateKey(selectedConflict?.target_date);
-      setConflictOutcome(outcome);
-      setShowConflictOutcomeModal(true);
+      // Determinar resultado (éxito vs pendiente) usando la metadata `daily_load`
+      const daily = updated?.daily_load;
+      if (daily && selectedConflict?.target_date) {
+        const outcome = {
+          dateKey: selectedConflict.target_date,
+          usedHours: daily.current_hours,
+          limitHours: daily.limit,
+          availableHours: Math.max(0, daily.limit - daily.current_hours),
+          overworkHours: daily.has_conflict ? daily.exceeded_by : 0,
+          resolved: !daily.has_conflict,
+        };
+        setConflictOutcome(outcome);
+        setConflictOutcomeSource("reduce");
+        setShowConflictOutcomeModal(true);
+        // Mientras mostramos el resultado, ocultamos el modal de edición de conflicto.
+        setIsConflictModalOpen(false);
+      }
     } catch (e: any) {
-      setReduceError("No se pudo actualizar las horas. Intenta de nuevo.");
+      // Error real al actualizar (red, servidor, etc.)
+      setReduceError(
+        "No se pudo guardar la nueva estimación por un problema de conexión o del servidor. Inténtalo de nuevo en unos minutos."
+      );
     } finally {
       setIsReducing(false);
     }
@@ -507,6 +525,7 @@ export default function Today() {
 
     setConflictOutcome(incoming);
     setShowConflictOutcomeModal(true);
+    setConflictOutcomeSource("calendar");
 
     // Limpiar state para evitar que se re-muestre.
     navigate(location.pathname, { replace: true, state: {} });
@@ -1309,7 +1328,7 @@ export default function Today() {
                   <label className="text-sm font-bold text-slate-400 uppercase tracking-wider block mb-3">
                     <span className="inline-flex items-center gap-2">
                       <span>Reestablecer nueva estimación de horas</span>
-                      <InfoTooltip text="con esto cambias la estimación de horas de tu tarea a una nueva. las horas deben ser menores a las actuales y mayores a 0.5." />
+                      <InfoTooltip text="Con esto cambias la estimación de horas de tu tarea a una nueva. las horas deben ser menores a las actuales y mayores a 0.5." />
                     </span>
                   </label>
                   
@@ -1416,41 +1435,118 @@ export default function Today() {
               </div>
 
               <h3 className="text-xl font-extrabold text-white tracking-tight">
-                {conflictOutcome.resolved ? "Conflicto solucionado" : "Aún hay conflicto"}
+                {conflictOutcome.resolved
+                  ? "Conflicto solucionado"
+                  : conflictOutcomeSource === "reduce"
+                  ? "Horas actualizadas, pero sigue el conflicto"
+                  : "Aún hay conflicto"}
               </h3>
 
               <p className="text-slate-400 text-base mt-3 leading-relaxed">
                 {conflictOutcome.resolved ? (
                   <>
-                    Para el día <span className="text-white font-bold">{getRelativeDateLabel(conflictOutcome.dateKey)}</span> ya no hay conflicto.
-                    Te quedan{" "}
-                    <span className="text-emerald-300 font-extrabold">
-                      {conflictOutcome.availableHours % 1 === 0 ? conflictOutcome.availableHours : conflictOutcome.availableHours.toFixed(1)}h
+                    {(() => {
+                      const todayKey = new Date().toISOString().slice(0, 10);
+                      const isToday = conflictOutcome.dateKey === todayKey;
+                      const label = getRelativeDateLabel(conflictOutcome.dateKey);
+                      const fullDate = getFormattedDate(conflictOutcome.dateKey);
+                      return (
+                        <>
+                          {isToday ? (
+                            <>
+                              El conflicto de{" "}
+                              <span className="text-white font-bold">{label}</span>{" "}
+                              fue solucionado. Te quedan{" "}
+                            </>
+                          ) : (
+                            <>
+                              Para el día{" "}
+                              <span className="text-white font-bold">
+                                {fullDate || conflictOutcome.dateKey}
+                              </span>{" "}
+                              el conflicto fue solucionado. Te quedan{" "}
+                            </>
+                          )}
+                          <span className="text-emerald-300 font-extrabold">
+                            {conflictOutcome.availableHours % 1 === 0
+                              ? conflictOutcome.availableHours
+                              : conflictOutcome.availableHours.toFixed(1)}
+                            h
+                          </span>{" "}
+                          disponibles.
+                        </>
+                      );
+                    })()}
+                  </>
+                ) : conflictOutcomeSource === "reduce" ? (
+                  <>
+                    Se redujeron las horas de la tarea, pero el día{" "}
+                    <span className="text-white font-bold">
+                      {getRelativeDateLabel(conflictOutcome.dateKey)}
                     </span>{" "}
-                    disponibles.
+                    sigue en conflicto. Puedes seguir ajustando esta u otras tareas para resolverlo.
                   </>
                 ) : (
                   <>
-                    El día <span className="text-white font-bold">{getRelativeDateLabel(conflictOutcome.dateKey)}</span> sigue sobrecargado.
-                    Hay un sobretrabajo de{" "}
+                    El día{" "}
+                    <span className="text-white font-bold">
+                      {getRelativeDateLabel(conflictOutcome.dateKey)}
+                    </span>{" "}
+                    sigue sobrecargado. Hay un sobretrabajo de{" "}
                     <span className="text-[#F59E0B] font-extrabold">
-                      {conflictOutcome.overworkHours % 1 === 0 ? conflictOutcome.overworkHours : conflictOutcome.overworkHours.toFixed(1)}h
+                      {conflictOutcome.overworkHours % 1 === 0
+                        ? conflictOutcome.overworkHours
+                        : conflictOutcome.overworkHours.toFixed(1)}
+                      h
                     </span>{" "}
                     sobre tu límite de{" "}
-                    <span className="text-slate-200 font-bold">{conflictOutcome.limitHours}h</span>.
+                    <span className="text-slate-200 font-bold">
+                      {conflictOutcome.limitHours}h
+                    </span>
+                    .
                   </>
                 )}
               </p>
 
-              <Button
-                onClick={() => {
-                  setShowConflictOutcomeModal(false);
-                  setConflictOutcome(null);
-                }}
-                className="mt-6 w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-600/20 text-base"
-              >
-                Entendido
-              </Button>
+              {conflictOutcome.resolved || conflictOutcomeSource !== "reduce" ? (
+                <Button
+                  onClick={() => {
+                    setShowConflictOutcomeModal(false);
+                    setConflictOutcome(null);
+                    setConflictOutcomeSource(null);
+                  }}
+                  className="mt-6 w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-600/20 text-base"
+                >
+                  Entendido
+                </Button>
+              ) : (
+                <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                  <Button
+                    onClick={() => {
+                      // Volver al modal de conflicto para seguir resolviendo
+                      setShowConflictOutcomeModal(false);
+                      setConflictOutcomeSource(null);
+                      setIsConflictModalOpen(true);
+                    }}
+                    className="h-12 flex-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold shadow-lg shadow-blue-600/20 text-base"
+                  >
+                    Seguir resolviendo
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      // Cerrar ambos modales y continuar más tarde
+                      setShowConflictOutcomeModal(false);
+                      setConflictOutcome(null);
+                      setConflictOutcomeSource(null);
+                      setIsConflictModalOpen(false);
+                    }}
+                    className="h-12 flex-1 rounded-xl border-slate-700 bg-slate-800/50 hover:bg-slate-700/60 text-slate-200 font-bold text-base"
+                  >
+                    Más tarde
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
