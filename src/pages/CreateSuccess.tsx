@@ -17,31 +17,24 @@ export default function CreateSuccess() {
   return (
     <div className="min-h-screen bg-[#111827] flex items-center justify-center px-6">
       <div className="w-full max-w-xl rounded-2xl border border-border bg-[#1E293B] p-8">
-        <div className="flex items-start gap-4">
-          <div className="h-12 w-12 rounded-xl bg-green-500/15 flex items-center justify-center">
-            <CheckCircle2 className="h-7 w-7 text-green-400" />
+        <div className="flex flex-col items-center justify-center text-center">
+          <div className="h-20 w-20 rounded-full bg-blue-500/10 flex items-center justify-center mb-6 shadow-inner border border-blue-500/20">
+            <CheckCircle2 className="h-10 w-10 text-blue-500" />
           </div>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold text-foreground">
-              Actividad creada exitosamente
-            </h1>
-            <p className="text-sm text-muted-foreground mt-2">
-              Se creó <span className="text-foreground font-medium">"{title}"</span>.
-            </p>
-            {state.activityId && (
-              <p className="text-xs text-muted-foreground mt-1">
-                ID: <span className="font-mono">{state.activityId}</span>
-              </p>
-            )}
-          </div>
+          <h1 className="text-3xl font-extrabold text-white tracking-tight">
+            ¡Actividad creada exitosamente!
+          </h1>
+          <p className="text-base text-slate-400 mt-3 max-w-sm mx-auto">
+            Ya hemos preparado <span className="text-white font-bold">"{title}"</span> en tu calendario y subtareas.
+          </p>
         </div>
 
-        <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-end">
+        <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center w-full">
           {state.activityId && (
             <button
               type="button"
               onClick={() => navigate(`/actividad/${state.activityId}`)}
-              className="px-5 py-2.5 rounded-lg bg-[#111827] border border-border text-foreground text-sm font-medium hover:bg-[#111827]/80 transition-colors"
+              className="px-6 py-3 rounded-xl border border-slate-700 bg-slate-800/50 text-slate-300 text-sm font-bold hover:bg-slate-700/50 hover:text-white transition-all w-full sm:w-auto"
             >
               Ver detalle
             </button>
@@ -49,9 +42,9 @@ export default function CreateSuccess() {
           <button
             type="button"
             onClick={() => navigate("/hoy")}
-            className="px-5 py-2.5 rounded-lg bg-[#3B82F6] text-white text-sm font-medium hover:bg-[#3B82F6]/90 transition-colors"
+            className="px-6 py-3 rounded-xl bg-blue-600 text-white text-sm font-bold shadow-lg shadow-blue-600/20 hover:bg-blue-700 hover:shadow-xl transition-all w-full sm:w-auto"
           >
-            Volver a Hoy
+            Ir a mi panel de Hoy
           </button>
         </div>
       </div>

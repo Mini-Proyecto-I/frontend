@@ -112,6 +112,12 @@ export default function Calendar() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    useEffect(() => {
+        if (showMoveSuccessModal || showConflictResolvedModal) {
+            refetch();
+        }
+    }, [showMoveSuccessModal, showConflictResolvedModal, refetch]);
+
     const studyLimitHours = useMemo(() => {
         const saved = window.localStorage.getItem("studyLimitHours");
         return saved ? parseFloat(saved) : 6;

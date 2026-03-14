@@ -643,7 +643,6 @@ export default function Today() {
                         theme="red"
                         onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
                         onEdit={() => openEditModal(item)}
-                        onDelete={() => openDeleteModal(item)}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
                       />
                     ))}
@@ -678,7 +677,6 @@ export default function Today() {
                         theme="emerald"
                         onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
                         onEdit={() => openEditModal(item)}
-                        onDelete={() => openDeleteModal(item)}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
                       />
                     ))}
@@ -723,7 +721,6 @@ export default function Today() {
                         theme="blue"
                         onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
                         onEdit={() => openEditModal(item)}
-                        onDelete={() => openDeleteModal(item)}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
                       />
                     ))}
@@ -1481,6 +1478,11 @@ export default function Today() {
             },
           });
         }}
+        onDelete={() => {
+          if (!editingTask) return;
+          setIsEditModalOpen(false);
+          openDeleteModal(editingTask);
+        }}
         onSave={async ({ title, estimatedHours }) => {
           if (!editingTask) return { ok: false, error: "No hay subtarea seleccionada." };
 
@@ -1724,7 +1726,7 @@ function ScrollableTaskSection({ children }: { children: React.ReactNode }) {
 }
 
 // Sub-component for individual tasks matching the requested UI
-function TaskCard({ item, badge, theme, onToggle, onEdit, onDelete, onViewConflict }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void, onEdit: () => void, onDelete: () => void, onViewConflict?: () => void }) {
+function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void, onEdit: () => void, onViewConflict?: () => void }) {
   const navigate = useNavigate();
   const isDone = item.status === "DONE";
   const isConflicted = !isDone && !!item?.is_conflicted;
@@ -1864,16 +1866,6 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onDelete, onViewConfli
         >
           <Pencil className="w-4 h-4" />
           Editar
-        </button>
-
-
-        <button
-          type="button"
-          onClick={onDelete}
-          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer"
-        >
-          <Trash2 className="w-4 h-4" />
-          Eliminar
         </button>
 
         <button
