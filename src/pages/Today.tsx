@@ -1520,7 +1520,11 @@ export default function Today() {
             setEditingTask(null);
             return { ok: true };
           } catch {
-            return { ok: false, error: "No se pudo guardar. Intenta de nuevo." };
+            return {
+              ok: false,
+              error:
+                "No pudimos guardar los cambios. Revisa que las horas no superen tu límite diario de estudio y vuelve a intentarlo.",
+            };
           }
         }}
       />

@@ -326,6 +326,12 @@ const ActivityForm = () => {
 
                 if (!sub.horas || parseFloat(sub.horas) <= 0) {
                     subErrors.horas = "Las horas estimadas son obligatorias y deben ser mayores a 0.";
+                } else {
+                    const horas = parseFloat(sub.horas);
+                    if (!Number.isFinite(horas) || !Number.isInteger(horas * 2)) {
+                        const valorMostrado = Number.isFinite(horas) ? horas.toString() : sub.horas;
+                        subErrors.horas = `Ingresaste ${valorMostrado}h. Las horas deben ir en pasos de 0.5 (por ejemplo: 0.5, 1.0, 1.5).`;
+                    }
                 }
 
                 if (Object.keys(subErrors).length > 0) {
@@ -766,8 +772,10 @@ const ActivityForm = () => {
         const isValid = validateSubtasksForm();
         if (!isValid) {
             setModalType("error");
-            setModalTitle("Errores en las subtareas");
-            setModalMessage("Por favor, corrige los errores en las subtareas antes de continuar.");
+            setModalTitle("Revisa las subtareas antes de continuar");
+            setModalMessage(
+                "Hay subtareas con datos incompletos o inválidos. Asegúrate de que cada una tenga nombre, fecha objetivo y horas en pasos de 0.5 (por ejemplo: 0.5, 1.0, 1.5)."
+            );
             setModalOpen(true);
             setTimeout(() => {
                 const subtaskSection = document.querySelector('[data-field="subtareas"]');
