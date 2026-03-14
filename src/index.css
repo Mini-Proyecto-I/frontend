@@ -46,12 +46,129 @@
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
   * {
     border-color: hsl(var(--border));
   }
 
   body {
-    background-color: #111827;
+    background-color: #0A0F1C;
     color: hsl(var(--foreground));
+    overflow-x: hidden;
   }
+
+  /* Estilos personalizados para el date picker - Colores del proyecto */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.8;
+    /* Color azul blue-600 (#2563EB) */
+    filter: invert(48%) sepia(98%) saturate(2476%) hue-rotate(207deg) brightness(95%) contrast(93%);
+    transition: all 0.2s ease;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+    /* Color azul blue-700 (#1D4ED8) más intenso en hover */
+    filter: invert(40%) sepia(98%) saturate(2476%) hue-rotate(207deg) brightness(90%) contrast(93%);
+    transform: scale(1.1);
+  }
+
+  /* Estilos para el calendario desplegable en Chrome/Edge */
+  input[type="date"]::-webkit-datetime-edit {
+    color: inherit;
+  }
+
+  input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+    color: inherit;
+  }
+
+  input[type="date"]::-webkit-datetime-edit-text {
+    color: inherit;
+    padding: 0 0.3em;
+  }
+
+  input[type="date"]::-webkit-datetime-edit-month-field {
+    color: inherit;
+  }
+
+  input[type="date"]::-webkit-datetime-edit-day-field {
+    color: inherit;
+  }
+
+  input[type="date"]::-webkit-datetime-edit-year-field {
+    color: inherit;
+  }
+
+  input[type="date"]::-webkit-inner-spin-button {
+    display: none;
+  }
+
+  /* Estilos para Firefox - usar tema oscuro con fondo #0A0F1C */
+  input[type="date"] {
+    color-scheme: dark;
+  }
+
+  /* Personalización del calendario desplegable (solo Chrome/Edge) */
+  @supports (-webkit-appearance: none) {
+    input[type="date"]:focus::-webkit-calendar-picker-indicator {
+      opacity: 1;
+      /* Color azul blue-600 más brillante en focus */
+      filter: invert(48%) sepia(98%) saturate(2476%) hue-rotate(207deg) brightness(100%) contrast(93%);
+    }
+  }
+
+  /* Estilos adicionales para inputs de fecha con valor (fondo blanco) */
+  input[type="date"]:not([value=""])::-webkit-calendar-picker-indicator {
+    /* Cuando tiene valor y fondo blanco, usar azul más oscuro */
+    filter: invert(40%) sepia(98%) saturate(2476%) hue-rotate(207deg) brightness(90%) contrast(93%);
+  }
+
+  /* Estilos para select - evitar que se vea gris al seleccionar */
+  select {
+    color: rgb(226 232 240) !important; /* text-slate-200 */
+  }
+
+  select option {
+    background-color: #1F2937 !important;
+    color: rgb(226 232 240) !important; /* text-slate-200 */
+  }
+
+  select option:checked {
+    background-color: #1F2937 !important;
+    color: rgb(226 232 240) !important; /* text-slate-200 */
+  }
+
+  select option:hover {
+    background-color: #374151 !important;
+  }
+
+  /* Para Firefox */
+  select option:checked {
+    background-color: #1F2937 !important;
+    color: rgb(226 232 240) !important;
+  }
+}
+
+/* Scrollbar gris reutilizable (una sola barra) */
+.scrollbar-gray {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(148, 163, 184, 0.55) transparent; /* thumb / track */
+}
+.scrollbar-gray::-webkit-scrollbar {
+  width: 8px;
+}
+.scrollbar-gray::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-gray::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.45); /* slate-400 */
+  border-radius: 9999px;
+  border: 2px solid transparent; /* para que se vea como una barra fina */
+  background-clip: content-box;
+}
+.scrollbar-gray::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.65);
 }

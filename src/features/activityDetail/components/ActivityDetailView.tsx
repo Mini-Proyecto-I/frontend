@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, ChevronRight } from "lucide-react";
 import ActivityDetailHeader from "./ActivityDetailHeader";
 import ActivityProgressCard from "./ActivityProgressCard";
 import StudyPlanSection from "./StudyPlanSection";
@@ -60,7 +60,7 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
         return subtask;
       });
     });
-    
+
     // NO refrescar desde el backend inmediatamente para evitar que el gráfico vuelva a 0
     // El backend ya fue actualizado por el componente SubtaskItem mediante patchSubtask
     // Confiamos en la actualización optimista y solo sincronizamos después de un delay largo
@@ -76,11 +76,11 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
                 // Verificar que el cambio optimista se mantenga en el backend
                 const optimisticSubtask = prevSubtasks.find(s => s.id === subtaskId);
                 const backendSubtask = backendSubtasks.find(s => s.id === subtaskId);
-                
+
                 // Solo actualizar si el backend confirma el cambio optimista
                 // Esto previene que el gráfico vuelva a 0 si hay un delay en el backend
-                if (optimisticSubtask && backendSubtask && 
-                    optimisticSubtask.status === backendSubtask.status) {
+                if (optimisticSubtask && backendSubtask &&
+                  optimisticSubtask.status === backendSubtask.status) {
                   // El backend confirma el cambio, usar los datos del backend
                   return backendSubtasks;
                 }
@@ -121,9 +121,9 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
       }
     } catch (err: any) {
       console.error("Error al cargar actividad:", err);
-      
+
       let errorMessage = "Error al cargar la actividad. Por favor, intenta de nuevo.";
-      
+
       // Manejar diferentes tipos de errores
       if (err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')) {
         errorMessage = "La solicitud está tardando demasiado. Verifica tu conexión a internet o intenta de nuevo más tarde.";
@@ -136,7 +136,7 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
       } else if (err?.message) {
         errorMessage = err.message;
       }
-      
+
       if (isMountedRef.current) {
         setError(errorMessage);
         showToast(errorMessage, "error");
@@ -180,11 +180,11 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
   // Formatear fecha para mostrar (formato: "DD MMM")
   const formatDate = (dateString?: string): string => {
     if (!dateString) return "";
-    
+
     try {
       // Parsear la fecha correctamente, manejando diferentes formatos
       let date: Date;
-      
+
       // Si viene en formato YYYY-MM-DD, parsearlo directamente
       if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
         const [year, month, day] = dateString.split('-').map(Number);
@@ -193,18 +193,18 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
         // Si viene en formato ISO o otro, usar el constructor de Date
         date = new Date(dateString);
       }
-      
+
       // Validar que la fecha sea válida
       if (isNaN(date.getTime())) {
         console.warn("Fecha inválida:", dateString);
         return "";
       }
-      
+
       const months = [
         "ENE", "FEB", "MAR", "ABR", "MAY", "JUN",
         "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"
       ];
-      
+
       return `${date.getDate()} ${months[date.getMonth()]}`;
     } catch (error) {
       console.error("Error al formatear fecha:", dateString, error);
@@ -255,19 +255,21 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
       const numHours = typeof hours === 'number' ? hours : parseFloat(String(hours)) || 0;
       return sum + numHours;
     }, 0);
-    
+
     if (totalHours === 0) return "0h";
-    
+
     // Formatear las horas: si es un número entero, mostrar sin decimales; si tiene decimales, mostrar hasta 1 decimal
-    const formattedHours = totalHours % 1 === 0 
-      ? totalHours.toString() 
+    const formattedHours = totalHours % 1 === 0
+      ? totalHours.toString()
       : totalHours.toFixed(1);
-    
+
     return `${formattedHours}h`;
   };
 
   // Determinar estado
   const getStatus = (): string => {
+    if (subtasks.length > 0 && calculateProgress() === 100) return "Finalizado";
+
     if (!activity?.deadline) return "Sin fecha";
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -316,60 +318,71 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
   // Formatear subtareas para StudyPlanSection
   const formattedSubtasks = (Array.isArray(subtasks) && subtasks.length > 0)
     ? subtasks.map((subtask) => {
-        const targetDate = subtask.target_date ? new Date(subtask.target_date) : null;
-        const isToday = targetDate
-          ? targetDate.toDateString() === new Date().toDateString()
-          : false;
-        
-        return {
-          id: subtask.id,
-          activityId: activityId || "",
-          title: subtask.title, // El backend devuelve 'title'
-          date: formatDate(subtask.target_date), // Fecha formateada para mostrar
-          dateOriginal: subtask.target_date || "", // Fecha original en formato YYYY-MM-DD para el modal de edición
-          hours: subtask.estimated_hours ? `${subtask.estimated_hours}h` : "0h",
-          completed: subtask.status === "DONE",
-          isActive: subtask.status === "PENDING" && !isToday,
-          todayBadge: isToday,
-        };
-      })
+      let isToday = false;
+      if (subtask.target_date) {
+        // Parse date directly to avoid timezone offsetting issues
+        const dateStr = subtask.target_date.split('T')[0];
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const today = new Date();
+        isToday = today.getFullYear() === year &&
+          today.getMonth() === month - 1 &&
+          today.getDate() === day;
+      }
+
+      return {
+        id: subtask.id,
+        activityId: activityId || "",
+        title: subtask.title, // El backend devuelve 'title'
+        date: formatDate(subtask.target_date), // Fecha formateada para mostrar
+        dateOriginal: subtask.target_date || "", // Fecha original en formato YYYY-MM-DD para el modal de edición
+        hours: subtask.estimated_hours ? `${subtask.estimated_hours}h` : "0h",
+        completed: subtask.status === "DONE",
+        isActive: subtask.status === "PENDING" && !isToday,
+        todayBadge: isToday,
+      };
+    })
     : [];
 
   return (
     <>
       <ToastComponent />
-      <div className="bg-background-light dark:bg-background-dark text-slate-800 dark:text-slate-200 font-display min-h-screen overflow-y-auto p-6 md:p-10 lg:p-12">
-        <div className="max-w-4xl mx-auto space-y-8">
-          <ActivityDetailHeader
-            activityId={activityId}
-            typeLabel={formatActivityType(activity.type)}
-            dueDate={activity.deadline ? `ENTREGA ${formatDate(activity.deadline)}` : "Sin fecha"}
-            title={activity.title}
-            description={activity.description || ""}
-            courseId={activity.course?.id || activity.course_id}
-            courseName={activity.course?.name}
-            eventDate={activity.event_datetime ? activity.event_datetime.split("T")[0] : undefined}
-            deadlineDate={activity.deadline || undefined}
-            subtasks={subtasks.map((s) => ({
-              id: parseInt(s.id),
-              nombre: s.title, // El backend devuelve 'title', no 'name'
-              fechaObjetivo: s.target_date || "",
-              horas: s.estimated_hours?.toString() || "",
-            }))}
-            onActivityUpdated={fetchActivityData}
-          />
-          <ActivityProgressCard
-            progressPercent={calculateProgress()}
-            timeLeft={calculateTimeLeft()}
-            totalEffort={calculateTotalEffort()}
-          />
-            <StudyPlanSection 
+      <div className="bg-[#f8fafc] dark:bg-[#0A0F1C] text-slate-800 dark:text-slate-200 font-display min-h-screen overflow-y-auto">
+        <div className="p-6 md:p-10 lg:p-12">
+          <div className="max-w-[1000px] mx-auto flex flex-col space-y-8">
+            <ActivityDetailHeader
+              activityId={activityId}
+              typeLabel={formatActivityType(activity.type)}
+              dueDate={activity.deadline ? `DUE ${formatDate(activity.deadline)}` : "Sin fecha"}
+              title={activity.title}
+              description={activity.description || ""}
+              courseId={activity.course?.id || activity.course_id}
+              courseName={activity.course?.name}
+              eventDate={activity.event_datetime ? activity.event_datetime.split("T")[0] : undefined}
+              deadlineDate={activity.deadline || undefined}
+              subtasks={subtasks.map((s) => ({
+                id: parseInt(s.id),
+                nombre: s.title,
+                fechaObjetivo: s.target_date || "",
+                horas: s.estimated_hours?.toString() || "",
+              }))}
+              onActivityUpdated={fetchActivityData}
+            />
+
+            <ActivityProgressCard
+              progressPercent={calculateProgress()}
+              timeLeft={calculateTimeLeft()}
+              totalEffort={calculateTotalEffort()}
+              status={getStatus()}
+            />
+
+            <StudyPlanSection
               subtasks={formattedSubtasks}
               activityId={activityId || ""}
               onSubtaskStatusChange={handleSubtaskStatusChange}
               onSubtaskUpdated={fetchSubtasksOnly}
               deadlineDate={activity.deadline}
             />
+          </div>
         </div>
       </div>
     </>

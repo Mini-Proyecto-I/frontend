@@ -2,19 +2,42 @@ import * as React from 'react';
 import { useState } from 'react';
 import { NavLink } from '@/app/NavLink';
 import { useAuth } from '@/app/authContext';
-import { GraduationCap, Plus, Menu, X, LogOut } from 'lucide-react';
+import { Plus, Menu, X, LogOut, CalendarRange } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/components/avatar';
 import { Button } from '@/shared/components/button';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export function AppHeader() {
     const { user, isAuthenticated } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
     const displayName = user?.name || "Estudiante";
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
 
     const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
+
+    const scrollOrNavigateToSection = (target: 'features' | 'help') => {
+        const isOnLanding = location.pathname === '/';
+        const targetId = target === 'features' ? 'landing-features' : 'landing-help-video';
+
+        if (isOnLanding) {
+            const el = document.getElementById(targetId);
+            if (el) {
+                const headerOffset = 80;
+                const elementPosition = el.getBoundingClientRect().top + window.pageYOffset;
+                const offsetPosition = elementPosition - headerOffset;
+
+                window.scrollTo({
+                    top: offsetPosition,
+                    behavior: 'smooth',
+                });
+                return;
+            }
+        }
+
+        navigate('/', { state: { scrollTo: target } });
+    };
 
     return (
         <header className="sticky top-0 z-50 w-full flex flex-col bg-[#0A0F1C] border-b border-slate-800">
@@ -24,10 +47,8 @@ export function AppHeader() {
                     className="flex items-center gap-2 sm:gap-3 cursor-pointer shrink-0"
                     onClick={() => navigate(isAuthenticated ? '/hoy' : '/')}
                 >
-                    <div className="flex items-center justify-center p-1.5 rounded-lg bg-blue-600 shadow-lg shadow-blue-500/20">
-                        <GraduationCap className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="text-xl font-bold tracking-tight text-white hover:text-slate-200 transition-colors hidden min-[380px]:block">StudyFlow</span>
+                    <img src="/favicon2.svg" alt="StudyFLow" className="w-8 h-8 object-contain" />
+                    <span className="text-xl font-bold tracking-tight text-white hover:text-slate-200 transition-colors hidden min-[380px]:block">StudyFLow</span>
                 </div>
 
                 {/* Right side: Nav Items & Profile based on auth */}
@@ -42,6 +63,13 @@ export function AppHeader() {
                                     activeClassName="!bg-white !text-blue-600 shadow-md"
                                 >
                                     Hoy
+                                </NavLink>
+                                <NavLink
+                                    to="/calendario"
+                                    className="px-5 py-2 rounded-full font-bold text-sm transition-all text-slate-400 hover:text-slate-200"
+                                    activeClassName="!bg-white !text-blue-600 shadow-md"
+                                >
+                                    Calendario
                                 </NavLink>
                                 <NavLink
                                     to="/progreso"
@@ -104,10 +132,10 @@ export function AppHeader() {
                         <>
                             {/* Desktop Nav Unauthenticated */}
                             <nav className="items-center gap-6 text-sm font-semibold text-slate-400 hidden md:flex">
-                                <button onClick={() => navigate('/')} className="hover:text-white transition-colors">
+                                <button onClick={() => scrollOrNavigateToSection('features')} className="hover:text-white transition-colors">
                                     Funcionalidades
                                 </button>
-                                <button onClick={() => navigate('/')} className="hover:text-white transition-colors">
+                                <button onClick={() => scrollOrNavigateToSection('help')} className="hover:text-white transition-colors">
                                     Ayuda
                                 </button>
                             </nav>
@@ -179,6 +207,15 @@ export function AppHeader() {
                                     Hoy
                                 </NavLink>
                                 <NavLink
+                                    to="/calendario"
+                                    onClick={() => setIsMenuOpen(false)}
+                                    className="px-4 py-3 rounded-xl font-bold text-sm transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800 flex items-center gap-2"
+                                    activeClassName="!bg-white !text-blue-600 shadow-md"
+                                >
+                                    <CalendarRange className="w-4 h-4" />
+                                    Calendario
+                                </NavLink>
+                                <NavLink
                                     to="/progreso"
                                     onClick={() => setIsMenuOpen(false)}
                                     className="px-4 py-3 rounded-xl font-bold text-sm transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800 flex items-center"
@@ -215,7 +252,7 @@ export function AppHeader() {
                                 <button
                                     onClick={() => {
                                         setIsMenuOpen(false);
-                                        navigate('/');
+                                        scrollOrNavigateToSection('features');
                                     }}
                                     className="px-4 py-3 text-left font-semibold text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors"
                                 >
@@ -224,7 +261,7 @@ export function AppHeader() {
                                 <button
                                     onClick={() => {
                                         setIsMenuOpen(false);
-                                        navigate('/');
+                                        scrollOrNavigateToSection('help');
                                     }}
                                     className="px-4 py-3 text-left font-semibold text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors"
                                 >

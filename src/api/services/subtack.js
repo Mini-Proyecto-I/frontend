@@ -67,6 +67,14 @@ export const patchSubtask = async (activityId, subtaskId, partialData) => {
   return data;
 };
 
+// Reprogramación tolerante a conflicto (endpoint global de planner)
+// Permite actualizar fecha/horas aunque exceda el límite diario,
+// devolviendo metadata de conflicto en la respuesta.
+export const putSubtaskWithConflictTolerance = async (subtaskId, payload) => {
+  const { data } = await apiClient.put(`subtareas/${subtaskId}/`, payload);
+  return data;
+};
+
 export const deleteSubtask = async (activityId, subtaskId) => {
   await apiClient.delete(`activity/${activityId}/subtasks/${subtaskId}/`);
 };

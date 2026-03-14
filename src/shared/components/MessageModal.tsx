@@ -70,9 +70,10 @@ export const MessageModal = ({
           </div>
         </DialogHeader>
         <div className="py-4">
-          <p className="text-sm text-muted-foreground text-center leading-relaxed">
-            {message}
-          </p>
+          <div 
+            className="text-sm text-muted-foreground text-center leading-relaxed whitespace-pre-line"
+            dangerouslySetInnerHTML={{ __html: message }}
+          />
         </div>
         <DialogFooter>
           <Button
