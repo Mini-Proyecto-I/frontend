@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarRange, Pencil, X } from "lucide-react";
+import { CalendarRange, Pencil, X, Trash2 } from "lucide-react";
 import { Input } from "@/shared/components/input";
 import { Button } from "@/shared/components/button";
 
@@ -15,6 +15,7 @@ interface EditSubtaskModalProps {
   initialHours: string | number | null | undefined;
   onSave: (data: { title: string; estimatedHours: number }) => Promise<SaveResult> | SaveResult;
   onReprogram?: () => void;
+  onDelete?: () => void;
 }
 
 export default function EditSubtaskModal({
@@ -24,6 +25,7 @@ export default function EditSubtaskModal({
   initialHours,
   onSave,
   onReprogram,
+  onDelete,
 }: EditSubtaskModalProps) {
   const navigate = useNavigate();
   const [editTitle, setEditTitle] = useState("");
@@ -112,6 +114,16 @@ export default function EditSubtaskModal({
             )}
 
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              {onDelete && (
+                <Button
+                  onClick={onDelete}
+                  className="h-11 rounded-xl bg-red-600/10 hover:bg-red-600/20 text-red-500 font-bold border border-red-500/30 w-full sm:w-auto px-4"
+                  disabled={isSavingEdit}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Eliminar
+                </Button>
+              )}
               <Button
                 onClick={() => {
                   if (onReprogram) {
@@ -120,7 +132,7 @@ export default function EditSubtaskModal({
                   }
                   navigate("/calendario");
                 }}
-                className="h-11 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold border border-slate-700"
+                className="h-11 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold border border-slate-700 w-full sm:w-auto px-4"
                 disabled={isSavingEdit}
               >
                 <CalendarRange className="w-4 h-4 mr-2" />

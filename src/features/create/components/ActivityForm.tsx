@@ -734,14 +734,7 @@ const ActivityForm = () => {
                 return;
             }
 
-            setModalType("success");
-            setModalTitle("Subtareas guardadas");
-            setModalMessage(`Se han guardado ${subtareas.length} subtarea${subtareas.length > 1 ? "s" : ""} exitosamente.`);
-            setModalOpen(true);
-
-            setTimeout(() => {
-                navigateToCreateSuccess();
-            }, 1500);
+            navigateToCreateSuccess();
         } catch (error: any) {
             console.error("[ActivityForm] Error inesperado al crear las subtareas:", error);
             const errorMessage = getErrorMessage(error);
@@ -823,45 +816,52 @@ const ActivityForm = () => {
                 message={modalMessage}
             />
             <Dialog open={showConflictConfirmModal} onOpenChange={setShowConflictConfirmModal}>
-                <DialogContent className="sm:max-w-[520px] bg-[#1E293B] border-border rounded-3xl">
-                    <DialogHeader>
-                        <div className="flex flex-col items-center gap-3 py-2">
-                            <AlertTriangle className="h-12 w-12 text-[#F59E0B]" />
-                            <DialogTitle className="text-xl text-foreground text-center">
-                                Se detectaron conflictos de horas
-                            </DialogTitle>
-                            <DialogDescription className="text-sm text-muted-foreground text-center leading-relaxed max-w-[440px]">
-                                Estas subtareas superan tu límite diario. ¿Deseas añadirlas igualmente con conflicto?
-                            </DialogDescription>
+                <DialogContent className="sm:max-w-[520px] bg-[#111827] border-slate-800/60 rounded-3xl shadow-2xl shadow-[#F59E0B]/5 p-0 overflow-hidden">
+                    <div className="p-6 sm:p-8 relative">
+                        <div className="flex items-start gap-4 sm:gap-5">
+                            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-[#F59E0B]/10 border border-[#F59E0B]/20 flex items-center justify-center shrink-0 shadow-inner">
+                                <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7 text-[#F59E0B]" />
+                            </div>
+                            <div className="pt-1">
+                                <DialogTitle className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                                    Conflictos de horas detectados
+                                </DialogTitle>
+                                <DialogDescription className="text-slate-400 text-sm mt-2 leading-relaxed">
+                                    Algunas de estas subtareas superan tu límite diario. ¿Deseas añadirlas igualmente y resolver el conflicto después?
+                                </DialogDescription>
+                            </div>
                         </div>
-                    </DialogHeader>
-                    <div className="rounded-xl border border-[#F59E0B]/25 bg-[#F59E0B]/10 px-4 py-3">
-                        <p className="text-sm text-slate-200 text-center">
-                            <span className="font-bold text-white">{pendingConflicts.length}</span>{" "}
-                            fecha{pendingConflicts.length !== 1 ? "s" : ""} con conflicto detectada{pendingConflicts.length !== 1 ? "s" : ""}.
-                        </p>
+
+                        <div className="mt-7 flex items-center gap-3 rounded-2xl border border-[#F59E0B]/20 bg-[#F59E0B]/5 px-5 py-4">
+                            <div className="w-2 h-2 rounded-full bg-[#F59E0B] animate-pulse" />
+                            <p className="text-sm font-medium text-slate-300">
+                                <span className="font-bold text-white">{pendingConflicts.length}</span>{" "}
+                                fecha{pendingConflicts.length !== 1 ? "s" : ""} con sobrecarga detectada{pendingConflicts.length !== 1 ? "s" : ""}.
+                            </p>
+                        </div>
+
+                        <div className="mt-8 flex flex-col sm:flex-row gap-3">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setShowConflictConfirmModal(false)}
+                                className="h-12 flex-1 rounded-xl border border-slate-700 bg-slate-800/50 hover:bg-slate-700/60 text-slate-200 font-bold text-base transition-colors"
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={async () => {
+                                    const conflictsToSave = [...pendingConflicts];
+                                    setShowConflictConfirmModal(false);
+                                    await saveSubtasksToBackend(conflictsToSave);
+                                }}
+                                className="h-12 flex-1 rounded-xl bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-white font-extrabold shadow-lg shadow-[#F59E0B]/20 text-base transition-all"
+                            >
+                                Sí, añadir con conflicto
+                            </Button>
+                        </div>
                     </div>
-                    <DialogFooter className="gap-2 sm:gap-3 pt-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setShowConflictConfirmModal(false)}
-                            className="w-full sm:w-auto bg-transparent border-slate-600 text-slate-200 hover:bg-slate-700/40"
-                        >
-                            Cancelar
-                        </Button>
-                        <Button
-                            type="button"
-                            onClick={async () => {
-                                const conflictsToSave = [...pendingConflicts];
-                                setShowConflictConfirmModal(false);
-                                await saveSubtasksToBackend(conflictsToSave);
-                            }}
-                            className="w-full sm:w-auto bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-white"
-                        >
-                            Sí, añadir con conflicto
-                        </Button>
-                    </DialogFooter>
                 </DialogContent>
             </Dialog>
             <Dialog open={showConflictsAddedModal} onOpenChange={setShowConflictsAddedModal}>
