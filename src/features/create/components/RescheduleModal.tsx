@@ -17,21 +17,14 @@ import {
 } from "date-fns";
 import { es } from "date-fns/locale";
 import {
-    ChevronLeft,
-    ChevronRight,
-    Calendar as CalendarIcon,
-    Clock,
-    X,
-    Check,
-    Loader2,
     CalendarRange,
-    Move,
     AlertTriangle,
 } from "lucide-react";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import { patchSubtask } from "@/api/services/subtack";
 import { queryCache } from "@/lib/queryCache";
 import type { ExistingTask } from "./ConflictResolutionModal";
+import UnifiedCalendarModal, { type UnifiedCalendarDay } from "./UnifiedCalendarModal";
 
 interface RescheduleModalProps {
     open: boolean;
@@ -230,18 +223,50 @@ export default function RescheduleModal({
 
     if (!open || !task) return null;
 
+    const days: UnifiedCalendarDay[] = weekDays.map((day) => {
+        const dayKey = format(day, "yyyy-MM-dd");
+        const dayActivities = getActivitiesForDay(day);
+        const disabled = isDateDisabled(day);
+        const isSelected = !!selectedDate && isSameDay(day, selectedDate);
+        const hoursUsed = dayStats[dayKey] || 0;
+        const availableHours = Math.max(0, studyLimitHours - hoursUsed);
+        const wouldExceed = hoursUsed + task.hours > studyLimitHours;
+        const isTaskCurrentDay = dayActivities.some((a) => String(a.id) === String(task.id));
+
+        return {
+            key: dayKey,
+            date: day,
+            disabled,
+            isToday: isSameDay(day, today),
+            isSelected,
+            availabilityHours: availableHours,
+            actionLabel: disabled ? undefined : isSelected ? "Seleccionado" : wouldExceed ? "Excede el límite" : "Mover aquí",
+            emphasize: isTaskCurrentDay ? "currentTask" : wouldExceed ? "warning" : isSameDay(day, today) ? "today" : undefined,
+            tasks: dayActivities.map((act) => {
+                const isTheTask = String(act.id) === String(task.id);
+                return {
+                    id: act.id,
+                    title: act.title,
+                    hoursLabel: `${act.durationNum}h`,
+                    muted: act.status === "DONE",
+                    highlighted: isTheTask,
+                    highlightLabel: isTheTask ? "Mover esta tarea" : undefined,
+                };
+            }),
+        };
+    });
+
     return (
-        <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
-            onClick={(e) => {
-                if (e.target === e.currentTarget) onClose();
-            }}
-        >
-            <div
-                className="w-full max-w-[950px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden animate-in fade-in zoom-in-95 duration-300"
-                onClick={(e) => e.stopPropagation()}
-            >
-                {/* Reprogramming Mode Banner */}
+        <UnifiedCalendarModal
+            open
+            onClose={onClose}
+            title="Reprogramar tarea"
+            subtitle={
+                moveError
+                    ? `No se puede mover a ese día: ${moveError}`
+                    : "Selecciona un nuevo día con disponibilidad."
+            }
+            topBanner={
                 <div className="flex flex-col md:flex-row items-center justify-between px-6 py-4 bg-blue-500/10 border-b border-blue-500/20">
                     <div className="flex items-center gap-3">
                         <div className="bg-blue-600 text-white p-2 rounded-xl shrink-0">
@@ -252,11 +277,9 @@ export default function RescheduleModal({
                                 Modo Reprogramación
                             </span>
                             <p className="text-slate-300 text-sm mt-0.5">
-                                Debes mover{" "}
-                                <span className="text-white font-bold">
-                                    "{task.title}"
-                                </span>{" "}
-                                ({task.hours.toFixed(1)}h) a un nuevo día
+                                Mueve{" "}
+                                <span className="text-white font-bold">"{task.title}"</span>{" "}
+                                ({task.hours.toFixed(1)}h)
                                 {task.deadline && (
                                     <>
                                         {" "}antes del{" "}
@@ -268,365 +291,39 @@ export default function RescheduleModal({
                             </p>
                         </div>
                     </div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="mt-2 md:mt-0 px-4 py-2 text-xs font-bold uppercase tracking-wider text-rose-400 border border-rose-500/30 hover:bg-rose-500/10 rounded-xl transition-all shrink-0"
-                    >
-                        Cancelar
-                    </button>
-                </div>
-
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 pt-4 pb-2">
-                    <div className="flex items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={() => setShowMonthPicker(!showMonthPicker)}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all text-xs font-bold uppercase tracking-wider ${
-                                showMonthPicker
-                                    ? "bg-blue-600 border-blue-500 text-white"
-                                    : "bg-blue-600/10 border-blue-500/20 text-blue-400 hover:bg-blue-600/20"
-                            }`}
-                        >
-                            <CalendarIcon className="w-4 h-4" />
-                            Mes
-                        </button>
-
-                        <div className="flex items-center gap-1">
-                            <button
-                                type="button"
-                                onClick={handlePrevWeek}
-                                className="p-2 rounded-xl bg-slate-800/50 border border-slate-700 hover:bg-blue-500/20 hover:text-blue-400 hover:border-blue-500/50 transition-all text-slate-400"
-                            >
-                                <ChevronLeft className="w-4 h-4" />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleGoToToday}
-                                className="px-3 py-2 rounded-xl bg-slate-800/50 border border-slate-700 hover:bg-blue-500/20 hover:text-blue-400 hover:border-blue-500/50 transition-all text-slate-400 text-[10px] font-bold uppercase tracking-wider"
-                            >
-                                Hoy
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleNextWeek}
-                                className="p-2 rounded-xl bg-slate-800/50 border border-slate-700 hover:bg-blue-500/20 hover:text-blue-400 hover:border-blue-500/50 transition-all text-slate-400"
-                            >
-                                <ChevronRight className="w-4 h-4" />
-                            </button>
+                    {moveError && (
+                        <div className="mt-3 md:mt-0 md:ml-4 flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-xl">
+                            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                            <p className="text-[11px] text-red-400 font-medium">{moveError}</p>
                         </div>
-
-                        <span className="text-sm font-bold text-white ml-1 capitalize">
-                            {weekRangeLabel}
-                        </span>
-                    </div>
+                    )}
                 </div>
-
-                {/* Month Picker */}
-                {showMonthPicker && (
-                    <div className="px-6 pb-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                        <div className="bg-slate-900/80 border border-slate-700/60 rounded-2xl p-4">
-                            <div className="flex items-center justify-between mb-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setMonthPickerDate(subMonths(monthPickerDate, 1))}
-                                    className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
-                                >
-                                    <ChevronLeft className="w-4 h-4" />
-                                </button>
-                                <span className="text-sm font-bold text-white capitalize">
-                                    {format(monthPickerDate, "MMMM yyyy", { locale: es })}
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() => setMonthPickerDate(addMonths(monthPickerDate, 1))}
-                                    className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
-                                >
-                                    <ChevronRight className="w-4 h-4" />
-                                </button>
-                            </div>
-                            <div className="grid grid-cols-7 gap-1 mb-1">
-                                {["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => (
-                                    <div key={d} className="text-center text-[10px] font-bold text-slate-500 uppercase tracking-wider py-1">
-                                        {d}
-                                    </div>
-                                ))}
-                            </div>
-                            {monthPickerWeeks.map((week, wi) => {
-                                const weekStart = startOfWeek(week[0], { weekStartsOn: 1 });
-                                const isCurrentWeek = weekDays.some((wd) => isSameDay(wd, week[0]));
-                                return (
-                                    <button
-                                        key={wi}
-                                        type="button"
-                                        onClick={() => handleMonthPickerSelectWeek(weekStart)}
-                                        className={`grid grid-cols-7 gap-1 w-full rounded-xl py-1 transition-all cursor-pointer ${
-                                            isCurrentWeek
-                                                ? "bg-blue-500/15 border border-blue-500/30"
-                                                : "hover:bg-slate-800/60 border border-transparent"
-                                        }`}
-                                    >
-                                        {week.map((day, di) => {
-                                            const isInMonth = day.getMonth() === monthPickerDate.getMonth();
-                                            const isToday2 = isSameDay(day, today);
-                                            return (
-                                                <div
-                                                    key={di}
-                                                    className={`text-center text-xs py-1 rounded-lg ${
-                                                        isToday2
-                                                            ? "bg-blue-600 text-white font-bold"
-                                                            : isInMonth
-                                                            ? "text-slate-300"
-                                                            : "text-slate-600"
-                                                    }`}
-                                                >
-                                                    {format(day, "d")}
-                                                </div>
-                                            );
-                                        })}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-
-                {/* Week View */}
-                {loading ? (
-                    <div className="flex flex-col items-center justify-center py-16">
-                        <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-3" />
-                        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">
-                            Cargando calendario...
-                        </p>
-                    </div>
-                ) : (
-                    <div className="px-4 pb-2">
-                        <div className="grid grid-cols-7 gap-2">
-                            {weekDays.map((day) => {
-                                const dayKey = format(day, "yyyy-MM-dd");
-                                const dayActivities = getActivitiesForDay(day);
-                                const isToday2 = isSameDay(day, today);
-                                const isSelected = selectedDate && isSameDay(day, selectedDate);
-                                const disabled = isDateDisabled(day);
-
-                                const hoursUsed = dayStats[dayKey] || 0;
-                                // If the task is currently on this day, subtract it (it would move away)
-                                const adjustedHours = hoursUsed;
-                                const availableHours = Math.max(0, studyLimitHours - adjustedHours);
-                                const isOverloaded = adjustedHours > studyLimitHours;
-                                const wouldExceed = adjustedHours + task.hours > studyLimitHours;
-
-                                // Highlight the task being moved
-                                const isTaskCurrentDay = dayActivities.some(
-                                    (a) => String(a.id) === String(task.id)
-                                );
-
-                                return (
-                                    <div key={dayKey} className="flex flex-col">
-                                        <button
-                                            type="button"
-                                            onClick={() => handleSelectDay(day)}
-                                            disabled={disabled}
-                                            className={`flex flex-col items-center p-2.5 rounded-xl border-t-[3px] transition-all ${
-                                                disabled
-                                                    ? "opacity-30 cursor-not-allowed border-slate-800 bg-slate-800/20"
-                                                    : isSelected
-                                                    ? "bg-blue-600/20 border-blue-500 ring-2 ring-blue-500/50 shadow-lg shadow-blue-500/10 scale-[1.02]"
-                                                    : isTaskCurrentDay
-                                                    ? "bg-amber-500/10 border-amber-500/50 hover:bg-amber-500/15 cursor-pointer"
-                                                    : wouldExceed
-                                                    ? "bg-red-500/5 border-red-500/30 hover:bg-red-500/10 cursor-pointer"
-                                                    : isToday2
-                                                    ? "bg-blue-500/10 border-blue-500/60 hover:bg-blue-500/15 cursor-pointer"
-                                                    : "bg-slate-800/30 border-slate-700/50 hover:bg-slate-800/50 hover:border-slate-600 cursor-pointer"
-                                            }`}
-                                        >
-                                            <span
-                                                className={`text-[10px] font-black uppercase tracking-wider ${
-                                                    isSelected
-                                                        ? "text-blue-400"
-                                                        : isTaskCurrentDay
-                                                        ? "text-amber-400"
-                                                        : isToday2
-                                                        ? "text-blue-400"
-                                                        : "text-slate-400"
-                                                }`}
-                                            >
-                                                {format(day, "EEE", { locale: es })}
-                                            </span>
-                                            <span
-                                                className={`text-lg font-black mt-0.5 ${
-                                                    isSelected
-                                                        ? "text-white"
-                                                        : isTaskCurrentDay
-                                                        ? "text-amber-300"
-                                                        : isToday2
-                                                        ? "text-blue-300"
-                                                        : "text-slate-200"
-                                                }`}
-                                            >
-                                                {format(day, "d")}
-                                            </span>
-                                            <div className="flex items-center gap-1 mt-1">
-                                                <Clock
-                                                    className={`w-3 h-3 ${
-                                                        isOverloaded
-                                                            ? "text-red-400"
-                                                            : availableHours > 2
-                                                            ? "text-emerald-400"
-                                                            : "text-amber-400"
-                                                    }`}
-                                                />
-                                                <span
-                                                    className={`text-[9px] font-bold ${
-                                                        isOverloaded
-                                                            ? "text-red-400"
-                                                            : availableHours > 2
-                                                            ? "text-emerald-400"
-                                                            : "text-amber-400"
-                                                    }`}
-                                                >
-                                                    {availableHours % 1 === 0
-                                                        ? availableHours
-                                                        : availableHours.toFixed(1)}
-                                                    h disp.
-                                                </span>
-                                            </div>
-                                            {isTaskCurrentDay && (
-                                                <span className="text-[8px] font-bold text-amber-400 mt-0.5">
-                                                    Día actual
-                                                </span>
-                                            )}
-                                            {isSelected && (
-                                                <div className="mt-1">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                                                </div>
-                                            )}
-                                        </button>
-
-                                        {/* Tasks for this day */}
-                                        <div className="mt-1.5 flex-1 min-h-[100px] max-h-[160px] overflow-y-auto rounded-xl bg-slate-900/40 border border-slate-800/40 p-1.5 custom-scrollbar-reschedule">
-                                            {dayActivities.length > 0 ? (
-                                                <div className="space-y-1">
-                                                    {dayActivities.map((act) => {
-                                                        const isTheTask = String(act.id) === String(task.id);
-                                                        return (
-                                                            <div
-                                                                key={act.id}
-                                                                className={`px-2 py-1.5 rounded-lg text-[10px] leading-tight transition-colors ${
-                                                                    isTheTask
-                                                                        ? "bg-amber-500/20 border border-amber-500/40 text-amber-200"
-                                                                        : act.status === "DONE"
-                                                                        ? "bg-slate-800/30 text-slate-500 line-through"
-                                                                        : "bg-slate-800/50 text-slate-300"
-                                                                }`}
-                                                                title={`${act.title} (${act.durationNum}h)`}
-                                                            >
-                                                                <span className="font-semibold line-clamp-2">
-                                                                    {isTheTask && (
-                                                                        <Move className="w-3 h-3 inline mr-1 text-amber-400" />
-                                                                    )}
-                                                                    {act.title}
-                                                                </span>
-                                                                {isTheTask && (
-                                                                    <span className="block text-[9px] text-amber-400 mt-0.5 font-bold">
-                                                                        Mover esta tarea
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center justify-center h-full">
-                                                    <span className="text-[9px] text-slate-600 font-medium italic">
-                                                        Sin tareas
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-
-                {/* Error message */}
-                {moveError && (
-                    <div className="mx-6 mb-2 flex items-center gap-2 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl">
-                        <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
-                        <p className="text-xs text-red-400 font-medium">{moveError}</p>
-                    </div>
-                )}
-
-                {/* Footer */}
-                <div className="flex items-center justify-between px-6 py-4 border-t border-slate-800/60">
-                    <div className="text-xs text-slate-400">
-                        {selectedDate ? (
-                            <span>
-                                Mover a:{" "}
-                                <span className="text-white font-bold capitalize">
-                                    {format(selectedDate, "EEEE d 'de' MMMM", {
-                                        locale: es,
-                                    })}
-                                </span>
-                            </span>
-                        ) : (
-                            <span className="italic">Selecciona un nuevo día para esta tarea</span>
-                        )}
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="px-4 py-2 rounded-xl bg-slate-800/50 border border-slate-700/50 text-slate-400 text-xs font-bold hover:bg-slate-800 hover:text-slate-300 transition-colors"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleConfirmMove}
-                            disabled={!selectedDate || isMoving}
-                            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-lg ${
-                                selectedDate && !isMoving
-                                    ? "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20 cursor-pointer"
-                                    : "bg-slate-800 text-slate-500 cursor-not-allowed shadow-none"
-                            }`}
-                        >
-                            {isMoving ? (
-                                <>
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                    Moviendo...
-                                </>
-                            ) : (
-                                <>
-                                    <Check className="w-3.5 h-3.5" />
-                                    Confirmar movimiento
-                                </>
-                            )}
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <style>{`
-                .custom-scrollbar-reschedule::-webkit-scrollbar {
-                    width: 3px;
-                }
-                .custom-scrollbar-reschedule::-webkit-scrollbar-track {
-                    background: transparent;
-                }
-                .custom-scrollbar-reschedule::-webkit-scrollbar-thumb {
-                    background: #334155;
-                    border-radius: 10px;
-                }
-                .custom-scrollbar-reschedule {
-                    scrollbar-width: thin;
-                    scrollbar-color: #334155 transparent;
-                }
-            `}</style>
-        </div>
+            }
+            loading={loading}
+            weekRangeLabel={weekRangeLabel}
+            onPrevWeek={handlePrevWeek}
+            onNextWeek={handleNextWeek}
+            onGoToToday={handleGoToToday}
+            showMonthPicker={showMonthPicker}
+            onToggleMonthPicker={() => setShowMonthPicker((prev) => !prev)}
+            monthPickerDate={monthPickerDate}
+            onPrevMonth={() => setMonthPickerDate(subMonths(monthPickerDate, 1))}
+            onNextMonth={() => setMonthPickerDate(addMonths(monthPickerDate, 1))}
+            monthPickerWeeks={monthPickerWeeks}
+            onSelectMonthWeek={handleMonthPickerSelectWeek}
+            days={days}
+            onSelectDay={handleSelectDay}
+            selectedDateLabel={
+                selectedDate
+                    ? `Mover a: ${format(selectedDate, "EEEE d 'de' MMMM", { locale: es })}`
+                    : undefined
+            }
+            onConfirm={handleConfirmMove}
+            confirmDisabled={!selectedDate || isMoving}
+            confirmLabel="Confirmar movimiento"
+            confirmLoading={isMoving}
+            confirmLoadingLabel="Moviendo..."
+            zIndexClassName="z-[100]"
+        />
     );
 }

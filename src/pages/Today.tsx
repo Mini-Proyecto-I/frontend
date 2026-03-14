@@ -1216,10 +1216,10 @@ export default function Today() {
                 </div>
                 <div>
                   <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-                    Conflicto detectado
+                    Conflictos sin resolver
                   </h3>
                   <p className="text-slate-400 text-base mt-1.5 leading-relaxed">
-                    Tienes{" "}
+                    Tienes todavía{" "}
                     <span className="text-white font-semibold">{conflictedCount}</span>{" "}
                     {conflictedCount === 1 ? "tarea" : "tareas"} en conflicto. Puedes resolverlo moviendo la tarea o reduciendo sus horas.
                   </p>
