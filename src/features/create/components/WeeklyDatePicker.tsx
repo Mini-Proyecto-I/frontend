@@ -235,7 +235,7 @@ export default function WeeklyDatePicker({
             open
             onClose={onClose}
             title="Seleccionar fecha objetivo"
-            subtitle="Usa el mismo calendario para mantener consistencia al programar subtareas."
+            subtitle="Elige el día en que trabajarás esta subtarea para mantener tu planificación ordenada."
             loading={loading}
             weekRangeLabel={weekRangeLabel}
             onPrevWeek={handlePrevWeek}
