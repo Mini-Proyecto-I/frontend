@@ -80,13 +80,13 @@ export default function Calendar() {
         const focusDate = state?.focusDate as string | undefined;
         const incomingSubtask = state?.reprogramSubtask as
             | {
-                  id: string;
-                  activityId: string;
-                  title: string;
-                  deadline?: string;
-                  dateKey?: string;
-                  durationNum?: number;
-              }
+                id: string;
+                activityId: string;
+                title: string;
+                deadline?: string;
+                dateKey?: string;
+                durationNum?: number;
+            }
             | undefined;
 
         if (focusDate) {
@@ -158,7 +158,7 @@ export default function Calendar() {
         return combined.map(item => {
             const overridenDate = overriddenDates[item.id];
             const dateStr = overridenDate || item.target_date;
-            
+
             // Usar el override de conflicto si existe, sino el valor del backend
             const hasConflictOverride = item.id in conflictOverrides;
             const isConflicted = hasConflictOverride ? conflictOverrides[item.id] : item.is_conflicted;
@@ -693,268 +693,264 @@ export default function Calendar() {
                     </div>
                 </div>
                 <p className="text-xs text-slate-400 font-medium max-w-2xl">
-                    En tu calendario puedes reprogramar tareas con «Mover aquí». Si un día queda sobrecargado, verás una guía para resolverlo moviendo, reduciendo horas o posponiendo la decisión. Puedes moverte entre semanas con las flechas o el botón «Seleccionar semana».
+                    En tu calendario puedes rerogramar tus tareas clickeando sobre ellas y luego clickeando sobre "mover aquí" en algún día antes de la fecha límite de la actividad y después de "hoy". Si un día queda sobrecargado, verás una guía para resolverlo moviendo tareas o reduciendo horas. Puedes moverte entre semanas con las flechas o el botón «Seleccionar semana»
                 </p>
             </div>
 
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-2 scrollbar-gray">
                 <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-5 items-start pt-4 ${isMoving && selectedSubtask ? "pb-36" : "pb-2"}`}>
-                {weekDays.map((day, index) => {
-                    const dayKey = format(day, "yyyy-MM-dd");
-                    const dayActivities = getActivitiesForDay(day);
-                    const isToday = isSameDay(day, new Date());
-                    const isPastDay = day < today;
-                    const isWeekend = index >= 5;
-                    const isExpanded = expandedDays[dayKey];
+                    {weekDays.map((day, index) => {
+                        const dayKey = format(day, "yyyy-MM-dd");
+                        const dayActivities = getActivitiesForDay(day);
+                        const isToday = isSameDay(day, new Date());
+                        const isPastDay = day < today;
+                        const isWeekend = index >= 5;
+                        const isExpanded = expandedDays[dayKey];
 
-                    const visibleActivities = isExpanded ? dayActivities : dayActivities.slice(0, 2);
-                    const hasMore = dayActivities.length > 2;
+                        const visibleActivities = isExpanded ? dayActivities : dayActivities.slice(0, 2);
+                        const hasMore = dayActivities.length > 2;
 
-                    // Calculate availability
-                    const currentHours = dayStats[dayKey] || 0;
-                    const availableHours = Math.max(0, studyLimitHours - currentHours);
+                        // Calculate availability
+                        const currentHours = dayStats[dayKey] || 0;
+                        const availableHours = Math.max(0, studyLimitHours - currentHours);
 
-                    const isAfterDeadline = selectedSubtask?.deadline && day > startOfDay(parseISO(selectedSubtask.deadline));
-                    const isDeadlineDay = selectedSubtask?.deadline && isSameDay(day, parseISO(selectedSubtask.deadline));
-                    const isSameDayAsSelected = !!selectedSubtask && !!selectedSubtask.date && isSameDay(day, selectedSubtask.date);
-                    const projectedHoursForMove =
-                        !!selectedSubtask ? computeProjectedHours(day, selectedSubtask.durationNum) : 0;
-                    const willConflictForMove =
-                        !!selectedSubtask &&
-                        !isSameDayAsSelected &&
-                        !isAfterDeadline &&
-                        projectedHoursForMove > studyLimitHours;
-                    const blockedByStrictConflict = !!selectedSubtask && strictMoveMode && willConflictForMove;
-                    const canMoveSelected =
-                        !!selectedSubtask &&
-                        !isSameDayAsSelected &&
-                        !isAfterDeadline &&
-                        !blockedByStrictConflict;
-                    const isBlockedInMoveMode = isMoving && (isPastDay || !!isAfterDeadline);
-                    const hasAvailability = availableHours > 0;
-                    const availabilityColor = hasAvailability ? "text-emerald-400" : "text-amber-400";
+                        const isAfterDeadline = selectedSubtask?.deadline && day > startOfDay(parseISO(selectedSubtask.deadline));
+                        const isDeadlineDay = selectedSubtask?.deadline && isSameDay(day, parseISO(selectedSubtask.deadline));
+                        const isSameDayAsSelected = !!selectedSubtask && !!selectedSubtask.date && isSameDay(day, selectedSubtask.date);
+                        const projectedHoursForMove =
+                            !!selectedSubtask ? computeProjectedHours(day, selectedSubtask.durationNum) : 0;
+                        const willConflictForMove =
+                            !!selectedSubtask &&
+                            !isSameDayAsSelected &&
+                            !isAfterDeadline &&
+                            projectedHoursForMove > studyLimitHours;
+                        const blockedByStrictConflict = !!selectedSubtask && strictMoveMode && willConflictForMove;
+                        const canMoveSelected =
+                            !!selectedSubtask &&
+                            !isSameDayAsSelected &&
+                            !isAfterDeadline &&
+                            !blockedByStrictConflict;
+                        const isBlockedInMoveMode = isMoving && (isPastDay || !!isAfterDeadline);
+                        const hasAvailability = availableHours > 0;
+                        const availabilityColor = hasAvailability ? "text-emerald-400" : "text-amber-400";
 
-                    return (
-                        <div key={day.toString()} className="flex flex-col gap-5 min-h-[450px]">
-                            <div
-                                onDragOver={(e) => {
-                                    if (!isMoving || isBlockedInMoveMode || isSameDayAsSelected || blockedByStrictConflict) return;
-                                    e.preventDefault();
-                                    e.dataTransfer.dropEffect = "move";
-                                }}
-                                onDrop={(e) => {
-                                    if (!isMoving || isBlockedInMoveMode || isSameDayAsSelected || blockedByStrictConflict) return;
-                                    e.preventDefault();
-                                    handleConfirmMove(day);
-                                }}
-                                className={`sticky top-0 z-10 flex flex-col items-center p-4 rounded-2xl border-t-4 transition-all shadow-[0_4px_12px_0_rgba(0,0,0,0.25)]
+                        return (
+                            <div key={day.toString()} className="flex flex-col gap-5 min-h-[450px]">
+                                <div
+                                    onDragOver={(e) => {
+                                        if (!isMoving || isBlockedInMoveMode || isSameDayAsSelected || blockedByStrictConflict) return;
+                                        e.preventDefault();
+                                        e.dataTransfer.dropEffect = "move";
+                                    }}
+                                    onDrop={(e) => {
+                                        if (!isMoving || isBlockedInMoveMode || isSameDayAsSelected || blockedByStrictConflict) return;
+                                        e.preventDefault();
+                                        handleConfirmMove(day);
+                                    }}
+                                    className={`sticky top-0 z-10 flex flex-col items-center p-4 rounded-2xl border-t-4 transition-all shadow-[0_4px_12px_0_rgba(0,0,0,0.25)]
                                     ${isBlockedInMoveMode ? "opacity-35 pointer-events-none grayscale-[0.2]" : ""}
                                     ${!isMoving && isPastDay ? "opacity-40 pointer-events-none" : ""}
                                     ${isToday
-                                        ? "bg-slate-900 border-blue-500 shadow-lg shadow-blue-500/5"
-                                        : "bg-slate-900 border-slate-800"
-                                    } 
+                                            ? "bg-slate-900 border-blue-500 shadow-lg shadow-blue-500/5"
+                                            : "bg-slate-900 border-slate-800"
+                                        } 
                                  ${isWeekend && !isBlockedInMoveMode ? "opacity-90" : ""} 
                                  ${isMoving && !isBlockedInMoveMode && canMoveSelected && !willConflictForMove ? 'ring-2 ring-emerald-500/50 bg-emerald-500/10' : ''}
                                  ${isMoving && !isBlockedInMoveMode && canMoveSelected && willConflictForMove ? 'ring-2 ring-amber-500/35 bg-amber-500/10' : ''}
                                  ${isMoving && !isBlockedInMoveMode && blockedByStrictConflict ? 'ring-2 ring-amber-500/35 bg-amber-500/10' : ''}
                                  ${isMoving && isDeadlineDay ? 'ring-2 ring-amber-500 bg-amber-500/10 animate-pulse transition-all scale-[1.02]' : ''}`}
-                            >
-                                {isMoving && isDeadlineDay && (
-                                    <div className="absolute -top-3 px-3 py-1 bg-amber-500 text-white text-[9px] font-black rounded-full shadow-lg z-20">
-                                        FECHA LÍMITE
-                                    </div>
-                                )}
-                                <span className={`text-xs font-black uppercase tracking-wider ${isToday ? "text-blue-500" : isMoving && isDeadlineDay ? "text-amber-500" : "text-slate-400"
-                                    }`}>
-                                    {format(day, "EEEE", { locale: es })}
-                                </span>
-                                <span className={`text-2xl font-black mt-1 leading-none ${isToday ? "text-blue-300" : isMoving && isDeadlineDay ? "text-amber-300" : "text-slate-200"}`}>
-                                    {format(day, "d")}
-                                </span>
-                                <span className={`text-[10px] mt-2 font-black uppercase tracking-widest ${
-                                    isBlockedInMoveMode ? "text-slate-500" : willConflictForMove ? "text-amber-400" : availabilityColor
-                                }`}>
-                                    {isMoving && (isAfterDeadline || isPastDay)
-                                        ? 'BLOQUEADO'
-                                        : blockedByStrictConflict
-                                        ? 'EXCEDE EL LÍMITE'
-                                        : willConflictForMove
-                                        ? `QUEDARÍA EN ${formatHours(projectedHoursForMove)}`
-                                        : `Disponibilidad: ${availableHours % 1 === 0 ? availableHours : availableHours.toFixed(1)}h`}
-                                </span>
-                            </div>
+                                >
+                                    {isMoving && isDeadlineDay && (
+                                        <div className="absolute -top-3 px-3 py-1 bg-amber-500 text-white text-[9px] font-black rounded-full shadow-lg z-20">
+                                            FECHA LÍMITE
+                                        </div>
+                                    )}
+                                    <span className={`text-xs font-black uppercase tracking-wider ${isToday ? "text-blue-500" : isMoving && isDeadlineDay ? "text-amber-500" : "text-slate-400"
+                                        }`}>
+                                        {format(day, "EEEE", { locale: es })}
+                                    </span>
+                                    <span className={`text-2xl font-black mt-1 leading-none ${isToday ? "text-blue-300" : isMoving && isDeadlineDay ? "text-amber-300" : "text-slate-200"}`}>
+                                        {format(day, "d")}
+                                    </span>
+                                    <span className={`text-[10px] mt-2 font-black uppercase tracking-widest ${isBlockedInMoveMode ? "text-slate-500" : willConflictForMove ? "text-amber-400" : availabilityColor
+                                        }`}>
+                                        {isMoving && (isAfterDeadline || isPastDay)
+                                            ? 'BLOQUEADO'
+                                            : blockedByStrictConflict
+                                                ? 'EXCEDE EL LÍMITE'
+                                                : willConflictForMove
+                                                    ? `QUEDARÍA EN ${formatHours(projectedHoursForMove)}`
+                                                    : `Disponibilidad: ${availableHours % 1 === 0 ? availableHours : availableHours.toFixed(1)}h`}
+                                    </span>
+                                </div>
 
-                            <div className="flex-1 space-y-4">
-                                {isMoving && canMoveSelected && !isPastDay && (
-                                    <button
-                                        onClick={() => handleConfirmMove(day)}
-                                        className={`w-full flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-2xl group cursor-pointer transition-all ${
-                                            willConflictForMove
+                                <div className="flex-1 space-y-4">
+                                    {isMoving && canMoveSelected && !isPastDay && (
+                                        <button
+                                            onClick={() => handleConfirmMove(day)}
+                                            className={`w-full flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-2xl group cursor-pointer transition-all ${willConflictForMove
                                                 ? "border-amber-500/60 bg-amber-500/10 hover:bg-amber-500/15"
                                                 : "border-blue-500/50 bg-blue-500/5 hover:bg-blue-500/10 animate-pulse"
-                                        }`}
-                                    >
-                                        <CirclePlus className={`w-8 h-8 mb-2 group-hover:scale-110 transition-transform ${
-                                            willConflictForMove ? "text-amber-400" : "text-blue-500"
-                                        }`} />
-                                        <span className={`text-xs font-black uppercase tracking-widest ${
-                                            willConflictForMove ? "text-amber-300" : "text-blue-500"
-                                        }`}>
-                                            {willConflictForMove ? "Mover aquí (con conflicto)" : "Mover aquí"}
-                                        </span>
-                                        
-                                    </button>
-                                )}
-                                {dayActivities.length > 0 ? (
-                                    <>
-                                        <div className="space-y-4">
-                                            {visibleActivities.map((activity) => {
-                                                const theme = getCourseTheme(activity.courseId || activity.course);
-                                                const isDone = activity.status === "DONE";
-                                                const isSelected = selectedSubtask && selectedSubtask.id === activity.id;
-                                                const shouldDim = isMoving && !isSelected;
-                                                const isMenuOpen = menuOpenId === activity.id;
-                                                const isConflicted = activity.isConflicted;
+                                                }`}
+                                        >
+                                            <CirclePlus className={`w-8 h-8 mb-2 group-hover:scale-110 transition-transform ${willConflictForMove ? "text-amber-400" : "text-blue-500"
+                                                }`} />
+                                            <span className={`text-xs font-black uppercase tracking-widest ${willConflictForMove ? "text-amber-300" : "text-blue-500"
+                                                }`}>
+                                                {willConflictForMove ? "Mover aquí (con conflicto)" : "Mover aquí"}
+                                            </span>
 
-                                                const conflictTheme = {
-                                                    border: "border-[#F59E0B]",
-                                                    text: "text-[#F59E0B]",
-                                                    bg: "hover:bg-[#F59E0B]/5",
-                                                    ring: "ring-[#F59E0B]/60 shadow-[#F59E0B]/40",
-                                                    glow: "shadow-[0_0_15px_rgba(245,158,11,0.2)]"
-                                                };
-                                                // Si está seleccionada, usar tema azul para no chocar con el borde amarillo de conflicto
-                                                const activeTheme = isConflicted && !isSelected ? conflictTheme : theme;
+                                        </button>
+                                    )}
+                                    {dayActivities.length > 0 ? (
+                                        <>
+                                            <div className="space-y-4">
+                                                {visibleActivities.map((activity) => {
+                                                    const theme = getCourseTheme(activity.courseId || activity.course);
+                                                    const isDone = activity.status === "DONE";
+                                                    const isSelected = selectedSubtask && selectedSubtask.id === activity.id;
+                                                    const shouldDim = isMoving && !isSelected;
+                                                    const isMenuOpen = menuOpenId === activity.id;
+                                                    const isConflicted = activity.isConflicted;
 
-                                                return (
-                                                    <div
-                                                        key={activity.id}
-                                                        draggable={!isMoving}
-                                                        onDragStart={(e) => {
-                                                            if (isMoving) return;
-                                                            e.dataTransfer.setData("activityId", activity.id);
-                                                            handleSelectForMove(activity);
-                                                        }}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (isMoving) {
-                                                                if (isSelected) handleCancelMove();
-                                                                return;
-                                                            }
-                                                            setSelectedSubtask(activity);
-                                                            setIsMoving(true);
-                                                        }}
-                                                        className={`relative p-5 rounded-2xl bg-[#111827] border border-slate-800/80 shadow-xl shadow-black/20 group border-l-4 ${activeTheme.border} transition-all duration-300 cursor-grab active:cursor-grabbing
+                                                    const conflictTheme = {
+                                                        border: "border-[#F59E0B]",
+                                                        text: "text-[#F59E0B]",
+                                                        bg: "hover:bg-[#F59E0B]/5",
+                                                        ring: "ring-[#F59E0B]/60 shadow-[#F59E0B]/40",
+                                                        glow: "shadow-[0_0_15px_rgba(245,158,11,0.2)]"
+                                                    };
+                                                    // Si está seleccionada, usar tema azul para no chocar con el borde amarillo de conflicto
+                                                    const activeTheme = isConflicted && !isSelected ? conflictTheme : theme;
+
+                                                    return (
+                                                        <div
+                                                            key={activity.id}
+                                                            draggable={!isMoving}
+                                                            onDragStart={(e) => {
+                                                                if (isMoving) return;
+                                                                e.dataTransfer.setData("activityId", activity.id);
+                                                                handleSelectForMove(activity);
+                                                            }}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (isMoving) {
+                                                                    if (isSelected) handleCancelMove();
+                                                                    return;
+                                                                }
+                                                                setSelectedSubtask(activity);
+                                                                setIsMoving(true);
+                                                            }}
+                                                            className={`relative p-5 rounded-2xl bg-[#111827] border border-slate-800/80 shadow-xl shadow-black/20 group border-l-4 ${activeTheme.border} transition-all duration-300 cursor-grab active:cursor-grabbing
                                                             ${isConflicted ? activeTheme.glow : ''}
                                                             ${isSelected ? `ring-4 ${activeTheme.ring} translate-y-[-4px] scale-[1.02] z-20` : 'hover:translate-y-[-2px]'} 
                                                             ${shouldDim ? 'opacity-40 grayscale-[0.5]' : ''}
                                                             ${isDone && !isSelected ? 'opacity-30 grayscale pointer-events-none' : ''}`}
-                                                    >
-                                                        {isConflicted && !isSelected && (
-                                                            <div className="absolute top-2 left-2 flex items-center gap-1">
-                                                                <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                                                                <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest">Conflicto</span>
-                                                            </div>
-                                                        )}
-                                                        {isSelected && (
-                                                            <div className={`absolute -top-3 -right-2 px-3 py-1 font-black text-[10px] tracking-widest uppercase rounded-full bg-blue-500 text-white shadow-lg z-30 animate-bounce`}>
-                                                                SELECCIONADO
-                                                            </div>
-                                                        )}
-
-                                                        <div className="absolute top-4 right-3 z-30">
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setMenuOpenId(isMenuOpen ? null : activity.id);
-                                                                }}
-                                                                className="text-slate-500 hover:text-blue-400 transition-colors p-1 rounded-lg hover:bg-slate-800"
-                                                            >
-                                                                <MoreVertical className="w-5 h-5" />
-                                                            </button>
-
-                                                            {isMenuOpen && (
-                                                                <div
-                                                                    className="absolute right-0 mt-2 w-48 bg-[#1f2937] border border-slate-700/50 rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in duration-200"
-                                                                    onClick={(e) => e.stopPropagation()}
-                                                                >
-                                                                    <Link to={`/actividad/${activity.activityId}`} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-slate-300 hover:bg-slate-800 hover:text-white transition-colors border-b border-slate-700/30">
-                                                                        <Eye className="w-4 h-4 text-blue-400" />
-                                                                        Ver detalle
-                                                                    </Link>
-                                                                    <button
-                                                                        onClick={() => navigate(`/actividad/${activity.activityId}`)}
-                                                                        className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-slate-300 hover:bg-slate-800 hover:text-white transition-colors border-b border-slate-700/30"
-                                                                    >
-                                                                        <Pencil className="w-4 h-4 text-emerald-400" />
-                                                                        Editar
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => handleDelete(activity.activityId, activity.id)}
-                                                                        className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-rose-400 hover:bg-rose-500/10 transition-colors"
-                                                                    >
-                                                                        <Trash2 className="w-4 h-4 text-rose-500" />
-                                                                        Eliminar
-                                                                    </button>
+                                                        >
+                                                            {isConflicted && !isSelected && (
+                                                                <div className="absolute top-2 left-2 flex items-center gap-1">
+                                                                    <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                                                                    <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest">Conflicto</span>
                                                                 </div>
                                                             )}
-                                                        </div>
+                                                            {isSelected && (
+                                                                <div className={`absolute -top-3 -right-2 px-3 py-1 font-black text-[10px] tracking-widest uppercase rounded-full bg-blue-500 text-white shadow-lg z-30 animate-bounce`}>
+                                                                    SELECCIONADO
+                                                                </div>
+                                                            )}
 
-                                                        <span className={`text-[10px] font-black uppercase tracking-widest ${activeTheme.text}`}>
-                                                            {activity.course}
-                                                        </span>
-                                                        <h3 className={`text-white font-bold text-sm mt-1.5 leading-tight ${isDone ? 'line-through opacity-50' : ''}`}>
-                                                            {activity.title}
-                                                        </h3>
-                                                        <div className="text-slate-400 text-xs mt-4 flex items-center justify-between font-medium">
-                                                            <div className="flex items-center gap-1.5 uppercase tracking-widest text-[10px]">
-                                                                <Clock className="w-3.5 h-3.5 text-slate-500" />
-                                                                <span className={isSelected ? 'bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-black' : ''}>
-                                                                    {activity.duration}
-                                                                </span>
+                                                            <div className="absolute top-4 right-3 z-30">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setMenuOpenId(isMenuOpen ? null : activity.id);
+                                                                    }}
+                                                                    className="text-slate-500 hover:text-blue-400 transition-colors p-1 rounded-lg hover:bg-slate-800"
+                                                                >
+                                                                    <MoreVertical className="w-5 h-5" />
+                                                                </button>
+
+                                                                {isMenuOpen && (
+                                                                    <div
+                                                                        className="absolute right-0 mt-2 w-48 bg-[#1f2937] border border-slate-700/50 rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in duration-200"
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                    >
+                                                                        <Link to={`/actividad/${activity.activityId}`} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-slate-300 hover:bg-slate-800 hover:text-white transition-colors border-b border-slate-700/30">
+                                                                            <Eye className="w-4 h-4 text-blue-400" />
+                                                                            Ver detalle
+                                                                        </Link>
+                                                                        <button
+                                                                            onClick={() => navigate(`/actividad/${activity.activityId}`)}
+                                                                            className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-slate-300 hover:bg-slate-800 hover:text-white transition-colors border-b border-slate-700/30"
+                                                                        >
+                                                                            <Pencil className="w-4 h-4 text-emerald-400" />
+                                                                            Editar
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleDelete(activity.activityId, activity.id)}
+                                                                            className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-rose-400 hover:bg-rose-500/10 transition-colors"
+                                                                        >
+                                                                            <Trash2 className="w-4 h-4 text-rose-500" />
+                                                                            Eliminar
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+
+                                                            <span className={`text-[10px] font-black uppercase tracking-widest ${activeTheme.text}`}>
+                                                                {activity.course}
+                                                            </span>
+                                                            <h3 className={`text-white font-bold text-sm mt-1.5 leading-tight ${isDone ? 'line-through opacity-50' : ''}`}>
+                                                                {activity.title}
+                                                            </h3>
+                                                            <div className="text-slate-400 text-xs mt-4 flex items-center justify-between font-medium">
+                                                                <div className="flex items-center gap-1.5 uppercase tracking-widest text-[10px]">
+                                                                    <Clock className="w-3.5 h-3.5 text-slate-500" />
+                                                                    <span className={isSelected ? 'bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded font-black' : ''}>
+                                                                        {activity.duration}
+                                                                    </span>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-
-                                        {hasMore && !isMoving && (
-                                            <button
-                                                onClick={() => toggleDayExpansion(dayKey)}
-                                                className="w-full py-2.5 px-4 rounded-xl border border-slate-800 bg-slate-800/30 text-slate-400 text-[11px] font-black uppercase tracking-widest hover:bg-slate-800/60 hover:text-white transition-all flex items-center justify-center gap-2 group/btn"
-                                            >
-                                                {isExpanded ? (
-                                                    <>
-                                                        Ver menos
-                                                        <ChevronLeft className="w-3.5 h-3.5 rotate-90" />
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        Mostrar todo ({dayActivities.length - 2} más)
-                                                        <ChevronLeft className="w-3.5 h-3.5 -rotate-90 group-hover/btn:translate-y-0.5 transition-transform" />
-                                                    </>
-                                                )}
-                                            </button>
-                                        )}
-                                    </>
-                                ) : (
-                                    !isMoving && (
-                                        <div className="h-full min-h-[150px] flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-700/50 rounded-2xl bg-slate-800/10 transition-all hover:bg-blue-500/5 hover:border-blue-500/30 group/empty">
-                                            <div className="w-12 h-12 rounded-full bg-slate-800/40 flex items-center justify-center mb-4 group-hover/empty:scale-110 transition-transform border border-slate-700/30 group-hover/empty:border-blue-500/30">
-                                                <CalendarCheck className="w-24 h-24 text-blue-500 drop-shadow-2xl" strokeWidth={1.5} />
+                                                    );
+                                                })}
                                             </div>
-                                            <span className="text-slate-200 text-xs italic text-center font-bold tracking-widest uppercase group-hover/empty:text-blue-200 transition-colors">
-                                                Sin actividades
-                                            </span>
-                                        </div>
-                                    )
-                                )}
+
+                                            {hasMore && !isMoving && (
+                                                <button
+                                                    onClick={() => toggleDayExpansion(dayKey)}
+                                                    className="w-full py-2.5 px-4 rounded-xl border border-slate-800 bg-slate-800/30 text-slate-400 text-[11px] font-black uppercase tracking-widest hover:bg-slate-800/60 hover:text-white transition-all flex items-center justify-center gap-2 group/btn"
+                                                >
+                                                    {isExpanded ? (
+                                                        <>
+                                                            Ver menos
+                                                            <ChevronLeft className="w-3.5 h-3.5 rotate-90" />
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            Mostrar todo ({dayActivities.length - 2} más)
+                                                            <ChevronLeft className="w-3.5 h-3.5 -rotate-90 group-hover/btn:translate-y-0.5 transition-transform" />
+                                                        </>
+                                                    )}
+                                                </button>
+                                            )}
+                                        </>
+                                    ) : (
+                                        !isMoving && (
+                                            <div className="h-full min-h-[150px] flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-700/50 rounded-2xl bg-slate-800/10 transition-all hover:bg-blue-500/5 hover:border-blue-500/30 group/empty">
+                                                <div className="w-12 h-12 rounded-full bg-slate-800/40 flex items-center justify-center mb-4 group-hover/empty:scale-110 transition-transform border border-slate-700/30 group-hover/empty:border-blue-500/30">
+                                                    <CalendarCheck className="w-24 h-24 text-blue-500 drop-shadow-2xl" strokeWidth={1.5} />
+                                                </div>
+                                                <span className="text-slate-200 text-xs italic text-center font-bold tracking-widest uppercase group-hover/empty:text-blue-200 transition-colors">
+                                                    Sin actividades
+                                                </span>
+                                            </div>
+                                        )
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    );
-                })}
+                        );
+                    })}
                 </div>
             </div>
 
@@ -964,62 +960,62 @@ export default function Calendar() {
                 const taskDateInPast = selectedSubtask.date && isBefore(selectedSubtask.date, todayForDeadline);
                 const showReprogramPrompt = deadlineInPast && taskDateInPast;
                 return (
-                <div className="fixed bottom-0 left-0 right-0 z-30 px-4 sm:px-6 lg:px-10 py-4 bg-[#0f172a]/95 backdrop-blur-sm border-t border-slate-800/80 animate-in slide-in-from-bottom duration-300">
-                    <div className="max-w-[1550px] mx-auto flex flex-col md:flex-row items-center justify-between p-4 md:p-5 rounded-2xl bg-blue-500/10 border border-blue-500/20 gap-4 md:gap-5">
-                    <div className="flex items-center gap-5 text-blue-500">
-                        <div className="bg-blue-500 text-white p-3 rounded-xl shrink-0">
-                            <CalendarRange className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <span className="font-black text-sm uppercase tracking-[0.2em]">Modo reprogramación activo</span>
-                            {reprogramSuccessMessage ? (
-                                <p className="text-emerald-400 text-base mt-1 font-medium">
-                                    {reprogramSuccessMessage}
-                                </p>
-                            ) : showReprogramPrompt ? (
-                                <>
-                                    <p className="text-slate-300 text-base mt-1">
-                                        No puedes reprogramar tu tarea porque la fecha límite de la actividad está antes del día de hoy.
-                                    </p>
-                                    <p className="text-slate-400 text-sm mt-2">
-                                        ¿Deseas reprogramar tu actividad?
-                                    </p>
-                                </>
-                            ) : (
-                                <p className="text-slate-400 text-base mt-1">
-                                    Selecciona un espacio antes de la <span className="text-white font-bold">{selectedSubtask.deadline ? format(parseISO(selectedSubtask.deadline), "d 'de' MMMM", { locale: es }) : 'fecha límite'}</span> para mover <span className="text-white font-bold">'{selectedSubtask.title}'</span>
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                        {!showReprogramPrompt && !reprogramSuccessMessage && selectedSubtask.deadline && (
-                            <div className="hidden sm:flex items-center gap-2 px-4 py-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl">
-                                <Clock className="w-5 h-5 text-amber-500" />
-                                <span className="text-xs font-black text-amber-500 uppercase tracking-widest">
-                                    Fecha límite: {format(parseISO(selectedSubtask.deadline), "d 'de' MMM", { locale: es })}
-                                </span>
+                    <div className="fixed bottom-0 left-0 right-0 z-30 px-4 sm:px-6 lg:px-10 py-4 bg-[#0f172a]/95 backdrop-blur-sm border-t border-slate-800/80 animate-in slide-in-from-bottom duration-300">
+                        <div className="max-w-[1550px] mx-auto flex flex-col md:flex-row items-center justify-between p-4 md:p-5 rounded-2xl bg-blue-500/10 border border-blue-500/20 gap-4 md:gap-5">
+                            <div className="flex items-center gap-5 text-blue-500">
+                                <div className="bg-blue-500 text-white p-3 rounded-xl shrink-0">
+                                    <CalendarRange className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <span className="font-black text-sm uppercase tracking-[0.2em]">Modo reprogramación activo</span>
+                                    {reprogramSuccessMessage ? (
+                                        <p className="text-emerald-400 text-base mt-1 font-medium">
+                                            {reprogramSuccessMessage}
+                                        </p>
+                                    ) : showReprogramPrompt ? (
+                                        <>
+                                            <p className="text-slate-300 text-base mt-1">
+                                                No puedes reprogramar tu tarea porque la fecha límite de la actividad está antes del día de hoy.
+                                            </p>
+                                            <p className="text-slate-400 text-sm mt-2">
+                                                ¿Deseas reprogramar tu actividad?
+                                            </p>
+                                        </>
+                                    ) : (
+                                        <p className="text-slate-400 text-base mt-1">
+                                            Selecciona un espacio antes de la <span className="text-white font-bold">{selectedSubtask.deadline ? format(parseISO(selectedSubtask.deadline), "d 'de' MMMM", { locale: es }) : 'fecha límite'}</span> para mover <span className="text-white font-bold">'{selectedSubtask.title}'</span>
+                                        </p>
+                                    )}
+                                </div>
                             </div>
-                        )}
-                        {showReprogramPrompt && !reprogramSuccessMessage && (
-                            <Button
-                                variant="outline"
-                                onClick={handleOpenReprogramActivityModal}
-                                className="px-6 py-2.5 text-sm font-black uppercase tracking-widest text-blue-400 border-blue-500/50 hover:bg-blue-500/10 transition-all rounded-xl"
-                            >
-                                Reprogramar actividad
-                            </Button>
-                        )}
-                        <Button
-                            variant="outline"
-                            onClick={() => handleCancelMove()}
-                            className="px-6 py-2.5 text-sm font-black uppercase tracking-widest text-rose-500 border-rose-500/30 hover:bg-rose-500/10 transition-all rounded-xl"
-                        >
-                            Cancelar
-                        </Button>
+                            <div className="flex items-center gap-3 shrink-0">
+                                {!showReprogramPrompt && !reprogramSuccessMessage && selectedSubtask.deadline && (
+                                    <div className="hidden sm:flex items-center gap-2 px-4 py-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+                                        <Clock className="w-5 h-5 text-amber-500" />
+                                        <span className="text-xs font-black text-amber-500 uppercase tracking-widest">
+                                            Fecha límite: {format(parseISO(selectedSubtask.deadline), "d 'de' MMM", { locale: es })}
+                                        </span>
+                                    </div>
+                                )}
+                                {showReprogramPrompt && !reprogramSuccessMessage && (
+                                    <Button
+                                        variant="outline"
+                                        onClick={handleOpenReprogramActivityModal}
+                                        className="px-6 py-2.5 text-sm font-black uppercase tracking-widest text-blue-400 border-blue-500/50 hover:bg-blue-500/10 transition-all rounded-xl"
+                                    >
+                                        Reprogramar actividad
+                                    </Button>
+                                )}
+                                <Button
+                                    variant="outline"
+                                    onClick={() => handleCancelMove()}
+                                    className="px-6 py-2.5 text-sm font-black uppercase tracking-widest text-rose-500 border-rose-500/30 hover:bg-rose-500/10 transition-all rounded-xl"
+                                >
+                                    Cancelar
+                                </Button>
+                            </div>
+                        </div>
                     </div>
-                    </div>
-                </div>
                 );
             })()}
 
@@ -1479,11 +1475,10 @@ export default function Calendar() {
                                             key={wi}
                                             type="button"
                                             onClick={() => handleSelectWeekFromPicker(weekStart)}
-                                            className={`grid grid-cols-7 gap-1 w-full rounded-xl py-1 transition-all cursor-pointer ${
-                                                isCurrentWeek
-                                                    ? "bg-blue-500/15 border border-blue-500/30"
-                                                    : "hover:bg-slate-800/60 border border-transparent"
-                                            }`}
+                                            className={`grid grid-cols-7 gap-1 w-full rounded-xl py-1 transition-all cursor-pointer ${isCurrentWeek
+                                                ? "bg-blue-500/15 border border-blue-500/30"
+                                                : "hover:bg-slate-800/60 border border-transparent"
+                                                }`}
                                         >
                                             {week.map((day, di) => {
                                                 const isInMonth =
@@ -1495,13 +1490,12 @@ export default function Calendar() {
                                                 return (
                                                     <div
                                                         key={di}
-                                                        className={`text-center text-xs py-1 rounded-lg ${
-                                                            isToday2
-                                                                ? "bg-blue-600 text-white font-bold"
-                                                                : isInMonth
+                                                        className={`text-center text-xs py-1 rounded-lg ${isToday2
+                                                            ? "bg-blue-600 text-white font-bold"
+                                                            : isInMonth
                                                                 ? "text-slate-300"
                                                                 : "text-slate-600"
-                                                        }`}
+                                                            }`}
                                                     >
                                                         {format(day, "d")}
                                                     </div>
