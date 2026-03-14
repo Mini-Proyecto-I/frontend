@@ -12,7 +12,6 @@ import { Input } from "@/shared/components/input";
 import { Button } from "@/shared/components/button";
 import EditSubtaskModal from "@/shared/components/EditSubtaskModal";
 import { OverloadAlert } from "@/features/today/components/OverloadAlert";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/shared/components/tooltip";
 import {
   Select,
   SelectContent,
@@ -20,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/select";
+import InfoTooltip from "@/features/create/components/InfoTooltip";
 
 function getGreeting(name: string) {
   const hour = new Date().getHours();
@@ -1309,19 +1309,7 @@ export default function Today() {
                   <label className="text-sm font-bold text-slate-400 uppercase tracking-wider block mb-3">
                     <span className="inline-flex items-center gap-2">
                       <span>Reestablecer nueva estimación de horas</span>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-800/80 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
-                          >
-                            <HelpCircle className="w-3 h-3" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-xs leading-relaxed">
-                          Con esto cambias la estimación de horas de tu tarea a una nueva. Las horas deben ser menores a las actuales y mayores a 0.5.
-                        </TooltipContent>
-                      </Tooltip>
+                      <InfoTooltip text="con esto cambias la estimación de horas de tu tarea a una nueva. las horas deben ser menores a las actuales y mayores a 0.5." />
                     </span>
                   </label>
                   
