@@ -41,8 +41,8 @@ export default function WeeklyDatePicker({
     const initialDate = value
         ? startOfDay(parseISO(value))
         : lastPlannedDate
-        ? startOfDay(parseISO(lastPlannedDate))
-        : startOfDay(new Date());
+            ? startOfDay(parseISO(lastPlannedDate))
+            : startOfDay(new Date());
     const [currentDate, setCurrentDate] = useState(initialDate);
     const [selectedDate, setSelectedDate] = useState<Date | null>(
         value ? startOfDay(parseISO(value)) : null
@@ -235,7 +235,7 @@ export default function WeeklyDatePicker({
             open
             onClose={onClose}
             title="Seleccionar fecha objetivo"
-            subtitle="Usa el mismo calendario para mantener consistencia al programar subtareas."
+            subtitle="Elige el día en el calendario en el que planeas completar esta subtarea."
             loading={loading}
             weekRangeLabel={weekRangeLabel}
             onPrevWeek={handlePrevWeek}
