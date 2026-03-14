@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Clock, Loader2, CalendarRange } from "lucide-react";
 import {
   Dialog,
@@ -36,14 +36,19 @@ export default function EditSubtaskDialog({
     horas?: string;
   }>({});
 
-  // Cargar datos cuando se abre el modal
+  const wasOpenRef = useRef(false);
+
+  // Cargar datos SOLO cuando se abre el modal (evita que se "reseteen" los inputs durante el guardado/refetch)
   useEffect(() => {
-    if (open && subtaskData) {
+    const wasOpen = wasOpenRef.current;
+    wasOpenRef.current = open;
+
+    if (open && !wasOpen) {
       setNombre(subtaskData.nombre || "");
       setHoras(subtaskData.horas || "");
       setErrors({});
     }
-  }, [open, subtaskData]);
+  }, [open, subtaskData?.nombre, subtaskData?.horas]);
 
   // Validar que las horas sean múltiplos de 0.5 (1, 1.5, 2, 2.5, etc.)
   const validateHours = (hoursStr: string): boolean => {

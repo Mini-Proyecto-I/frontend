@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Calendar, ChevronDown, ClipboardList, Save } from "lucide-react";
+import { Calendar, ClipboardList, Save } from "lucide-react";
 import InfoTooltip from "@/features/create/components/InfoTooltip";
 import { getCourses, createCourse } from "@/api/services/course";
 import { createActivity, getActivities, patchActivity } from "@/api/services/activity";
-import { createSubtask } from "@/api/services/subtack";
+import { createSubtask, patchSubtask } from "@/api/services/subtack";
 import {
     Dialog,
     DialogContent,
@@ -23,6 +23,16 @@ import {
     SelectValue,
 } from "@/shared/components/select";
 import SubtaskForm, { Subtarea } from "./SubtaskForm";
+import { useHoy } from "@/features/today/hooks/useHoy";
+import { getConfig } from "@/api/services/config";
+import { queryCache } from "@/lib/queryCache";
+import { parseISO, format } from "date-fns";
+import { es } from "date-fns/locale";
+import ConflictResolutionModal, {
+    type ConflictInfo,
+    type ExistingTask,
+} from "./ConflictResolutionModal";
+import RescheduleModal from "./RescheduleModal";
 
 interface Course {
     id: string;
@@ -77,6 +87,74 @@ const ActivityForm = () => {
     const [modalType, setModalType] = useState<"success" | "error" | "warning">("success");
     const [modalTitle, setModalTitle] = useState("");
     const [modalMessage, setModalMessage] = useState("");
+
+    // ──────────── CONFLICTOS INTELIGENTES ────────────
+    // Datos del backend para detección de conflictos client-side
+    const { vencidas, para_hoy, proximas, loading: loadingHoy, refetch: refetchHoy } = useHoy({ days_ahead: 60 });
+
+    // Límite diario de estudio
+    const [studyLimitHours, setStudyLimitHours] = useState(() => {
+        const saved = window.localStorage.getItem("studyLimitHours");
+        return saved ? parseFloat(saved) : 6;
+    });
+
+    // Cargar límite desde backend
+    useEffect(() => {
+        const loadLimit = async () => {
+            try {
+                const config = await getConfig();
+                if (config?.daily_hours_limit) {
+                    const backendLimit = parseFloat(config.daily_hours_limit);
+                    setStudyLimitHours(backendLimit);
+                    window.localStorage.setItem("studyLimitHours", backendLimit.toString());
+                }
+            } catch {
+                // usar localStorage fallback
+            }
+        };
+        loadLimit();
+    }, []);
+
+    // Calcular horas existentes por día desde el backend
+    const existingHoursByDate = useMemo(() => {
+        const stats: Record<string, number> = {};
+        const combined: any[] = [...(vencidas || []), ...(para_hoy || []), ...(proximas || [])];
+        combined.forEach((item) => {
+            if (item.target_date) {
+                stats[item.target_date] = (stats[item.target_date] || 0) + parseFloat(item.estimated_hours || 0);
+            }
+        });
+        return stats;
+    }, [vencidas, para_hoy, proximas]);
+
+    // Obtener tareas existentes por día para la resolución de conflictos
+    const getExistingTasksForDate = useCallback((dateStr: string): ExistingTask[] => {
+        const combined: any[] = [...(vencidas || []), ...(para_hoy || []), ...(proximas || [])];
+        return combined
+            .filter((item) => item.target_date === dateStr)
+            .map((item) => ({
+                id: item.id,
+                activityId: item.activity?.id,
+                title: item.title,
+                hours: parseFloat(item.estimated_hours || 0),
+                course: item.activity?.course?.name || "Actividad",
+                status: item.status,
+                deadline: item.activity?.deadline,
+            }));
+    }, [vencidas, para_hoy, proximas]);
+
+    // Estado de conflictos detectados
+    const [detectedConflicts, setDetectedConflicts] = useState<ConflictInfo[]>([]);
+    // Modal de resolución
+    const [showResolutionModal, setShowResolutionModal] = useState(false);
+    const [activeConflict, setActiveConflict] = useState<ConflictInfo | null>(null);
+    // Modal de reprogramación
+    const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+    const [rescheduleTask, setRescheduleTask] = useState<ExistingTask | null>(null);
+    // Highlighting de subtareas con conflicto
+    const [highlightedSubtasks, setHighlightedSubtasks] = useState<Record<number, "horas" | "fecha">>({});
+    // Fechas que tienen conflicto
+    const [conflictDates, setConflictDates] = useState<Set<string>>(new Set());
 
     // Función helper para obtener la fecha de hoy en formato YYYY-MM-DD
     const getTodayDate = (): string => {
@@ -303,6 +381,17 @@ const ActivityForm = () => {
             return String(eventError) || "La fecha del evento no es válida. Por favor, revisa la fecha seleccionada.";
         }
 
+        // Manejar error de límite diario de horas (estimated_hours)
+        if (errorData?.estimated_hours) {
+            const hoursError = Array.isArray(errorData.estimated_hours) ? errorData.estimated_hours[0] : errorData.estimated_hours;
+            if (hoursError?.toLowerCase().includes("limite diario") || 
+                hoursError?.toLowerCase().includes("excede") ||
+                hoursError?.toLowerCase().includes("límite")) {
+                return String(hoursError) || "Se excede el límite diario de horas planificadas. Por favor, reduce las horas o cambia la fecha objetivo.";
+            }
+            return String(hoursError) || "Las horas estimadas no son válidas. Por favor, revisa el valor ingresado.";
+        }
+
         if (error?.message) {
             if (error.message.includes("Network Error") || error.message.includes("Failed to fetch")) {
                 return "No se pudo conectar con el servidor. Verifica tu conexión a internet e intenta de nuevo.";
@@ -315,6 +404,17 @@ const ActivityForm = () => {
         }
 
         if (status === 400) {
+            // Si hay múltiples errores, intentar mostrar el más relevante
+            if (errorData && typeof errorData === 'object') {
+                const errorKeys = Object.keys(errorData);
+                if (errorKeys.length > 0) {
+                    const firstError = errorData[errorKeys[0]];
+                    const firstErrorMessage = Array.isArray(firstError) ? firstError[0] : firstError;
+                    if (firstErrorMessage) {
+                        return String(firstErrorMessage);
+                    }
+                }
+            }
             return "Los datos ingresados no son válidos. Por favor, revisa el formulario.";
         }
 
@@ -457,7 +557,130 @@ const ActivityForm = () => {
         }
     };
 
-    // Función para manejar el guardado de las subtareas (Paso 2)
+    // ──────────── DETECCIÓN DE CONFLICTOS CLIENT-SIDE ────────────
+    const detectConflicts = useCallback((): ConflictInfo[] => {
+        const conflicts: ConflictInfo[] = [];
+
+        // Agrupar horas planeadas por fecha
+        const plannedHoursByDate: Record<string, number> = {};
+        const plannedTasksByDate: Record<string, Array<{ subtaskId: number; title: string; hours: number }>> = {};
+
+        subtareas.forEach((sub) => {
+            if (sub.fechaObjetivo && sub.horas && parseFloat(sub.horas) > 0) {
+                const fecha = sub.fechaObjetivo;
+                if (!plannedHoursByDate[fecha]) {
+                    plannedHoursByDate[fecha] = 0;
+                    plannedTasksByDate[fecha] = [];
+                }
+                plannedHoursByDate[fecha] += parseFloat(sub.horas);
+                plannedTasksByDate[fecha].push({
+                    subtaskId: sub.id,
+                    title: sub.nombre.trim() || "Nueva subtarea",
+                    hours: parseFloat(sub.horas),
+                });
+            }
+        });
+
+        // Para cada fecha con subtareas planeadas, verificar si excede el límite
+        Object.entries(plannedHoursByDate).forEach(([fecha, plannedHours]) => {
+            const existingHours = existingHoursByDate[fecha] || 0;
+            const totalHours = existingHours + plannedHours;
+
+            if (totalHours > studyLimitHours) {
+                conflicts.push({
+                    date: fecha,
+                    totalHours,
+                    limitHours: studyLimitHours,
+                    excessHours: totalHours - studyLimitHours,
+                    existingTasks: getExistingTasksForDate(fecha),
+                    plannedTasks: plannedTasksByDate[fecha] || [],
+                });
+            }
+        });
+
+        return conflicts;
+    }, [subtareas, existingHoursByDate, studyLimitHours, getExistingTasksForDate]);
+
+    // ──────────── HANDLERS DE RESOLUCIÓN DE CONFLICTOS ────────────
+    const handleOpenResolution = (conflict: ConflictInfo) => {
+        setActiveConflict(conflict);
+        setShowResolutionModal(true);
+    };
+
+    const handleReduceCurrentHours = (subtaskId: number) => {
+        // Cerrar modal y marcar la subtarea para resaltar el campo de horas
+        setShowResolutionModal(false);
+        setHighlightedSubtasks((prev) => ({ ...prev, [subtaskId]: "horas" }));
+        // Scroll al formulario de subtareas
+        setTimeout(() => {
+            const el = document.querySelector(`[data-subtask-id="${subtaskId}"]`);
+            if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 200);
+    };
+
+    const handleMoveCurrentDate = (subtaskId: number) => {
+        // Cerrar modal y marcar la subtarea para resaltar el campo de fecha
+        setShowResolutionModal(false);
+        setHighlightedSubtasks((prev) => ({ ...prev, [subtaskId]: "fecha" }));
+        // Scroll al formulario de subtareas
+        setTimeout(() => {
+            const el = document.querySelector(`[data-subtask-id="${subtaskId}"]`);
+            if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 200);
+    };
+
+    const handleChangeExistingHours = async (
+        task: ExistingTask,
+        newHours: number
+    ): Promise<boolean> => {
+        try {
+            await patchSubtask(task.activityId, task.id, { estimated_hours: newHours });
+            // Invalidar cache y refrescar datos
+            queryCache.invalidateByPrefix("hoy:");
+            queryCache.invalidate("activities");
+            refetchHoy();
+            // Limpiar conflictos - se re-detectarán al intentar guardar de nuevo
+            setDetectedConflicts([]);
+            setConflictDates(new Set());
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
+    const handleMoveExistingTask = (task: ExistingTask) => {
+        setShowResolutionModal(false);
+        setRescheduleTask(task);
+        setShowRescheduleModal(true);
+    };
+
+    const handleRescheduleComplete = () => {
+        setShowRescheduleModal(false);
+        setRescheduleTask(null);
+        // Refrescar datos del backend
+        queryCache.invalidateByPrefix("hoy:");
+        queryCache.invalidate("activities");
+        refetchHoy();
+        // Limpiar conflictos previos
+        setDetectedConflicts([]);
+        setConflictDates(new Set());
+        // Mostrar mensaje de éxito
+        setModalType("success");
+        setModalTitle("Tarea reprogramada");
+        setModalMessage("La tarea ha sido movida exitosamente. Puedes verificar si aún hay conflictos guardando las subtareas.");
+        setModalOpen(true);
+    };
+
+    // Limpiar highlights cuando el usuario modifica un campo resaltado
+    const handleClearHighlight = (subtaskId: number) => {
+        setHighlightedSubtasks((prev) => {
+            const next = { ...prev };
+            delete next[subtaskId];
+            return next;
+        });
+    };
+
+    // ──────────── GUARDAR SUBTAREAS (con detección de conflictos) ────────────
     const handleSaveSubtasks = async () => {
         if (!createdActivityId) {
             setModalType("error");
@@ -494,9 +717,35 @@ const ActivityForm = () => {
             return;
         }
 
+        // ── PASO 1: Detectar conflictos client-side ──
+        const conflicts = detectConflicts();
+        if (conflicts.length > 0) {
+            setDetectedConflicts(conflicts);
+            setConflictDates(new Set(conflicts.map((c) => c.date)));
+            // NO enviar al backend. Mostrar las alertas de conflictos.
+            setModalType("warning");
+            setModalTitle("Conflictos de horas detectados");
+            setModalMessage(
+                `Se detectaron ${conflicts.length} conflicto${conflicts.length > 1 ? "s" : ""} de horas. Resuelve los conflictos antes de guardar.`
+            );
+            setModalOpen(true);
+            setTimeout(() => {
+                const conflictSection = document.querySelector('[data-conflict-alerts]');
+                if (conflictSection) {
+                    conflictSection.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+            }, 300);
+            return;
+        }
+
+        // Limpiar conflictos previos si ya no hay
+        setDetectedConflicts([]);
+        setConflictDates(new Set());
+
+        // ── PASO 2: No hay conflictos, enviar al backend ──
         setIsSavingSubtasks(true);
         try {
-            await Promise.all(
+            const results = await Promise.allSettled(
                 subtareas.map((sub) =>
                     createSubtask(createdActivityId, {
                         title: sub.nombre.trim(),
@@ -507,12 +756,68 @@ const ActivityForm = () => {
                 )
             );
 
+            const failedResults = results.filter((result) => result.status === 'rejected');
+
+            if (failedResults.length > 0) {
+                // Backend también rechazó — posible desincronización de datos
+                const newErrors: typeof errors = { ...errors };
+                let generalErrorMessage = "";
+
+                results.forEach((result, index) => {
+                    if (result.status === 'rejected') {
+                        const error = result.reason;
+                        const subtarea = subtareas[index];
+
+                        if (error?.response?.data?.estimated_hours) {
+                            const hoursError = Array.isArray(error.response.data.estimated_hours)
+                                ? error.response.data.estimated_hours[0]
+                                : error.response.data.estimated_hours;
+
+                            if (!newErrors.subtareas) newErrors.subtareas = {};
+                            if (!newErrors.subtareas[subtarea.id]) newErrors.subtareas[subtarea.id] = {};
+                            newErrors.subtareas[subtarea.id].horas = String(hoursError);
+                        } else {
+                            const errorMessage = getErrorMessage(error);
+                            if (!generalErrorMessage) generalErrorMessage = errorMessage;
+                        }
+                    }
+                });
+
+                setErrors(newErrors);
+
+                // Refrescar datos y re-detectar conflictos
+                refetchHoy();
+                setTimeout(() => {
+                    const freshConflicts = detectConflicts();
+                    if (freshConflicts.length > 0) {
+                        setDetectedConflicts(freshConflicts);
+                        setConflictDates(new Set(freshConflicts.map((c) => c.date)));
+                    }
+                }, 1000);
+
+                setModalType("error");
+                setModalTitle("Error al guardar subtareas");
+                setModalMessage(
+                    generalErrorMessage ||
+                    "Algunas subtareas exceden el límite de horas. Resuelve los conflictos indicados."
+                );
+                setModalOpen(true);
+
+                setTimeout(() => {
+                    const subtaskSection = document.querySelector('[data-field="subtareas"]');
+                    if (subtaskSection) subtaskSection.scrollIntoView({ behavior: "smooth", block: "center" });
+                }, 200);
+
+                setIsSavingSubtasks(false);
+                return;
+            }
+
+            // Todas las subtareas se crearon exitosamente
             setModalType("success");
             setModalTitle("Subtareas guardadas");
             setModalMessage(`Se han guardado ${subtareas.length} subtarea${subtareas.length > 1 ? 's' : ''} exitosamente.`);
             setModalOpen(true);
 
-            // Navegar a la página de éxito después de cerrar el modal
             setTimeout(() => {
                 navigate("/crear/exito", {
                     state: {
@@ -523,10 +828,8 @@ const ActivityForm = () => {
                 });
             }, 1500);
         } catch (error: any) {
-            console.error("[ActivityForm] Error al crear las subtareas:", error);
-
+            console.error("[ActivityForm] Error inesperado al crear las subtareas:", error);
             const errorMessage = getErrorMessage(error);
-
             setModalType("error");
             setModalTitle("Error al guardar subtareas");
             setModalMessage(errorMessage);
@@ -562,6 +865,24 @@ const ActivityForm = () => {
                 type={modalType}
                 title={modalTitle}
                 message={modalMessage}
+            />
+            <ConflictResolutionModal
+                open={showResolutionModal}
+                onClose={() => setShowResolutionModal(false)}
+                conflict={activeConflict}
+                onReduceCurrentHours={handleReduceCurrentHours}
+                onMoveCurrentDate={handleMoveCurrentDate}
+                onChangeExistingHours={handleChangeExistingHours}
+                onMoveExistingTask={handleMoveExistingTask}
+            />
+            <RescheduleModal
+                open={showRescheduleModal}
+                onClose={() => {
+                    setShowRescheduleModal(false);
+                    setRescheduleTask(null);
+                }}
+                task={rescheduleTask}
+                onRescheduleComplete={handleRescheduleComplete}
             />
             {(isSavingActivity || isSavingSubtasks) && (
                 <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -962,12 +1283,94 @@ const ActivityForm = () => {
                     {/* Paso 2: Plan de estudio / Subtareas */}
                     {currentStep === 2 && (
                         <>
+                            {/* ── Alertas de conflictos detectados ── */}
+                            {detectedConflicts.length > 0 && (
+                                <div data-conflict-alerts className="mb-6 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                        </svg>
+                                        <h3 className="text-sm font-bold text-amber-400">
+                                            {detectedConflicts.length} conflicto{detectedConflicts.length > 1 ? "s" : ""} de horas detectado{detectedConflicts.length > 1 ? "s" : ""}
+                                        </h3>
+                                    </div>
+
+                                    {detectedConflicts.map((conflict) => {
+                                        const dateLabel = (() => {
+                                            try {
+                                                return format(parseISO(conflict.date), "EEEE d 'de' MMM", { locale: es });
+                                            } catch {
+                                                return conflict.date;
+                                            }
+                                        })();
+                                        return (
+                                            <div
+                                                key={conflict.date}
+                                                className="flex items-center justify-between p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20"
+                                            >
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                                                        <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                        </svg>
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-bold text-white capitalize truncate">
+                                                            {dateLabel}
+                                                        </p>
+                                                        <p className="text-xs text-slate-400">
+                                                            <span className="text-red-400 font-bold">
+                                                                {conflict.totalHours.toFixed(1)}h
+                                                            </span>
+                                                            {" "}de{" "}
+                                                            <span className="text-white font-bold">
+                                                                {conflict.limitHours.toFixed(1)}h
+                                                            </span>
+                                                            {" "}límite · Exceso:{" "}
+                                                            <span className="text-red-400 font-bold">
+                                                                +{conflict.excessHours.toFixed(1)}h
+                                                            </span>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleOpenResolution(conflict)}
+                                                    className="shrink-0 ml-3 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
+                                                >
+                                                    Resolver conflicto
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
                             <div data-field="subtareas">
                                 <SubtaskForm
                                     subtareas={subtareas}
                                     onAdd={addSubtarea}
                                     onRemove={removeSubtarea}
-                                    onUpdate={updateSubtarea}
+                                    onUpdate={(id, field, value) => {
+                                        updateSubtarea(id, field, value);
+                                        // Si el usuario modifica un campo resaltado, quitar highlight
+                                        if (highlightedSubtasks[id]) {
+                                            const hlField = highlightedSubtasks[id];
+                                            if (
+                                                (hlField === "horas" && field === "horas") ||
+                                                (hlField === "fecha" && field === "fechaObjetivo")
+                                            ) {
+                                                handleClearHighlight(id);
+                                            }
+                                        }
+                                        // Si cambian horas o fecha, limpiar conflictos para que se re-detecten
+                                        if (field === "horas" || field === "fechaObjetivo") {
+                                            if (detectedConflicts.length > 0) {
+                                                setDetectedConflicts([]);
+                                                setConflictDates(new Set());
+                                            }
+                                        }
+                                    }}
                                     errors={errors.subtareas}
                                     fechaEntrega={fechaEntrega}
                                     onClearError={(subtaskId, field) => {
@@ -989,6 +1392,8 @@ const ActivityForm = () => {
                                             });
                                         }
                                     }}
+                                    highlightedSubtasks={highlightedSubtasks}
+                                    conflictDates={conflictDates}
                                 />
                             </div>
                         </>

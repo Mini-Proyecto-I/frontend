@@ -1,14 +1,16 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { parseISO, startOfDay, differenceInDays, format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, Info, CheckCircle2, Calendar, Pencil, Check, ChevronUp, ChevronDown, HelpCircle, CalendarRange } from "lucide-react";
+import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, Info, CheckCircle2, Calendar, Pencil, Check, ChevronUp, ChevronDown, HelpCircle, CalendarRange, Trash2 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import { useAuth } from "@/app/authContext";
-import { patchSubtask } from "@/api/services/subtack";
+import { patchSubtask, deleteSubtask } from "@/api/services/subtack";
+import { updateConfig, getConfig } from "@/api/services/config";
 import { queryCache } from "@/lib/queryCache";
 import { Input } from "@/shared/components/input";
 import { Button } from "@/shared/components/button";
+import EditSubtaskModal from "@/shared/components/EditSubtaskModal";
 import { OverloadAlert } from "@/features/today/components/OverloadAlert";
 import {
   Select,
@@ -46,6 +48,15 @@ function getRelativeDateLabel(targetDateStr: string) {
   return format(date, "EEEE", { locale: es }).toUpperCase();
 }
 
+function getFormattedDate(targetDateStr: string) {
+  if (!targetDateStr) return "";
+  try {
+    return format(parseISO(targetDateStr), "EEEE d 'de' MMMM", { locale: es });
+  } catch {
+    return targetDateStr;
+  }
+}
+
 
 
 export default function Today() {
@@ -53,6 +64,7 @@ export default function Today() {
   const location = useLocation();
   const navigate = useNavigate();
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [welcomeStep, setWelcomeStep] = useState(1);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [limitHours, setLimitHours] = useState(() => {
     const saved = window.localStorage.getItem("studyLimitHours");
@@ -63,39 +75,121 @@ export default function Today() {
   const [welcomeLimit, setWelcomeLimit] = useState("6");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<any | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editHours, setEditHours] = useState("");
-  const [editError, setEditError] = useState<string | null>(null);
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletingTask, setDeletingTask] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const openEditModal = (task: any) => {
-    setEditError(null);
     setEditingTask(task);
-    setEditTitle(String(task?.title ?? ""));
-    const h = task?.estimated_hours;
-    setEditHours(h === undefined || h === null ? "" : String(h));
     setIsEditModalOpen(true);
   };
 
-  const handleSaveLimit = () => {
+  const openDeleteModal = (task: any) => {
+    setDeletingTask(task);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!deletingTask) return;
+
+    setIsDeleting(true);
+    const activityId = deletingTask.activity?.id;
+    const subtaskId = deletingTask.id;
+
+    try {
+      await deleteSubtask(activityId, subtaskId);
+
+      // Remove from local state
+      setData((prev: any) => {
+        const filterList = (list: any[]) => list.filter((item) => item.id !== subtaskId);
+        return {
+          ...prev,
+          vencidas: filterList(prev.vencidas),
+          para_hoy: filterList(prev.para_hoy),
+          proximas: filterList(prev.proximas),
+        };
+      });
+
+      setTiempoData((prev: any[]) => prev.filter((t: any) => t.id !== subtaskId) as any);
+
+      queryCache.invalidate('activities');
+      refetch();
+      refetchTiempo();
+
+      setIsDeleteModalOpen(false);
+      setDeletingTask(null);
+    } catch (e: any) {
+      console.error("Error al eliminar subtarea:", e);
+      // You could add an error state here if needed
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleSaveLimit = async () => {
     let val = parseFloat(tempLimit);
     if (isNaN(val)) val = limitHours;
     if (val < 0.5) val = 0.5;
     if (val > 24) val = 24;
 
-    setLimitHours(val);
-    setTempLimit(val.toString());
-    window.localStorage.setItem("studyLimitHours", val.toString());
-    setIsEditingLimit(false);
+    try {
+      // Sincronizar con el backend
+      await updateConfig(val);
+      
+      // Actualizar estado local
+      setLimitHours(val);
+      setTempLimit(val.toString());
+      window.localStorage.setItem("studyLimitHours", val.toString());
+      setIsEditingLimit(false);
+      
+      // Refrescar datos para recalcular conflictos con el nuevo límite
+      refetch();
+    } catch (error) {
+      console.error("Error al actualizar límite diario:", error);
+      // Aún así guardar en localStorage para que el usuario vea el cambio
+      setLimitHours(val);
+      setTempLimit(val.toString());
+      window.localStorage.setItem("studyLimitHours", val.toString());
+      setIsEditingLimit(false);
+    }
   };
 
   useEffect(() => {
-    if (location.state?.justRegistered) {
+    // Verificar si el welcome está en progreso (persiste ante recargas)
+    const isFirstTime = window.localStorage.getItem("welcomeInProgress") === "true";
+    if (location.state?.justRegistered || isFirstTime) {
       setShowWelcomeModal(true);
-      // Limpiar state al montarse el componente para evitar que aparezca de nuevo al refrescar
-      navigate("/hoy", { replace: true, state: {} });
+      window.localStorage.setItem("welcomeInProgress", "true");
+      // Limpiar state al montarse el componente para evitar que aparezca de nuevo por state, 
+      // pero mantenemos el flag de localStorage hasta que termine.
+      if (location.state?.justRegistered) {
+        navigate("/hoy", { replace: true, state: {} });
+      }
     }
   }, [location.state, navigate]);
+
+  // Sincronizar el límite diario con la configuración del backend al montar
+  useEffect(() => {
+    const fetchUserLimit = async () => {
+      try {
+        const data = await getConfig();
+        const backendLimit = data?.daily_hours_limit;
+        if (backendLimit !== undefined && backendLimit !== null) {
+          const num = parseFloat(String(backendLimit));
+          if (!isNaN(num)) {
+            setLimitHours(num);
+            setTempLimit(num.toString());
+            window.localStorage.setItem("studyLimitHours", num.toString());
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching user config (daily_hours_limit):", error);
+        // Si falla, seguimos usando el valor de localStorage o el default de 6h
+      }
+    };
+
+    fetchUserLimit();
+  }, []);
 
   const [filters, setFilters] = useState({
     status: "",
@@ -122,6 +216,32 @@ export default function Today() {
     tiempoData,
     refetchTiempo
   } = useHoy(filters);
+
+  // Cargar límite desde el backend al montar el componente
+  useEffect(() => {
+    const loadLimitFromBackend = async () => {
+      try {
+        const config = await getConfig();
+        if (config?.daily_hours_limit) {
+          const backendLimit = parseFloat(config.daily_hours_limit);
+          const currentLimit = parseFloat(window.localStorage.getItem("studyLimitHours") || "6");
+          
+          // Solo actualizar si es diferente para evitar refrescos innecesarios
+          if (Math.abs(backendLimit - currentLimit) > 0.01) {
+            setLimitHours(backendLimit);
+            setTempLimit(backendLimit.toString());
+            window.localStorage.setItem("studyLimitHours", backendLimit.toString());
+            // Refrescar datos para recalcular conflictos con el límite correcto
+            refetch();
+          }
+        }
+      } catch (error) {
+        console.error("Error al cargar límite desde backend:", error);
+        // Si falla, usar el valor de localStorage como fallback
+      }
+    };
+    loadLimitFromBackend();
+  }, [refetch]);
 
   const handleToggleSubtask = async (activityId: string, subtaskId: string, currentStatus: string) => {
     const newStatus = currentStatus === "DONE" ? "PENDING" : "DONE";
@@ -197,7 +317,15 @@ export default function Today() {
   const conflictedCount = conflictedTasks.length;
 
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
-  const [showConflictResolvedModal, setShowConflictResolvedModal] = useState(false);
+  const [showConflictOutcomeModal, setShowConflictOutcomeModal] = useState(false);
+  const [conflictOutcome, setConflictOutcome] = useState<null | {
+    dateKey: string;
+    usedHours: number;
+    limitHours: number;
+    availableHours: number;
+    overworkHours: number;
+    resolved: boolean;
+  }>(null);
   const [selectedConflictId, setSelectedConflictId] = useState<string | null>(null);
   const [reduceHours, setReduceHours] = useState("");
   const [reduceError, setReduceError] = useState<string | null>(null);
@@ -205,7 +333,7 @@ export default function Today() {
 
   const selectedConflict = useMemo<any | null>(() => {
     if (conflictedTasks.length === 0) return null;
-    return conflictedTasks.find((t: any) => t.id === selectedConflictId) ?? conflictedTasks[0];
+    return conflictedTasks.find((t: any) => String(t.id) === String(selectedConflictId)) ?? conflictedTasks[0];
   }, [conflictedTasks, selectedConflictId]);
 
   useEffect(() => {
@@ -219,9 +347,9 @@ export default function Today() {
     setIsConflictModalOpen(true);
 
     // Mantener selección estable.
-    const stillExists = conflictedTasks.some((t: any) => t.id === selectedConflictId);
+    const stillExists = conflictedTasks.some((t: any) => String(t.id) === String(selectedConflictId));
     if (!selectedConflictId || !stillExists) {
-      setSelectedConflictId(conflictedTasks[0].id);
+      setSelectedConflictId(String(conflictedTasks[0].id));
     }
   }, [conflictedTasks, selectedConflictId]);
 
@@ -233,14 +361,78 @@ export default function Today() {
       setReduceHours("");
       return;
     }
-    // Sugerencia por defecto: reducir 0.5h sin bajar de 0.5
-    const suggested = Math.max(0.5, Math.round((current - 0.5) * 10) / 10);
+    // Sugerencia por defecto: reducir exactamente el sobretrabajo,
+    // sin bajar de 0.5h como límite mínimo.
+    const dayKey = selectedConflict?.target_date;
+    const stats = computeDayLoadForDateKey(dayKey);
+    const over = stats.overworkHours || 0;
+
+    let suggested = current;
+    if (over > 0) {
+      suggested = current - over;
+    } else {
+      // Si no hay sobretrabajo, sugerimos reducir 0.5h como antes.
+      suggested = current - 0.5;
+    }
+
+    // Redondeo a 0.1h y respetar límite inferior 0.5h
+    suggested = Math.max(0.5, Math.round(suggested * 10) / 10);
     setReduceHours(String(suggested));
   }, [selectedConflict?.id]);
 
   const handleMoveConflictTask = () => {
+    if (!selectedConflict) return;
     setIsConflictModalOpen(false);
-    navigate("/calendario");
+    const targetDate = selectedConflict?.target_date;
+    const estimatedHours = parseFloat(String(selectedConflict?.estimated_hours || 0)) || 0;
+
+    // En este flujo, queremos que el calendario:
+    // - abra la semana de la tarea en conflicto
+    // - la deje seleccionada para reubicar inmediatamente
+    // - pueda devolver un resultado para mostrar un modal de éxito / pendiente en Hoy
+    navigate("/calendario", {
+      state: {
+        focusDate: targetDate,
+        returnTo: "hoy",
+        conflictDateKey: targetDate,
+        reprogramSubtask: {
+          id: selectedConflict.id,
+          activityId: selectedConflict.activity?.id,
+          title: selectedConflict.title,
+          deadline: selectedConflict.activity?.deadline,
+          dateKey: targetDate,
+          durationNum: estimatedHours,
+        },
+      },
+    });
+  };
+
+  const computeDayLoadForDateKey = (dateKey?: string | null) => {
+    if (!dateKey) {
+      return {
+        dateKey: "",
+        usedHours: 0,
+        limitHours,
+        availableHours: Math.max(0, limitHours),
+        overworkHours: 0,
+        resolved: true,
+      };
+    }
+    const all = [...(vencidas || []), ...(para_hoy || []), ...(proximas || [])];
+    const used = all
+      .filter((t: any) => t?.status !== "DONE" && t?.target_date === dateKey)
+      .reduce((acc: number, t: any) => acc + (parseFloat(String(t?.estimated_hours || 0)) || 0), 0);
+
+    const available = Math.max(0, limitHours - used);
+    const overwork = Math.max(0, used - limitHours);
+    return {
+      dateKey,
+      usedHours: used,
+      limitHours,
+      availableHours: available,
+      overworkHours: overwork,
+      resolved: used <= limitHours,
+    };
   };
 
   const handleReduceConflictHours = async () => {
@@ -295,13 +487,30 @@ export default function Today() {
       refetch();
       refetchTiempo();
       setIsConflictModalOpen(false);
-      setShowConflictResolvedModal(true);
+
+      // Determinar resultado (éxito vs pendiente) con el estado del día al que pertenece la subtarea
+      const outcome = computeDayLoadForDateKey(selectedConflict?.target_date);
+      setConflictOutcome(outcome);
+      setShowConflictOutcomeModal(true);
     } catch (e: any) {
       setReduceError("No se pudo actualizar las horas. Intenta de nuevo.");
     } finally {
       setIsReducing(false);
     }
   };
+
+  // Si venimos de Calendario con un resultado de reubicación, mostrar modal con el mismo diseño.
+  useEffect(() => {
+    const incoming = (location.state as any)?.conflictOutcome;
+    if (!incoming) return;
+
+    setConflictOutcome(incoming);
+    setShowConflictOutcomeModal(true);
+
+    // Limpiar state para evitar que se re-muestre.
+    navigate(location.pathname, { replace: true, state: {} });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   // Filter lists locally by search query
   const searchFilter = (item: any) => { 
@@ -321,7 +530,7 @@ export default function Today() {
 
   const pendingTodayCount = filteredParaHoy.filter((t: any) => t.status !== "DONE").length;
 
-  if (!loading && !hasActiveFilters && vencidas.length === 0 && para_hoy.length === 0 && proximas.length === 0) {
+  if (!loading && !hasActiveFilters && vencidas.length === 0 && para_hoy.length === 0 && proximas.length === 0 && !showWelcomeModal) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-120px)] w-full px-4 text-center animate-in fade-in zoom-in-[0.98] duration-700">
         <div className="relative mb-14">
@@ -434,6 +643,7 @@ export default function Today() {
                         theme="red"
                         onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
                         onEdit={() => openEditModal(item)}
+                        onDelete={() => openDeleteModal(item)}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
                       />
                     ))}
@@ -468,6 +678,7 @@ export default function Today() {
                         theme="emerald"
                         onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
                         onEdit={() => openEditModal(item)}
+                        onDelete={() => openDeleteModal(item)}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
                       />
                     ))}
@@ -512,6 +723,7 @@ export default function Today() {
                         theme="blue"
                         onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
                         onEdit={() => openEditModal(item)}
+                        onDelete={() => openDeleteModal(item)}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
                       />
                     ))}
@@ -772,98 +984,147 @@ export default function Today() {
       {/* Welcome Modal */}
       {showWelcomeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#111827] border border-slate-800 rounded-3xl p-8 flex flex-col items-center text-center shadow-2xl max-w-[520px] w-full mx-4 relative overflow-hidden">
+          <div className="bg-[#111827] border border-slate-800 rounded-3xl p-8 flex flex-col items-center text-center shadow-2xl max-w-[520px] w-full mx-4 relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
 
-            <div className="w-12 h-12 bg-blue-500/20 border border-blue-500/30 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/10">
-              <Info className="w-6 h-6 text-blue-400" />
-            </div>
-
-            <h3 className="text-2xl font-extrabold text-white mb-4 tracking-tight">
-              Vista <span className="text-blue-400">Hoy</span>: orden de prioridad
-            </h3>
-            <p className="text-slate-400 text-sm mb-6 px-2">
-              Esta pantalla sigue una regla clara para que sepas qué atender primero:
-            </p>
-
-            <div className="flex flex-col gap-5 text-left w-full mb-8 pl-8 pr-4">
-              <div className="flex items-start gap-4">
-                <div className="bg-emerald-400/10 p-2.5 rounded-xl border border-emerald-400/20 mt-0.5">
-                  <CalendarDays className="w-5 h-5 text-emerald-400 shrink-0" />
+            {welcomeStep === 1 ? (
+              <>
+                <div className="w-12 h-12 bg-blue-500/20 border border-blue-500/30 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/10">
+                  <Info className="w-6 h-6 text-blue-400" />
                 </div>
-                <div>
-                  <p className="text-emerald-400 text-[15px] font-bold leading-snug mb-1">
-                    1. Tareas de hoy (prioridad)
-                  </p>
-                  <p className="text-slate-400 text-[13px] leading-relaxed">
-                    Lo primero que verás son las tareas del día. Son tu prioridad: complétalas primero. Se muestran ordenadas de menor a mayor tiempo estimado.
-                  </p>
-                </div>
-              </div>
 
-              <div className="flex items-start gap-4">
-                <div className="bg-orange-500/10 p-2.5 rounded-xl border border-orange-500/20 mt-0.5">
-                  <Clock className="w-5 h-5 text-orange-500 shrink-0" />
-                </div>
-                <div>
-                  <p className="text-orange-500 text-[15px] font-bold leading-snug mb-1">
-                    2. Límite de horas
-                  </p>
-                  <p className="text-slate-400 text-[13px] leading-relaxed">
-                    En segundo lugar, revisa tu tiempo de estudio diario. No te pases del límite que definiste; si te pasas, la barra te avisará.
-                  </p>
-                </div>
-              </div>
+                <h3 className="text-2xl font-extrabold text-white mb-4 tracking-tight">
+                  Vista <span className="text-blue-400">Hoy</span>: orden de prioridad
+                </h3>
+                <p className="text-slate-400 text-sm mb-6 px-2">
+                  Esta pantalla sigue una regla clara para que sepas qué atender primero:
+                </p>
 
-              <div className="flex items-start gap-4">
-                <div className="bg-blue-500/10 p-2.5 rounded-xl border border-blue-500/20 mt-0.5">
-                  <CalendarClock className="w-5 h-5 text-blue-400 shrink-0" />
+                <div className="flex flex-col gap-5 text-left w-full mb-8 pl-8 pr-4">
+                  <div className="flex items-start gap-4">
+                    <div className="bg-emerald-400/10 p-2.5 rounded-xl border border-emerald-400/20 mt-0.5">
+                      <CalendarDays className="w-5 h-5 text-emerald-400 shrink-0" />
+                    </div>
+                    <div>
+                      <p className="text-emerald-400 text-[15px] font-bold leading-snug mb-1">
+                        1. Tareas de hoy (prioridad)
+                      </p>
+                      <p className="text-slate-400 text-[13px] leading-relaxed">
+                        Lo primero que verás son las tareas del día. Son tu prioridad: complétalas primero. Se muestran ordenadas de menor a mayor tiempo estimado.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <div className="bg-orange-500/10 p-2.5 rounded-xl border border-orange-500/20 mt-0.5">
+                      <Clock className="w-5 h-5 text-orange-500 shrink-0" />
+                    </div>
+                    <div>
+                      <p className="text-orange-500 text-[15px] font-bold leading-snug mb-1">
+                        2. Límite de horas
+                      </p>
+                      <p className="text-slate-400 text-[13px] leading-relaxed">
+                        En segundo lugar, revisa tu tiempo de estudio diario. No te pases del límite que definiste; si te pasas, la barra te avisará.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <div className="bg-blue-500/10 p-2.5 rounded-xl border border-blue-500/20 mt-0.5">
+                      <CalendarClock className="w-5 h-5 text-blue-400 shrink-0" />
+                    </div>
+                    <div>
+                      <p className="text-blue-400 text-[15px] font-bold leading-snug mb-1">
+                        3. Vencidas y próximas
+                      </p>
+                      <p className="text-slate-400 text-[13px] leading-relaxed">
+                        Por último, usa las pestañas para ver lo atrasado (vencidas) y lo que viene (próximas), y así tener el panorama completo.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-blue-400 text-[15px] font-bold leading-snug mb-1">
-                    3. Vencidas y próximas
-                  </p>
-                  <p className="text-slate-400 text-[13px] leading-relaxed">
-                    Por último, usa las pestañas para ver lo atrasado (vencidas) y lo que viene (próximas), y así tener el panorama completo.
-                  </p>
+
+                <p className="text-slate-400 text-[13px] font-medium mt-2 mb-8 px-4">
+                  Puedes filtrar por nombre, curso y estado cuando lo necesites.
+                </p>
+
+                <Button
+                  onClick={() => setWelcomeStep(2)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-10 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all w-full sm:w-auto"
+                >
+                  Continuar
+                </Button>
+              </>
+            ) : (
+              <>
+                <div className="w-14 h-14 bg-blue-500/20 border border-blue-500/30 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-500/10">
+                  <Clock className="w-7 h-7 text-blue-400" />
                 </div>
-              </div>
-            </div>
 
-            <p className="text-slate-400 text-[13px] font-medium mt-2 mb-6 px-4">
-              Puedes filtrar por nombre, curso y estado cuando lo necesites.
-            </p>
+                <h3 className="text-2xl font-extrabold text-white mb-4 tracking-tight">
+                  Límite de <span className="text-blue-400">estudio</span>
+                </h3>
+                <p className="text-slate-400 text-[15px] mb-8 px-4 leading-relaxed">
+                  ¿Cuántas horas quieres dedicar al estudio cada día? Te avisaremos si tus tareas superan este límite.
+                </p>
 
-            <div className="mb-8 w-full px-4">
-              <label className="text-sm font-semibold text-slate-300 block mb-3">
-                ¿Cuántas horas planeas estudiar al día?
-              </label>
-              <Input
-                type="number"
-                step="0.5"
-                min="0.5"
-                max="24"
-                value={welcomeLimit}
-                onChange={(e) => setWelcomeLimit(e.target.value)}
-                className="w-full h-12 text-center bg-[#1F2937]/50 border-slate-700/50 focus-visible:ring-blue-500 text-white font-bold text-lg rounded-xl"
-              />
-            </div>
+                <div className="mb-10 w-full px-6">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-3">
+                    Horas diarias sugeridas
+                  </label>
+                  <div className="relative group">
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      max="24"
+                      value={welcomeLimit}
+                      onChange={(e) => setWelcomeLimit(e.target.value)}
+                      className="w-full h-16 text-center bg-slate-900/50 border-slate-700/50 focus-visible:ring-blue-500 text-white font-black text-3xl rounded-2xl transition-all group-hover:bg-slate-900"
+                    />
+                    <div className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-lg pointer-events-none">
+                      Horas
+                    </div>
+                  </div>
+                </div>
 
-            <Button
-              onClick={() => {
-                let val = parseFloat(welcomeLimit);
-                if (isNaN(val)) val = 6;
-                if (val < 0.5) val = 0.5;
-                if (val > 24) val = 24;
-                setLimitHours(val);
-                setTempLimit(val.toString());
-                window.localStorage.setItem("studyLimitHours", val.toString());
-                setShowWelcomeModal(false);
-              }}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all w-full sm:w-auto"
-            >
-              Comenzar
-            </Button>
+                <div className="flex flex-col sm:flex-row gap-3 w-full justify-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => setWelcomeStep(1)}
+                    className="h-11 px-8 rounded-xl border-slate-700 text-slate-400 hover:bg-slate-800"
+                  >
+                    Atrás
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      let val = parseFloat(welcomeLimit);
+                      if (isNaN(val)) val = 6;
+                      if (val < 0.5) val = 0.5;
+                      if (val > 24) val = 24;
+
+                      setLimitHours(val);
+                      const normalized = val.toString();
+                      setTempLimit(normalized);
+                      window.localStorage.setItem("studyLimitHours", normalized);
+
+                      // Persistir también en el backend como configuración del usuario
+                      try {
+                        await updateConfig(val);
+                      } catch (error) {
+                        console.error("Error updating user config from welcome modal:", error);
+                      }
+
+                      window.localStorage.removeItem("welcomeInProgress");
+                      setShowWelcomeModal(false);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-10 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all"
+                  >
+                    Comenzar ahora
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -938,7 +1199,7 @@ export default function Today() {
       {/* Conflict Alert Modal */}
       {isConflictModalOpen && conflictedCount > 0 && selectedConflict && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-          <div className="w-full max-w-[560px] bg-[#111827] border border-[#F59E0B]/30 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
+          <div className="w-full max-w-[560px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
             <div className="p-6 sm:p-7 relative">
               <button
                 type="button"
@@ -949,15 +1210,15 @@ export default function Today() {
                 <X className="w-5 h-5" />
               </button>
 
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-[#F59E0B]/10 border border-[#F59E0B]/20 flex items-center justify-center shrink-0">
+              <div className="flex items-start gap-4 pr-8">
+                <div className="w-12 h-12 rounded-2xl bg-[#F59E0B]/10 border border-[#F59E0B]/25 flex items-center justify-center shrink-0">
                   <AlertCircle className="w-6 h-6 text-[#F59E0B]" />
                 </div>
-                <div className="pr-8">
+                <div>
                   <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
                     Conflicto detectado
                   </h3>
-                  <p className="text-slate-400 text-sm mt-1 leading-relaxed">
+                  <p className="text-slate-400 text-base mt-1.5 leading-relaxed">
                     Tienes{" "}
                     <span className="text-white font-semibold">{conflictedCount}</span>{" "}
                     {conflictedCount === 1 ? "tarea" : "tareas"} en conflicto. Puedes resolverlo moviendo la tarea o reduciendo sus horas.
@@ -965,82 +1226,160 @@ export default function Today() {
                 </div>
               </div>
 
-              <div className="mt-6 bg-slate-900/40 border border-slate-800 rounded-2xl p-4">
+              <div className="mt-6 space-y-4">
+                {/* Selector de tarea */}
                 {conflictedCount > 1 && (
-                  <div className="mb-4">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                      Tarea en conflicto
+                  <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-4">
+                    <label className="text-sm font-bold text-slate-400 uppercase tracking-wider block mb-3">
+                      Seleccionar tarea
                     </label>
-                    <select
-                      value={selectedConflictId ?? selectedConflict.id}
-                      onChange={(e) => setSelectedConflictId(e.target.value)}
-                      className="mt-2 w-full h-11 rounded-xl bg-[#1F2937]/60 border border-slate-700/60 text-slate-200 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                    >
+                    <div className="relative">
+                      <select
+                        value={String(selectedConflictId ?? selectedConflict.id)}
+                        onChange={(e) => setSelectedConflictId(e.target.value)}
+                        className="w-full h-12 rounded-xl bg-[#1F2937]/60 border border-slate-700/60 text-slate-200 text-base font-medium pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500/50 cursor-pointer appearance-none"
+                      >
                       {conflictedTasks.map((t: any) => (
-                        <option key={t.id} value={t.id}>
+                        <option key={t.id} value={String(t.id)}>
                           {(t.activity?.title ? `${t.activity.title} — ` : "") + t.title}
                         </option>
                       ))}
-                    </select>
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                    </div>
                   </div>
                 )}
 
-                <div className="space-y-1">
-                  <p className="text-sm font-bold text-white">
+                {/* Info de la tarea seleccionada */}
+                <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5">
+                  <h4 className="text-lg font-bold text-white leading-snug mb-2">
                     {selectedConflict.title}
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    Actividad:{" "}
-                    <span className="text-slate-200 font-semibold">
-                      {selectedConflict.activity?.title || "Actividad"}
+                  </h4>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-base text-slate-300">
+                    <span>
+                      <span className="text-slate-500 font-medium">Actividad:</span>{" "}
+                      <span className="font-semibold text-slate-200">{selectedConflict.activity?.title || "Actividad"}</span>
                     </span>
-                    {" · "}
-                    Horas actuales:{" "}
-                    <span className="text-slate-200 font-semibold">
-                      {parseFloat(String(selectedConflict.estimated_hours ?? 0)).toFixed(2)}h
+                    <span className="flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-slate-500" />
+                      <span className="font-semibold text-slate-200">
+                        {parseFloat(String(selectedConflict.estimated_hours ?? 0)).toFixed(1)}h
+                      </span>
                     </span>
-                  </p>
+                  </div>
                 </div>
 
-                <div className="mt-4">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                {/* Resumen del día: fecha, usadas/límite, sobretrabajo */}
+                {(() => {
+                  const dayKey = selectedConflict?.target_date;
+                  const stats = computeDayLoadForDateKey(dayKey);
+                  const label = dayKey ? getRelativeDateLabel(dayKey) : "";
+                  const dateFormatted = dayKey ? getFormattedDate(dayKey) : "";
+                  const over = stats.overworkHours;
+                  return (
+                    <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5">
+                      <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Resumen del día</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-slate-500 text-sm font-medium mb-0.5">Fecha</p>
+                          <p className="text-lg font-bold text-white capitalize">{dateFormatted || "—"}</p>
+                          {label && !label.startsWith("HACE") && (
+                            <p className="text-sm text-slate-500 mt-1">{label}</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-slate-500 text-sm font-medium mb-0.5">Horas usadas / Límite</p>
+                          <p className="text-lg font-bold text-amber-400">
+                            {(stats.usedHours % 1 === 0 ? stats.usedHours : stats.usedHours.toFixed(1))}h / {stats.limitHours}h
+                          </p>
+                        </div>
+                        {over > 0 && (
+                          <div className="sm:col-span-2">
+                            <p className="text-slate-500 text-sm font-medium mb-0.5">Sobretrabajo</p>
+                            <p className="text-base font-bold text-[#F59E0B]">
+                              +{(over % 1 === 0 ? over : over.toFixed(1))}h sobre el límite
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Reducir horas */}
+                <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5">
+                  <label className="text-sm font-bold text-slate-400 uppercase tracking-wider block mb-3">
                     Reducir horas (debe ser menor)
                   </label>
-                  <div className="mt-2 flex gap-3 items-center">
+                  <div className="flex gap-3 items-center flex-wrap">
                     <Input
                       type="number"
                       step="0.25"
-                      min="0.25"
+                      min="0.5"
+                      max={selectedConflict?.estimated_hours ?? undefined}
                       value={reduceHours}
-                      onChange={(e) => setReduceHours(e.target.value)}
-                      className="h-11 bg-[#1F2937]/60 border-slate-700/60 text-slate-200 rounded-xl focus-visible:ring-blue-500"
+                      onKeyDown={(e) => {
+                        // Evitar ingresar el carácter '-' (valores negativos)
+                        if (e.key === "-" || e.key === "Minus") {
+                          e.preventDefault();
+                        }
+                      }}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (!selectedConflict) {
+                          setReduceHours(raw);
+                          return;
+                        }
+
+                        const current = parseFloat(String(selectedConflict.estimated_hours ?? 0));
+                        let num = parseFloat(raw);
+
+                        if (!Number.isFinite(num)) {
+                          setReduceHours(raw);
+                          return;
+                        }
+
+                        // Límite superior: no más que las horas actuales
+                        if (Number.isFinite(current) && current > 0 && num > current) {
+                          num = current;
+                        }
+
+                        // Límite inferior: nunca menos de 0.5h (evita negativos y valores absurdamente pequeños)
+                        if (num < 0.5) {
+                          num = 0.5;
+                        }
+
+                        setReduceHours(String(num));
+                      }}
+                      className="h-12 w-24 text-base font-semibold bg-[#1F2937]/60 border-slate-700/60 text-slate-200 rounded-xl focus-visible:ring-2 focus-visible:ring-blue-500"
                     />
                     <Button
                       onClick={handleReduceConflictHours}
                       disabled={isReducing}
-                      className="h-11 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-600/20"
+                      className="h-12 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-600/20 text-base"
                     >
                       Reducir horas
                     </Button>
                   </div>
                   {reduceError && (
-                    <p className="text-[#F59E0B] text-xs font-semibold mt-2">
+                    <p className="text-[#F59E0B] text-sm font-semibold mt-2">
                       {reduceError}
                     </p>
                   )}
                 </div>
 
-                <div className="mt-5 flex flex-col sm:flex-row gap-3">
+                {/* Acciones */}
+                <div className="flex flex-col sm:flex-row gap-3 pt-1">
                   <Button
                     onClick={handleMoveConflictTask}
-                    className="h-11 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-extrabold shadow-lg shadow-emerald-500/20"
+                    className="h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold shadow-lg shadow-blue-600/20 text-base"
                   >
                     Mover tarea
                   </Button>
                   <Button
                     variant="outline"
                     onClick={() => setIsConflictModalOpen(false)}
-                    className="h-11 rounded-xl bg-transparent border-slate-700 text-slate-200 hover:bg-slate-800/60 hover:text-white"
+                    className="h-12 rounded-xl border-slate-700 bg-slate-800/50 hover:bg-slate-700/60 text-slate-200 font-bold text-base"
                   >
                     Más tarde
                   </Button>
@@ -1051,23 +1390,62 @@ export default function Today() {
         </div>
       )}
 
-      {/* Conflicto solucionado modal */}
-      {showConflictResolvedModal && (
+      {/* Modal resultado (solucionado vs pendiente) */}
+      {showConflictOutcomeModal && conflictOutcome && (
         <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-          <div className="w-full max-w-[400px] bg-[#111827] border border-emerald-500/30 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
+          <div
+            className={`w-full max-w-[440px] bg-[#111827] rounded-3xl shadow-2xl shadow-black/60 overflow-hidden border ${
+              conflictOutcome.resolved ? "border-emerald-500/30" : "border-[#F59E0B]/30"
+            }`}
+          >
             <div className="p-6 sm:p-7 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto mb-4">
-                <CheckCircle2 className="w-8 h-8 text-emerald-400" strokeWidth={2} />
+              <div
+                className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 border ${
+                  conflictOutcome.resolved
+                    ? "bg-emerald-500/20 border-emerald-500/30"
+                    : "bg-[#F59E0B]/10 border-[#F59E0B]/25"
+                }`}
+              >
+                {conflictOutcome.resolved ? (
+                  <CheckCircle2 className="w-8 h-8 text-emerald-400" strokeWidth={2} />
+                ) : (
+                  <AlertCircle className="w-8 h-8 text-[#F59E0B]" strokeWidth={2} />
+                )}
               </div>
+
               <h3 className="text-xl font-extrabold text-white tracking-tight">
-                Conflicto solucionado
+                {conflictOutcome.resolved ? "Conflicto solucionado" : "Aún hay conflicto"}
               </h3>
-              <p className="text-slate-400 text-sm mt-2">
-                Los cambios se aplicaron correctamente. Si el día ya no está sobrecargado, la tarea ya no aparecerá en conflicto.
+
+              <p className="text-slate-400 text-base mt-3 leading-relaxed">
+                {conflictOutcome.resolved ? (
+                  <>
+                    Para el día <span className="text-white font-bold">{getRelativeDateLabel(conflictOutcome.dateKey)}</span> ya no hay conflicto.
+                    Te quedan{" "}
+                    <span className="text-emerald-300 font-extrabold">
+                      {conflictOutcome.availableHours % 1 === 0 ? conflictOutcome.availableHours : conflictOutcome.availableHours.toFixed(1)}h
+                    </span>{" "}
+                    disponibles.
+                  </>
+                ) : (
+                  <>
+                    El día <span className="text-white font-bold">{getRelativeDateLabel(conflictOutcome.dateKey)}</span> sigue sobrecargado.
+                    Hay un sobretrabajo de{" "}
+                    <span className="text-[#F59E0B] font-extrabold">
+                      {conflictOutcome.overworkHours % 1 === 0 ? conflictOutcome.overworkHours : conflictOutcome.overworkHours.toFixed(1)}h
+                    </span>{" "}
+                    sobre tu límite de{" "}
+                    <span className="text-slate-200 font-bold">{conflictOutcome.limitHours}h</span>.
+                  </>
+                )}
               </p>
+
               <Button
-                onClick={() => setShowConflictResolvedModal(false)}
-                className="mt-5 w-full h-11 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-bold"
+                onClick={() => {
+                  setShowConflictOutcomeModal(false);
+                  setConflictOutcome(null);
+                }}
+                className="mt-6 w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-600/20 text-base"
               >
                 Entendido
               </Button>
@@ -1077,140 +1455,136 @@ export default function Today() {
       )}
 
       {/* Edit Subtask Modal */}
-      {isEditModalOpen && editingTask && (
+      <EditSubtaskModal
+        open={Boolean(isEditModalOpen && editingTask)}
+        onOpenChange={(open) => {
+          setIsEditModalOpen(open);
+          if (!open) setEditingTask(null);
+        }}
+        initialTitle={String(editingTask?.title ?? "")}
+        initialHours={editingTask?.estimated_hours}
+        onReprogram={() => {
+          if (!editingTask) return;
+          const targetDate = editingTask.target_date;
+          const estimatedHours = parseFloat(String(editingTask.estimated_hours || 0)) || 0;
+          navigate("/calendario", {
+            state: {
+              focusDate: targetDate,
+              reprogramSubtask: {
+                id: editingTask.id,
+                activityId: editingTask.activity?.id,
+                title: editingTask.title,
+                deadline: editingTask.activity?.deadline,
+                dateKey: targetDate,
+                durationNum: estimatedHours,
+              },
+            },
+          });
+        }}
+        onSave={async ({ title, estimatedHours }) => {
+          if (!editingTask) return { ok: false, error: "No hay subtarea seleccionada." };
+
+          const activityId = editingTask.activity?.id;
+          const subtaskId = editingTask.id;
+
+          try {
+            await patchSubtask(activityId, subtaskId, {
+              title,
+              estimated_hours: estimatedHours,
+            });
+
+            setData((prev: any) => {
+              const updateList = (list: any[]) =>
+                list.map((item) =>
+                  item.id === subtaskId
+                    ? { ...item, title, estimated_hours: estimatedHours }
+                    : item
+                );
+              return {
+                ...prev,
+                vencidas: updateList(prev.vencidas),
+                para_hoy: updateList(prev.para_hoy),
+                proximas: updateList(prev.proximas),
+              };
+            });
+            setTiempoData((prev: any[]) =>
+              prev.map((t: any) => (t.id === subtaskId ? { ...t, estimated_hours: estimatedHours } : t)) as any
+            );
+
+            refetch();
+            refetchTiempo();
+
+            setIsEditModalOpen(false);
+            setEditingTask(null);
+            return { ok: true };
+          } catch {
+            return { ok: false, error: "No se pudo guardar. Intenta de nuevo." };
+          }
+        }}
+      />
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && deletingTask && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
           <div className="w-full max-w-[560px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
             <div className="p-6 sm:p-7 relative">
               <button
                 type="button"
                 onClick={() => {
-                  setIsEditModalOpen(false);
-                  setEditingTask(null);
+                  setIsDeleteModalOpen(false);
+                  setDeletingTask(null);
                 }}
                 className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
                 aria-label="Cerrar"
+                disabled={isDeleting}
               >
                 <X className="w-5 h-5" />
               </button>
 
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
-                  <Pencil className="w-6 h-6 text-blue-400" />
+                <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-6 h-6 text-red-400" />
                 </div>
                 <div className="pr-8">
                   <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-                    Editar subtarea
+                    Eliminar subtarea
                   </h3>
                   <p className="text-slate-400 text-sm mt-1 leading-relaxed">
-                    Puedes ajustar el título y las horas. Para cambiar la fecha, usa{" "}
-                    <span className="text-blue-300 font-semibold">Reprogramar</span>.
+                    ¿Estás seguro que quieres eliminar la subtarea{" "}
+                    <span className="text-red-300 font-semibold">"{deletingTask.title}"</span>?
+                    Esta acción no se puede deshacer.
                   </p>
                 </div>
               </div>
 
-              <div className="mt-6 bg-slate-900/40 border border-slate-800 rounded-2xl p-4 space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Título
-                  </label>
-                  <Input
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    className="h-11 bg-[#1F2937]/60 border-slate-700/60 text-slate-200 rounded-xl focus-visible:ring-blue-500"
-                    placeholder="Título de la subtarea"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Horas estimadas
-                  </label>
-                  <Input
-                    type="number"
-                    step="0.25"
-                    min="0.25"
-                    value={editHours}
-                    onChange={(e) => setEditHours(e.target.value)}
-                    className="h-11 bg-[#1F2937]/60 border-slate-700/60 text-slate-200 rounded-xl focus-visible:ring-blue-500"
-                  />
-                </div>
-
-                {editError && (
-                  <p className="text-red-400 text-xs font-semibold">
-                    {editError}
-                  </p>
-                )}
-
-                <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                  <Button
-                    onClick={() => navigate("/calendario")}
-                    className="h-11 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold border border-slate-700"
-                  >
-                    <CalendarRange className="w-4 h-4 mr-2" />
-                    Reprogramar
-                  </Button>
-                  <Button
-                    disabled={isSavingEdit}
-                    onClick={async () => {
-                      if (!editingTask) return;
-                      setEditError(null);
-
-                      const nextTitle = editTitle.trim();
-                      if (!nextTitle) {
-                        setEditError("El título no puede estar vacío.");
-                        return;
-                      }
-
-                      const nextHours = parseFloat(String(editHours));
-                      if (!Number.isFinite(nextHours) || nextHours <= 0) {
-                        setEditError("Ingresa horas válidas (mayores a 0).");
-                        return;
-                      }
-
-                      setIsSavingEdit(true);
-                      const activityId = editingTask.activity?.id;
-                      const subtaskId = editingTask.id;
-
-                      try {
-                        await patchSubtask(activityId, subtaskId, {
-                          title: nextTitle,
-                          estimated_hours: nextHours,
-                        });
-
-                        setData((prev: any) => {
-                          const updateList = (list: any[]) =>
-                            list.map((item) =>
-                              item.id === subtaskId
-                                ? { ...item, title: nextTitle, estimated_hours: nextHours }
-                                : item
-                            );
-                          return {
-                            ...prev,
-                            vencidas: updateList(prev.vencidas),
-                            para_hoy: updateList(prev.para_hoy),
-                            proximas: updateList(prev.proximas),
-                          };
-                        });
-                        setTiempoData((prev: any[]) =>
-                          prev.map((t: any) => (t.id === subtaskId ? { ...t, estimated_hours: nextHours } : t)) as any
-                        );
-
-                        refetch();
-                        refetchTiempo();
-
-                        setIsEditModalOpen(false);
-                        setEditingTask(null);
-                      } catch (e: any) {
-                        setEditError("No se pudo guardar. Intenta de nuevo.");
-                      } finally {
-                        setIsSavingEdit(false);
-                      }
-                    }}
-                    className="h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold shadow-lg shadow-blue-600/20"
-                  >
-                    Guardar cambios
-                  </Button>
-                </div>
+              <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                <Button
+                  onClick={() => {
+                    setIsDeleteModalOpen(false);
+                    setDeletingTask(null);
+                  }}
+                  disabled={isDeleting}
+                  className="h-11 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold border border-slate-700"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  disabled={isDeleting}
+                  onClick={handleDelete}
+                  className="h-11 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold shadow-lg shadow-red-600/20 flex items-center justify-center gap-2"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Eliminando...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Eliminar
+                    </>
+                  )}
+                </Button>
               </div>
             </div>
           </div>
@@ -1350,12 +1724,30 @@ function ScrollableTaskSection({ children }: { children: React.ReactNode }) {
 }
 
 // Sub-component for individual tasks matching the requested UI
-function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void, onEdit: () => void, onViewConflict?: () => void }) {
+function TaskCard({ item, badge, theme, onToggle, onEdit, onDelete, onViewConflict }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void, onEdit: () => void, onDelete: () => void, onViewConflict?: () => void }) {
   const navigate = useNavigate();
   const isDone = item.status === "DONE";
   const isConflicted = !isDone && !!item?.is_conflicted;
   const courseName = item.activity?.course?.name || "Actividad";
   const title = item.title;
+
+  const handleReprogram = () => {
+    const targetDate = item?.target_date;
+    const estimatedHours = parseFloat(String(item?.estimated_hours || 0)) || 0;
+    navigate("/calendario", {
+      state: {
+        focusDate: targetDate,
+        reprogramSubtask: {
+          id: item?.id,
+          activityId: item?.activity?.id,
+          title: item?.title,
+          deadline: item?.activity?.deadline,
+          dateKey: targetDate,
+          durationNum: estimatedHours,
+        },
+      },
+    });
+  };
 
   const themeColors = {
     red: {
@@ -1391,7 +1783,11 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict }: { it
 
   return (
     <div
-      className={`relative flex flex-col gap-4 border ${colors.border} ${isConflicted ? 'ring-2 ring-[#F59E0B]/50 border-[#F59E0B]/40' : ''} ${colors.bg} rounded-3xl p-4 w-full transition-all duration-300 ${colors.hover} shadow-lg ${isDone ? 'opacity-50 grayscale' : ''}`}
+      className={`relative flex flex-col gap-4 border ${
+        isConflicted ? 'border-2 border-[#F59E0B]' : colors.border
+      } ${colors.bg} rounded-3xl p-4 w-full transition-all duration-300 ${colors.hover} shadow-lg ${
+        isDone ? 'opacity-50 grayscale' : ''
+      }`}
     >
       {badge && (
         <div className={`absolute -top-3 left-6 px-3 py-1 font-black text-[10px] tracking-widest uppercase rounded-full ${colors.badge} shadow-lg`}>
@@ -1460,6 +1856,7 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict }: { it
             Ver conflicto
           </button>
         )}
+
         <button
           type="button"
           onClick={onEdit}
@@ -1468,9 +1865,20 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict }: { it
           <Pencil className="w-4 h-4" />
           Editar
         </button>
+
+
         <button
           type="button"
-          onClick={() => navigate("/calendario")}
+          onClick={onDelete}
+          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer"
+        >
+          <Trash2 className="w-4 h-4" />
+          Eliminar
+        </button>
+
+        <button
+          type="button"
+          onClick={handleReprogram}
           className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-blue-600/15 hover:bg-blue-600/25 px-3 py-2 rounded-lg border border-blue-500/30 transition-colors cursor-pointer"
         >
           <CalendarRange className="w-4 h-4" />

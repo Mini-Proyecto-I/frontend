@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { Pencil, Trash2, Calendar, Clock, Loader2, CheckCircle2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Pencil, Trash2, Calendar, Clock, Loader2, CheckCircle2, AlertCircle, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -7,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/components/dialog";
-import EditSubtaskDialog from "./EditSubtaskDialog";
+import EditSubtaskModal from "@/shared/components/EditSubtaskModal";
 import { patchSubtask, updateSubtask, deleteSubtask } from "@/api/services/subtack";
 import { useToast } from "@/shared/components/toast";
 
@@ -40,14 +41,24 @@ export default function SubtaskItem({
   onSubtaskUpdated,
   deadlineDate,
 }: SubtaskItemProps) {
+  const navigate = useNavigate();
   const [isChecked, setIsChecked] = useState(completed);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [deleteArmed, setDeleteArmed] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [showEditSuccessDialog, setShowEditSuccessDialog] = useState(false);
+  const [pendingEditData, setPendingEditData] = useState<{ nombre: string; horas: string } | null>(null);
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [conflictData, setConflictData] = useState<{
+    fecha: string;
+    horasAntiguas: number;
+    horasIntentadas: number;
+    horasOcupadas: number;
+    limiteDiario: number;
+  } | null>(null);
+  const [isLoadingConflictData, setIsLoadingConflictData] = useState(false);
   const { showToast, ToastComponent } = useToast();
   const localChangeRef = useRef(false); // Ref para rastrear si el cambio fue iniciado localmente
   const lastLocalStateRef = useRef<boolean | null>(null); // Ref para rastrear el último estado establecido localmente
@@ -185,53 +196,95 @@ export default function SubtaskItem({
     setShowEditDialog(true);
   };
 
-  const handleSaveEdit = async (data: { nombre: string; horas: string }) => {
+  const handleCloseEditDialog = (open: boolean) => {
+    // Si se cierra el modal de edición, descartamos el borrador
+    if (!open) {
+      setPendingEditData(null);
+    }
+    setShowEditDialog(open);
+  };
+
+  const handleSaveEditFromTodayModal = async (payload: { title: string; estimatedHours: number }) => {
     if (!activityId || !id) {
       showToast("Error: ID de actividad o subtarea no disponible.", "error");
-      return;
+      return { ok: false as const, error: "ID de actividad o subtarea no disponible." };
     }
 
+    // Guardar temporalmente lo que el usuario está intentando editar
+    setPendingEditData({
+      nombre: payload.title,
+      horas: String(payload.estimatedHours),
+    });
+
     try {
-      // Convertir horas de string a número (remover "h" si está presente)
-      const cleanHours = data.horas.trim().replace(/h/gi, "").trim();
-      const estimatedHours = parseFloat(cleanHours);
-
-      if (isNaN(estimatedHours) || estimatedHours <= 0) {
-        showToast("Las horas estimadas deben ser un número válido mayor a 0.", "error");
-        return;
-      }
-
-      setIsSavingEdit(true);
-
-      // Preparar los datos para el backend
       const subtaskUpdateData: any = {
-        title: data.nombre.trim(),
-        estimated_hours: estimatedHours.toString(),
+        title: payload.title.trim(),
+        estimated_hours: String(payload.estimatedHours),
       };
 
-      // Llamar a la API para actualizar la subtarea
       await updateSubtask(activityId, id, subtaskUpdateData);
 
-      // Mostrar mensaje de éxito primero
       showToast("¡Todo salió bien! La subtarea se actualizó correctamente.", "success");
 
-      // Cerrar el modal de editar
+      // Cerrar modal (el modal también se cierra al recibir ok:true, esto es solo por consistencia)
       setShowEditDialog(false);
 
-      // Mostrar el modal de éxito después de un breve delay
       setTimeout(() => {
         setShowEditSuccessDialog(true);
       }, 200);
 
-      // Refrescar solo las subtareas mediante el callback
-      if (onSubtaskUpdated) {
-        onSubtaskUpdated();
-      }
+      if (onSubtaskUpdated) onSubtaskUpdated();
+      setPendingEditData(null);
+
+      return { ok: true as const };
     } catch (error: any) {
       console.error("Error al actualizar subtarea:", error);
 
-      let errorMessage = "Error al actualizar la subtarea. Intenta de nuevo.";
+      // Detectar si es un error de conflicto de horas (mismo criterio que antes)
+      let isConflictError = false;
+      if (error?.response?.data) {
+        if (error.response.data.estimated_hours) {
+          const hoursError = Array.isArray(error.response.data.estimated_hours)
+            ? error.response.data.estimated_hours[0]
+            : error.response.data.estimated_hours;
+          if (typeof hoursError === "string" && hoursError.includes("excede el limite diario")) {
+            isConflictError = true;
+          }
+        } else if (error.response.data.detail) {
+          const detailError = error.response.data.detail;
+          if (typeof detailError === "string" && detailError.includes("excede el limite diario")) {
+            isConflictError = true;
+          }
+        }
+      }
 
+      if (isConflictError) {
+        const fechaSubtask = dateOriginal || date.split(" ")[0];
+        const limiteDiario = (() => {
+          const saved = window.localStorage.getItem("studyLimitHours");
+          return saved ? parseFloat(saved) : 6;
+        })();
+
+        const horasActualesSubtask = parseFloat(hours.replace("h", "").trim()) || 0;
+        const horasIntentadas = payload.estimatedHours;
+        const diferenciaHoras = horasIntentadas - horasActualesSubtask;
+        const horasOcupadasEstimadas = limiteDiario + diferenciaHoras;
+
+        setConflictData({
+          fecha: fechaSubtask,
+          horasAntiguas: horasActualesSubtask,
+          horasIntentadas: horasIntentadas,
+          horasOcupadas: Math.max(horasOcupadasEstimadas, horasIntentadas),
+          limiteDiario: limiteDiario,
+        });
+
+        setShowConflictModal(true);
+        setShowEditDialog(false);
+        return { ok: false as const, handled: true };
+      }
+
+      // Error normal
+      let errorMessage = "Error al actualizar la subtarea. Intenta de nuevo.";
       if (error?.response?.data) {
         if (error.response.data.title) {
           errorMessage = Array.isArray(error.response.data.title)
@@ -243,11 +296,11 @@ export default function SubtaskItem({
             : error.response.data.estimated_hours;
         } else if (error.response.data.detail) {
           errorMessage = error.response.data.detail;
-        } else if (typeof error.response.data === 'object') {
+        } else if (typeof error.response.data === "object") {
           const firstError = Object.values(error.response.data)[0];
           if (Array.isArray(firstError) && firstError.length > 0) {
             errorMessage = firstError[0];
-          } else if (typeof firstError === 'string') {
+          } else if (typeof firstError === "string") {
             errorMessage = firstError;
           }
         }
@@ -256,8 +309,7 @@ export default function SubtaskItem({
       }
 
       showToast(errorMessage, "error");
-    } finally {
-      setIsSavingEdit(false);
+      return { ok: false as const, error: errorMessage };
     }
   };
 
@@ -422,15 +474,29 @@ export default function SubtaskItem({
         </DialogContent>
       </Dialog>
 
-      <EditSubtaskDialog
+      <EditSubtaskModal
         open={showEditDialog}
-        onOpenChange={setShowEditDialog}
-        subtaskData={{
-          nombre: title,
-          horas: hours.replace("h", ""), // Remover la "h" para el input
+        onOpenChange={handleCloseEditDialog}
+        initialTitle={(pendingEditData?.nombre ?? title) as string}
+        initialHours={(pendingEditData?.horas ?? hours.replace("h", "")) as string}
+        onReprogram={() => {
+          const dateKey = dateOriginal || date.split(" ")[0];
+          const estimatedHours = parseFloat(hours.replace("h", "").trim()) || 0;
+          navigate("/calendario", {
+            state: {
+              focusDate: dateKey,
+              reprogramSubtask: {
+                id,
+                activityId,
+                title,
+                deadline: deadlineDate,
+                dateKey,
+                durationNum: estimatedHours,
+              },
+            },
+          });
         }}
-        onSave={handleSaveEdit}
-        isSaving={isSavingEdit}
+        onSave={handleSaveEditFromTodayModal}
       />
 
       <Dialog open={showEditSuccessDialog} onOpenChange={setShowEditSuccessDialog}>
@@ -454,6 +520,94 @@ export default function SubtaskItem({
           </DialogHeader>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de conflicto de horas */}
+      {showConflictModal && conflictData && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div className="w-full max-w-[560px] bg-[#111827] border border-[#F59E0B]/30 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
+            <div className="p-6 sm:p-7 relative">
+              {/*
+                Usar el último nombre editado si existe (para consistencia entre el modal de edición y el de conflicto)
+              */}
+              {(() => {
+                const conflictTitle = pendingEditData?.nombre?.trim() ? pendingEditData.nombre.trim() : title;
+                return (
+                  <>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConflictModal(false);
+                  setConflictData(null);
+                  setPendingEditData(null);
+                }}
+                className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
+                aria-label="Cerrar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-[#F59E0B]/10 border border-[#F59E0B]/20 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-6 h-6 text-[#F59E0B]" />
+                </div>
+                <div className="pr-8">
+                  <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                    Conflicto de horas detectado
+                  </h3>
+                </div>
+              </div>
+
+              <p className="mt-6 text-sm text-slate-300 leading-relaxed">
+                No pudimos actualizar{" "}
+                <span className="font-semibold text-white">"{conflictTitle}"</span> de{" "}
+                <span className="font-semibold text-white">{conflictData.horasAntiguas.toFixed(1)}h</span> a{" "}
+                <span className="font-semibold text-white">{conflictData.horasIntentadas.toFixed(1)}h</span> porque ese día se superaría tu límite de horas de estudio.
+              </p>
+
+              <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                <div className="mt-3 flex items-center justify-center gap-2">
+                  <span className="text-2xl font-black text-red-400">
+                    {conflictData.horasOcupadas.toFixed(1)}h
+                  </span>
+                  <span className="text-slate-400">/</span>
+                  <span className="text-xl font-bold text-slate-300">
+                    {conflictData.limiteDiario.toFixed(1)}h
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-2 text-center">
+                  Horas resultantes / Límite diario de estudio
+                </p>
+              </div>
+
+              <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={() => {
+                    setShowConflictModal(false);
+                    setConflictData(null);
+                    setShowEditDialog(true); // Volver a abrir el modal de editar
+                  }}
+                  className="flex-1 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-600/20 transition-all"
+                >
+                  Reajustar
+                </button>
+                <button
+                  onClick={() => {
+                    setShowConflictModal(false);
+                    setConflictData(null);
+                    setPendingEditData(null);
+                  }}
+                  className="flex-1 h-11 rounded-xl bg-white hover:bg-slate-100 text-blue-600 font-bold border border-slate-200 transition-all"
+                >
+                  Cerrar
+                </button>
+              </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

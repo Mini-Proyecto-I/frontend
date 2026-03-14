@@ -151,3 +151,24 @@
     color: rgb(226 232 240) !important;
   }
 }
+
+/* Scrollbar gris reutilizable (una sola barra) */
+.scrollbar-gray {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(148, 163, 184, 0.55) transparent; /* thumb / track */
+}
+.scrollbar-gray::-webkit-scrollbar {
+  width: 8px;
+}
+.scrollbar-gray::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-gray::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.45); /* slate-400 */
+  border-radius: 9999px;
+  border: 2px solid transparent; /* para que se vea como una barra fina */
+  background-clip: content-box;
+}
+.scrollbar-gray::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.65);
+}
