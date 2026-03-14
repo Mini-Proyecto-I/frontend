@@ -1306,8 +1306,9 @@ export default function Today() {
                 {/* Reducir horas */}
                 <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5">
                   <label className="text-sm font-bold text-slate-400 uppercase tracking-wider block mb-3">
-                    Reestablecer nueva estimación de horas (Debe ser menor a la actual)
+                    Reestablecer nueva estimación de horas 
                   </label>
+                  <p className="text-slate-400 text-sm mb-3">Debe ser menor a la actual</p>
                   <div className="flex gap-3 items-center flex-wrap">
                     <Input
                       type="number"
