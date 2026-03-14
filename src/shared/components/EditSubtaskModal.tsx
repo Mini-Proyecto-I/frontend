@@ -100,8 +100,8 @@ export default function EditSubtaskModal({
               </label>
               <Input
                 type="number"
-                step="0.25"
-                min="0.25"
+                step="0.5"
+                min="0.5"
                 value={editHours}
                 onChange={(e) => setEditHours(e.target.value)}
                 className="h-11 bg-[#1F2937]/60 border-slate-700/60 text-slate-200 rounded-xl focus-visible:ring-blue-500"
@@ -155,6 +155,13 @@ export default function EditSubtaskModal({
                     return;
                   }
 
+                  if (!Number.isInteger(nextHours * 2)) {
+                    setEditError(
+                      "Las horas deben ir en pasos de 0.5 (por ejemplo: 0.5, 1.0, 1.5)."
+                    );
+                    return;
+                  }
+
                   setIsSavingEdit(true);
                   try {
                     const result = await onSave({
@@ -172,9 +179,14 @@ export default function EditSubtaskModal({
                       return;
                     }
 
-                    setEditError(result?.error || "No se pudo guardar. Intenta de nuevo.");
+                    setEditError(
+                      result?.error ||
+                        "No se pudo guardar los cambios. Verifica que las horas no excedan tu límite diario o ajusta la subtarea y vuelve a intentarlo."
+                    );
                   } catch {
-                    setEditError("No se pudo guardar. Intenta de nuevo.");
+                    setEditError(
+                      "No se pudo guardar los cambios. Revisa tu conexión y que las horas no excedan tu límite diario."
+                    );
                   } finally {
                     setIsSavingEdit(false);
                   }
