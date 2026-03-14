@@ -12,6 +12,7 @@ import { Input } from "@/shared/components/input";
 import { Button } from "@/shared/components/button";
 import EditSubtaskModal from "@/shared/components/EditSubtaskModal";
 import { OverloadAlert } from "@/features/today/components/OverloadAlert";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/shared/components/tooltip";
 import {
   Select,
   SelectContent,
@@ -1306,9 +1307,24 @@ export default function Today() {
                 {/* Reducir horas */}
                 <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5">
                   <label className="text-sm font-bold text-slate-400 uppercase tracking-wider block mb-3">
-                    Reestablecer nueva estimación de horas 
+                    <span className="inline-flex items-center gap-2">
+                      <span>Reestablecer nueva estimación de horas</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-800/80 border border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+                          >
+                            <HelpCircle className="w-3 h-3" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-xs leading-relaxed">
+                          Con esto cambias la estimación de horas de tu tarea a una nueva. Las horas deben ser menores a las actuales y mayores a 0.5.
+                        </TooltipContent>
+                      </Tooltip>
+                    </span>
                   </label>
-                  <p className="text-slate-400 text-sm mb-3">Debe ser menor a la actual</p>
+                  
                   <div className="flex gap-3 items-center flex-wrap">
                     <Input
                       type="number"
