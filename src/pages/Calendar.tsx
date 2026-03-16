@@ -15,10 +15,10 @@ import {
     isBefore,
 } from "date-fns";
 import { es } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Clock, MoreVertical, Loader2, CalendarRange, CalendarCheck, Move, CirclePlus, X, Eye, Pencil, Trash2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, MoreVertical, Loader2, CalendarRange, CalendarCheck, Move, CirclePlus, X, Eye, Pencil, Trash2, CheckCircle2, AlertTriangle, AlertCircle } from "lucide-react";
 import { Button } from "@/shared/components/button";
 import { useHoy } from "@/features/today/hooks/useHoy";
-import { patchSubtask, deleteSubtask } from "@/api/services/subtack";
+import { patchSubtask, deleteSubtask, putSubtaskWithConflictTolerance } from "@/api/services/subtack";
 import { patchActivity } from "@/api/services/activity";
 import { queryCache } from "@/lib/queryCache";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -48,6 +48,23 @@ export default function Calendar() {
     const [conflictResolvedData, setConflictResolvedData] = useState<{ taskTitle: string; dateLabel: string } | null>(null);
     const [showConflictProcessingModal, setShowConflictProcessingModal] = useState(false);
     const [conflictProcessingMessage, setConflictProcessingMessage] = useState("Estamos revisando tu planificación...");
+    const [showReduceConflictOutcomeModal, setShowReduceConflictOutcomeModal] = useState(false);
+    const [reduceConflictOutcome, setReduceConflictOutcome] = useState<null | {
+        dateKey: string;
+        usedHours: number;
+        limitHours: number;
+        availableHours: number;
+        overworkHours: number;
+        resolved: boolean;
+    }>(null);
+    // Modal cuando no se puede cambiar (generaría conflicto): no se guarda, solo se informa y recomienda
+    const [showReduceBlockedModal, setShowReduceBlockedModal] = useState(false);
+    const [reduceBlockedData, setReduceBlockedData] = useState<{
+        dateLabel: string;
+        recommendedHours: number | null;
+        /** true cuando ni con 0.5h se soluciona el conflicto */
+        cannotReduceEvenMin?: boolean;
+    } | null>(null);
     const [showOverloadModal, setShowOverloadModal] = useState(false);
     const [pendingConflictDay, setPendingConflictDay] = useState<Date | null>(null);
     const [reduceHoursForConflict, setReduceHoursForConflict] = useState("");
@@ -239,6 +256,8 @@ export default function Calendar() {
         setReduceConflictError(null);
         setOverloadModalStep("menu");
         setShowMoveOtherTasksModal(false);
+        setShowReduceBlockedModal(false);
+        setReduceBlockedData(null);
         setStrictMoveMode(false);
         setConflictResolutionContext(null);
         if (!keepProcessingModal) {
@@ -419,9 +438,73 @@ export default function Calendar() {
             return;
         }
 
+        const dateKey = format(pendingConflictDay, "yyyy-MM-dd");
+        const projectedAfter = computeProjectedHours(pendingConflictDay, next);
+        const resolved = projectedAfter <= studyLimitHours;
+
+        // Si reducir a estas horas no soluciona el conflicto: no guardar, solo mostrar modal
+        if (!resolved) {
+            // Horas ya programadas en el día destino (sin contar la tarea que se va a mover)
+            const totalOnDay = dayStats[dateKey] || 0;
+            const availableForDay = studyLimitHours - totalOnDay; // tiempo sobrante ese día
+            // ¿Se puede resolver reduciendo? Solo si el tiempo sobrante >= 0.5h (mínimo de estimación)
+            const canReduceToFit = availableForDay >= 0.5;
+            const recommendedHours =
+                canReduceToFit
+                    ? Math.min(current, Math.max(0.5, Math.round(availableForDay * 2) / 2))
+                    : null;
+
+            setReduceBlockedData({
+                dateLabel: format(pendingConflictDay, "EEEE d 'de' MMMM", { locale: es }),
+                recommendedHours: recommendedHours !== null && recommendedHours < current ? recommendedHours : null,
+                cannotReduceEvenMin: !canReduceToFit, // ni con 0.5h cabe
+            });
+            setShowOverloadModal(false);
+            setOverloadModalStep("menu");
+            setShowReduceBlockedModal(true);
+            return;
+        }
+
+        // Sí resuelve: guardar en backend y mostrar éxito
         setIsResolvingConflict(true);
         try {
-            await executeMove(pendingConflictDay, next);
+            const updated = await putSubtaskWithConflictTolerance(selectedSubtask.id, {
+                target_date: dateKey,
+                estimated_hours: next,
+            });
+
+            // Recalcular conflicto desde la respuesta del backend
+            const daily = (updated as any)?.daily_load;
+            const usedAfter = daily ? daily.current_hours : projectedAfter;
+            const limitFromBackend = daily ? daily.limit : studyLimitHours;
+            const overworkAfter = daily ? (daily.exceeded_by ?? 0) : 0;
+            const availableAfter = Math.max(0, limitFromBackend - usedAfter);
+
+            // Actualizar lista desde backend (refetch en segundo plano)
+            queryCache.invalidateByPrefix("hoy:");
+            refetch();
+
+            // Mantener UI de “mover” para poder seguir configurando horas si no se resolvió
+            setConflictOverrides((prev) => {
+                const nextState = { ...prev };
+                delete nextState[selectedSubtask.id];
+                return nextState;
+            });
+
+            setShowOverloadModal(false);
+            setOverloadModalStep("menu");
+            setReduceConflictOutcome({
+                dateKey,
+                usedHours: usedAfter,
+                limitHours: limitFromBackend,
+                availableHours: availableAfter,
+                overworkHours: overworkAfter,
+                resolved: true,
+            });
+            setShowReduceConflictOutcomeModal(true);
+        } catch (err) {
+            console.error("Error al guardar y reprogramar:", err);
+            setReduceConflictError("No se pudo guardar. Revisa la conexión e inténtalo de nuevo.");
         } finally {
             setIsResolvingConflict(false);
         }
@@ -1265,6 +1348,114 @@ export default function Calendar() {
                     </div>
                 );
             })()}
+
+            {/* Modal: no se pudo cambiar la tarea (generaría conflicto); no se guardó nada */}
+            {showReduceBlockedModal && reduceBlockedData && (
+                <div className="fixed inset-0 z-[97] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+                    <div className="w-full max-w-[440px] bg-[#111827] rounded-3xl shadow-2xl shadow-black/60 overflow-hidden border border-amber-500/30">
+                        <div className="p-6 sm:p-7 text-center">
+                            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 border bg-amber-500/10 border-amber-500/25">
+                                <AlertCircle className="w-8 h-8 text-amber-400" strokeWidth={2} />
+                            </div>
+                            <h3 className="text-xl font-extrabold text-white tracking-tight">
+                                No se pudo cambiar la tarea
+                            </h3>
+                            <p className="text-slate-400 text-base mt-3 leading-relaxed">
+                                No se pudo cambiar la tarea para{" "}
+                                <span className="text-white font-bold capitalize">{reduceBlockedData.dateLabel}</span>, porque generaría conflicto.
+                            </p>
+                            <p className="text-slate-300 text-sm mt-4 leading-relaxed">
+                                {reduceBlockedData.recommendedHours != null ? (
+                                    <>
+                                        Te recomendamos establecer la estimación de horas de esta tarea a{" "}
+                                        <span className="text-amber-300 font-extrabold">
+                                            {reduceBlockedData.recommendedHours % 1 === 0
+                                                ? reduceBlockedData.recommendedHours
+                                                : reduceBlockedData.recommendedHours.toFixed(1)}
+                                            h
+                                        </span>
+                                        {" "}(tiempo disponible ese día). Puedes volver atrás para aplicar esta estimación.
+                                    </>
+                                ) : reduceBlockedData.cannotReduceEvenMin ? (
+                                    <>
+                                        Ni con la reducción mínima (0,5 h) se soluciona el conflicto. Te recomendamos mover tu tarea a otro día o mover las tareas ya programadas para el día{" "}
+                                        <span className="text-white font-semibold capitalize">{reduceBlockedData.dateLabel}</span>.
+                                    </>
+                                ) : (
+                                    <>
+                                        Te recomendamos mover esta tarea a otro día o liberar las tareas del día{" "}
+                                        <span className="text-white font-semibold capitalize">{reduceBlockedData.dateLabel}</span>.
+                                    </>
+                                )}
+                            </p>
+                            <Button
+                                onClick={() => {
+                                    const data = reduceBlockedData;
+                                    setShowReduceBlockedModal(false);
+                                    setReduceBlockedData(null);
+                                    if (data?.recommendedHours != null) {
+                                        setReduceHoursForConflict(
+                                            data.recommendedHours % 1 === 0
+                                                ? String(data.recommendedHours)
+                                                : data.recommendedHours.toFixed(1)
+                                        );
+                                        setOverloadModalStep("reduce");
+                                    } else {
+                                        setOverloadModalStep("menu");
+                                    }
+                                    setShowOverloadModal(true);
+                                }}
+                                className="mt-6 w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-600/20 text-base"
+                            >
+                                Entendido
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de resultado al reducir horas (solo cuando se resolvió y se guardó) */}
+            {showReduceConflictOutcomeModal && reduceConflictOutcome && (
+                <div className="fixed inset-0 z-[97] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+                    <div className="w-full max-w-[440px] bg-[#111827] rounded-3xl shadow-2xl shadow-black/60 overflow-hidden border border-emerald-500/30">
+                        <div className="p-6 sm:p-7 text-center">
+                            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 border bg-emerald-500/20 border-emerald-500/30">
+                                <CheckCircle2 className="w-8 h-8 text-emerald-400" strokeWidth={2} />
+                            </div>
+                            <h3 className="text-xl font-extrabold text-white tracking-tight">
+                                Conflicto solucionado
+                            </h3>
+                            <p className="text-slate-400 text-base mt-3 leading-relaxed">
+                                Para el día{" "}
+                                <span className="text-white font-bold">
+                                    {format(parseISO(reduceConflictOutcome.dateKey), "EEEE d 'de' MMMM", {
+                                        locale: es,
+                                    })}
+                                </span>{" "}
+                                el conflicto quedó resuelto. Te quedan{" "}
+                                <span className="text-emerald-300 font-extrabold">
+                                    {reduceConflictOutcome.availableHours % 1 === 0
+                                        ? reduceConflictOutcome.availableHours
+                                        : reduceConflictOutcome.availableHours.toFixed(1)}
+                                    h
+                                </span>{" "}
+                                disponibles.
+                            </p>
+                            <Button
+                                onClick={() => {
+                                    setShowReduceConflictOutcomeModal(false);
+                                    setReduceConflictOutcome(null);
+                                    setReduceConflictError(null);
+                                    handleCancelMove();
+                                }}
+                                className="mt-6 w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-600/20 text-base"
+                            >
+                                Entendido
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Modal: reprogramar actividad (nueva fecha límite) */}
             {showReprogramActivityModal && selectedSubtask && (

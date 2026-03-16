@@ -60,7 +60,7 @@ export const MessageModal = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] bg-[#1E293B] border-border">
+      <DialogContent className="sm:max-w-[500px] bg-[#111827] border border-slate-800 rounded-3xl">
         <DialogHeader>
           <div className="flex flex-col items-center gap-4 py-4">
             {getIcon()}

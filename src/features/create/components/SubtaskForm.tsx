@@ -240,7 +240,7 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                                             <input
                                                 type="number"
                                                 step="0.5"
-                                                min="0"
+                                                min="0.5"
                                                 value={sub.horas}
                                                 onChange={(e) => {
                                                     onUpdate(sub.id, "horas", e.target.value);
