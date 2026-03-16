@@ -22,6 +22,7 @@ import { patchSubtask, deleteSubtask } from "@/api/services/subtack";
 import { patchActivity } from "@/api/services/activity";
 import { queryCache } from "@/lib/queryCache";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import EditSubtaskModal from "@/shared/components/EditSubtaskModal";
 
 export default function Calendar() {
     const navigate = useNavigate();
@@ -60,6 +61,7 @@ export default function Calendar() {
         targetDateKey: string;
     } | null>(null);
     const pendingNavigateAfterModalRef = useRef<{ to: string; state?: object } | null>(null);
+    const [editingSubtask, setEditingSubtask] = useState<any | null>(null);
 
     const { vencidas, para_hoy, proximas, loading, refetch } = useHoy({ days_ahead: 30 });
 
@@ -880,7 +882,10 @@ export default function Calendar() {
                                                                             Ver detalle
                                                                         </Link>
                                                                         <button
-                                                                            onClick={() => navigate(`/actividad/${activity.activityId}`)}
+                                                                            onClick={() => {
+                                                                                setEditingSubtask(activity);
+                                                                                setMenuOpenId(null);
+                                                                            }}
                                                                             className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-slate-300 hover:bg-slate-800 hover:text-white transition-colors border-b border-slate-700/30"
                                                                         >
                                                                             <Pencil className="w-4 h-4 text-emerald-400" />
@@ -1511,6 +1516,46 @@ export default function Calendar() {
                     </div>
                 </div>
             )}
+
+            {/* Edit Subtask Modal */}
+            <EditSubtaskModal
+                open={Boolean(editingSubtask)}
+                onOpenChange={(open) => {
+                    if (!open) setEditingSubtask(null);
+                }}
+                initialTitle={editingSubtask?.title ?? ""}
+                initialHours={editingSubtask?.durationNum}
+                onReprogram={() => {
+                    if (!editingSubtask) return;
+                    handleSelectForMove(editingSubtask);
+                    setEditingSubtask(null);
+                }}
+                onDelete={() => {
+                    if (!editingSubtask) return;
+                    setEditingSubtask(null);
+                    handleDelete(editingSubtask.activityId, editingSubtask.id);
+                }}
+                onSave={async ({ title, estimatedHours }) => {
+                    if (!editingSubtask) return { ok: false, error: "No hay subtarea seleccionada." };
+
+                    try {
+                        await patchSubtask(editingSubtask.activityId, editingSubtask.id, {
+                            title,
+                            estimated_hours: estimatedHours,
+                        });
+                        queryCache.invalidate("activities");
+                        await refetch();
+                        setEditingSubtask(null);
+                        return { ok: true };
+                    } catch (error) {
+                        return {
+                            ok: false,
+                            error:
+                                "No pudimos guardar los cambios. Revisa que las horas no superen tu límite diario de estudio y vuelve a intentarlo.",
+                        };
+                    }
+                }}
+            />
         </div>
     );
 }
