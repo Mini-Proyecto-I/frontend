@@ -363,98 +363,53 @@ export default function ProgressPage() {
         </div>
       </div>
 
-      {/* FILTER BAR SECTION */}
-      <div className="bg-[#111827] border border-slate-800/60 rounded-2xl p-4 shadow-lg shadow-black/10 flex flex-col gap-4 w-full">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="w-5 h-5 text-blue-500" />
-          <h2 className="text-white font-bold text-lg">Filtros</h2>
-          {hasActiveFilters && (
-            <span className="ml-2 text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded-lg font-semibold">
-              Filtrado por: {[
-                courseFilter !== "all" && "Curso",
-                statusFilter !== "all" && "Estado"
-              ].filter(Boolean).join(", ")}
-            </span>
-          )}
-        </div>
+{/* FILTER BAR SECTION */}
+<div className="flex flex-wrap items-center gap-3 mb-2">
+  {/* Filtro Curso */}
+  <div className="flex items-center gap-2 bg-[#1F2937]/60 border border-slate-700/50 rounded-xl px-3 py-2">
+    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Curso:</span>
+    <Select value={courseFilter || "all"} onValueChange={(v) => setCourseFilter(v === "all" ? "all" : v)}>
+      <SelectTrigger className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl [&_[role=option]]:bg-transparent [&_[role=option]]:text-slate-200 [&_[role=option][data-highlighted]]:bg-blue-600 [&_[role=option][data-highlighted]]:text-white [&_[role=option][data-state=checked]]:bg-transparent [&_[role=option][data-state=checked]]:text-white [&_[role=option][data-state=checked][data-highlighted]]:bg-blue-600">
+        <SelectValue placeholder="Todos" />
+      </SelectTrigger>
+      <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl [&_[role=option]]:bg-transparent [&_[role=option]]:text-slate-200 [&_[role=option][data-highlighted]]:bg-blue-600 [&_[role=option][data-highlighted]]:text-white [&_[role=option][data-state=checked]]:bg-transparent [&_[role=option][data-state=checked]]:text-white [&_[role=option][data-state=checked][data-highlighted]]:bg-blue-600">
+        <SelectItem value="all" className="rounded-lg cursor-pointer text-slate-200">Todos</SelectItem>
+        {courses.map((c) => (
+          <SelectItem key={c.id} value={c.name} className="rounded-lg cursor-pointer text-slate-200">
+            {c.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  </div>
 
-        <div className="flex flex-col md:flex-row gap-4 items-end">
-          <div className="relative flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Curso</label>
-            <Select
-              value={courseFilter || "all"}
-              onValueChange={(v) => setCourseFilter(v === "all" ? "all" : v)}
-            >
-              <SelectTrigger 
-                style={courseFilter !== "all" ? { 
-                  backgroundColor: 'white',
-                  fontFamily: '"Lexend", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
-                } : undefined}
-                className={`w-full md:w-[200px] h-12 rounded-xl focus:ring-blue-500 shadow-inner border ${
-                  courseFilter !== "all"
-                    ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600" 
-                    : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
-                }`}
-              >
-                <SelectValue placeholder="Todos los cursos" />
-              </SelectTrigger>
-              <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl">
-                <SelectItem value="all" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Todos los cursos</SelectItem>
-                {courses.map((c) => (
-                  <SelectItem key={c.id} value={c.name} className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+  {/* Filtro Estado */}
+  <div className="flex items-center gap-2 bg-[#1F2937]/60 border border-slate-700/50 rounded-xl px-3 py-2">
+    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado:</span>
+    <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" ? "all" : v)}>
+      <SelectTrigger className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl [&_[role=option]]:bg-transparent [&_[role=option]]:text-slate-200 [&_[role=option][data-highlighted]]:bg-blue-600 [&_[role=option][data-highlighted]]:text-white [&_[role=option][data-state=checked]]:bg-transparent [&_[role=option][data-state=checked]]:text-white [&_[role=option][data-state=checked][data-highlighted]]:bg-blue-600">
+        <SelectValue placeholder="Activos" />
+      </SelectTrigger>
+      <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl [&_[role=option]]:bg-transparent [&_[role=option]]:text-slate-200 [&_[role=option][data-highlighted]]:bg-blue-600 [&_[role=option][data-highlighted]]:text-white [&_[role=option][data-state=checked]]:bg-transparent [&_[role=option][data-state=checked]]:text-white [&_[role=option][data-state=checked][data-highlighted]]:bg-blue-600">
+        <SelectItem value="all" className="">Cualquier estado</SelectItem>
+        <SelectItem value="PENDING" className="rounded-lg cursor-pointer text-slate-200">Pendiente</SelectItem>
+        <SelectItem value="DONE" className="rounded-lg cursor-pointer text-slate-200">Completado</SelectItem>
+        <SelectItem value="POSTPONED" className="rounded-lg cursor-pointer text-slate-200">Pospuesto</SelectItem>
+        <SelectItem value="WAITING" className="rounded-lg cursor-pointer text-slate-200">En Espera</SelectItem>
+      </SelectContent>
+    </Select>
+  </div>
 
-          <div className="relative flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Estado</label>
-            <Select
-              value={statusFilter || "all"}
-              onValueChange={(v) => setStatusFilter(v === "all" ? "all" : v)}
-            >
-              <SelectTrigger 
-                style={statusFilter !== "all" ? { 
-                  backgroundColor: 'white',
-                  fontFamily: '"Lexend", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
-                } : undefined}
-                className={`w-full md:w-[170px] h-12 rounded-xl focus:ring-blue-500 shadow-inner border ${
-                  statusFilter !== "all"
-                    ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600" 
-                    : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
-                }`}
-              >
-                <SelectValue placeholder="Cualquier estado" />
-              </SelectTrigger>
-              <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl">
-                <SelectItem value="all" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Cualquier estado</SelectItem>
-                <SelectItem value="PENDING" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Pendiente</SelectItem>
-                <SelectItem value="DONE" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Completado</SelectItem>
-                <SelectItem value="POSTPONED" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Pospuesto</SelectItem>
-                <SelectItem value="WAITING" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">En Espera</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Button
-            variant="outline"
-            onClick={() => {
-              setCourseFilter("all");
-              setStatusFilter("all");
-            }}
-            disabled={!hasActiveFilters}
-            className={`h-12 rounded-xl mb-[1px] transition-all ${
-              hasActiveFilters
-                ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
-                : "border-slate-700/50 bg-[#1F2937]/50 text-slate-400 cursor-not-allowed opacity-50"
-            }`}
-          >
-            <X className="w-4 h-4 mr-2" /> Limpiar
-          </Button>
-        </div>
-      </div>
+  {/* Botón limpiar — solo visible si hay filtros activos */}
+  {hasActiveFilters && (
+    <button
+      onClick={() => { setCourseFilter("all"); setStatusFilter("all"); }}
+      className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-red-400 transition-colors px-3 py-2 rounded-xl border border-slate-700/50 bg-[#1F2937]/60"
+    >
+      <X className="w-3.5 h-3.5" /> Limpiar
+    </button>
+  )}
+</div>
 
         {/* Dashboard Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -729,11 +684,77 @@ export default function ProgressPage() {
                         </p>
                         <p className="text-sm text-slate-300">{item.title}</p>
                       </div>
+                      
                     );
                   })}
+                  
                 </div>
+                
               </div>
             )}
+            {/* Postponed Tasks */}
+{(() => {
+  const postponed = activities.flatMap((a: Activity) =>
+    a.subtasks
+      .filter((s: Subtask) => s.status === STATUS.POSTPONED)
+      .map((s: Subtask) => ({ ...s, course: getCourseName(a.course) }))
+  );
+  if (postponed.length === 0) return null;
+  return (
+    <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20">
+      <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+        <Clock className="h-5 w-5 text-yellow-500" />
+        Pospuestas
+      </h3>
+      <div className="space-y-3">
+        {postponed.slice(0, 4).map((t) => (
+          <div key={t.id} className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-md bg-yellow-500/10 text-yellow-400 text-[10px] font-black uppercase">
+                Pospuesto
+              </span>
+              <p className="text-sm font-semibold text-slate-200 truncate">{t.name}</p>
+            </div>
+            <p className="text-xs text-slate-500 pl-0.5">{t.course}</p>
+            {t.note && (
+              <p className="text-xs text-slate-500 italic pl-0.5">"{t.note}"</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+})()}
+
+{/* History */}
+{(() => {
+  const history = activities.flatMap((a: Activity) =>
+    a.subtasks
+      .filter((s: Subtask) => s.status === STATUS.DONE)
+      .map((s: Subtask) => ({ ...s, course: getCourseName(a.course) }))
+  ).slice(0, 6);
+  if (history.length === 0) return null;
+  return (
+    <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20">
+      <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+        <CheckCircle2 className="h-5 w-5 text-slate-400" />
+        Historial
+      </h3>
+      <div className="space-y-3">
+        {history.map((t) => (
+          <div key={t.id} className="flex items-start gap-2 text-slate-400">
+            <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-slate-600" />
+            <div>
+              <p className="text-xs text-slate-300 truncate">{t.name}</p>
+              <p className="text-[10px] text-slate-500">{t.course}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+})()}
+            
           </aside>
         </div>
     </div>
