@@ -1,7 +1,7 @@
 // @/features/progress/hooks/useProgressData.ts
 import { useState, useEffect, useCallback } from 'react';
 import { getActivities } from '@/api/services/activity';
-import { getSubtasksForActivity, patchSubtask } from '@/api/services/subtack';
+import { getSubtasksForActivity, patchSubtask } from '@/api/services/subtask';
 import { useToast } from '@/shared/components/toast';
 import { queryCache } from '@/lib/queryCache';
 

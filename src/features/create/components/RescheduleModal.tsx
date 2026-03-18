@@ -21,7 +21,7 @@ import {
     AlertTriangle,
 } from "lucide-react";
 import { useHoy } from "@/features/today/hooks/useHoy";
-import { patchSubtask } from "@/api/services/subtack";
+import { patchSubtask } from "@/api/services/subtask";
 import { queryCache } from "@/lib/queryCache";
 import type { ExistingTask } from "./ConflictResolutionModal";
 import UnifiedCalendarModal, { type UnifiedCalendarDay } from "./UnifiedCalendarModal";

@@ -5,7 +5,7 @@ import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, In
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import { useAuth } from "@/app/authContext";
-import { patchSubtask, deleteSubtask, putSubtaskWithConflictTolerance } from "@/api/services/subtack";
+import { patchSubtask, deleteSubtask, putSubtaskWithConflictTolerance, postponeSubtask } from "@/api/services/subtask";
 import { updateConfig, getConfig } from "@/api/services/config";
 import { queryCache } from "@/lib/queryCache";
 import { Input } from "@/shared/components/input";
@@ -19,6 +19,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/dialog";
 import InfoTooltip from "@/features/create/components/InfoTooltip";
 
 function getGreeting(name: string) {
@@ -82,6 +89,7 @@ export default function Today() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingTask, setDeletingTask] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [detailTask, setDetailTask] = useState<any | null>(null);
 
   const openEditModal = (task: any) => {
     setEditingTask(task);
@@ -139,13 +147,13 @@ export default function Today() {
     try {
       // Sincronizar con el backend
       await updateConfig(val);
-      
+
       // Actualizar estado local
       setLimitHours(val);
       setTempLimit(val.toString());
       window.localStorage.setItem("studyLimitHours", val.toString());
       setIsEditingLimit(false);
-      
+
       // Refrescar datos para recalcular conflictos con el nuevo límite
       refetch();
     } catch (error) {
@@ -229,7 +237,7 @@ export default function Today() {
         if (config?.daily_hours_limit) {
           const backendLimit = parseFloat(config.daily_hours_limit);
           const currentLimit = parseFloat(window.localStorage.getItem("studyLimitHours") || "6");
-          
+
           // Solo actualizar si es diferente para evitar refrescos innecesarios
           if (Math.abs(backendLimit - currentLimit) > 0.01) {
             setLimitHours(backendLimit);
@@ -251,10 +259,7 @@ export default function Today() {
   const handlePostpone = async () => {
     if (!postponingTask) return;
     try {
-      await patchSubtask(postponingTask.activity?.id, postponingTask.id, {
-        status: "POSTPONED",
-        // note: postponeNote, 
-      });
+      await postponeSubtask(postponingTask.activity?.id, postponingTask.id, postponeNote);
 
       setData((prev: any) => {
         const filterList = (list: any[]) =>
@@ -566,7 +571,7 @@ export default function Today() {
   }, [location.state]);
 
   // Filter lists locally by search query
-  const searchFilter = (item: any) => { 
+  const searchFilter = (item: any) => {
     if (!search) return true;
     const s = search.toLowerCase();
     return item.title.toLowerCase().includes(s) || (item.activity?.course?.name || "").toLowerCase().includes(s);
@@ -701,6 +706,7 @@ export default function Today() {
                           setIsPostponeModalOpen(true);
                         }}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
+                        onTitleClick={() => setDetailTask(item)}
                       />
                     ))}
                     {filteredVencidas.length === 0 && (
@@ -739,6 +745,7 @@ export default function Today() {
                           setIsPostponeModalOpen(true);
                         }}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
+                        onTitleClick={() => setDetailTask(item)}
                       />
                     ))}
                     {filteredParaHoy.length === 0 && (
@@ -787,6 +794,7 @@ export default function Today() {
                           setIsPostponeModalOpen(true);
                         }}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
+                        onTitleClick={() => setDetailTask(item)}
                       />
                     ))}
                     {filteredProximas.length === 0 && (
@@ -980,11 +988,10 @@ export default function Today() {
                     backgroundColor: 'white',
                     fontFamily: '"Lexend", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
                   } : undefined}
-                  className={`w-full md:w-[200px] h-12 rounded-xl focus:ring-blue-500 shadow-inner border ${
-                    filters.course
-                      ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600"
-                      : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
-                  }`}
+                  className={`w-full md:w-[200px] h-12 rounded-xl focus:ring-blue-500 shadow-inner border ${filters.course
+                    ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600"
+                    : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
+                    }`}
                 >
                   <SelectValue placeholder="Todos los cursos" />
                 </SelectTrigger>
@@ -1011,11 +1018,10 @@ export default function Today() {
                     backgroundColor: 'white',
                     fontFamily: '"Lexend", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
                   } : undefined}
-                  className={`w-full md:w-[170px] h-12 rounded-xl focus:ring-blue-500 shadow-inner border ${
-                    filters.status
-                      ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600"
-                      : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
-                  }`}
+                  className={`w-full md:w-[170px] h-12 rounded-xl focus:ring-blue-500 shadow-inner border ${filters.status
+                    ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600"
+                    : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
+                    }`}
                 >
                   <SelectValue placeholder="Cualquier estado" />
                 </SelectTrigger>
@@ -1031,11 +1037,10 @@ export default function Today() {
               variant="outline"
               onClick={handleClearFilters}
               disabled={!hasActiveFilters}
-              className={`h-12 rounded-xl mb-[1px] transition-all ${
-                hasActiveFilters
-                  ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
-                  : "border-slate-700/50 bg-[#1F2937]/50 text-slate-400 cursor-not-allowed opacity-50"
-              }`}
+              className={`h-12 rounded-xl mb-[1px] transition-all ${hasActiveFilters
+                ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
+                : "border-slate-700/50 bg-[#1F2937]/50 text-slate-400 cursor-not-allowed opacity-50"
+                }`}
             >
               <X className="w-4 h-4 mr-2" /> Limpiar Filtros
             </Button>
@@ -1301,11 +1306,11 @@ export default function Today() {
                         onChange={(e) => setSelectedConflictId(e.target.value)}
                         className="w-full h-12 rounded-xl bg-[#1F2937]/60 border border-slate-700/60 text-slate-200 text-base font-medium pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500/50 cursor-pointer appearance-none"
                       >
-                      {conflictedTasks.map((t: any) => (
-                        <option key={t.id} value={String(t.id)}>
-                          {(t.activity?.title ? `${t.activity.title} — ` : "") + t.title}
-                        </option>
-                      ))}
+                        {conflictedTasks.map((t: any) => (
+                          <option key={t.id} value={String(t.id)}>
+                            {(t.activity?.title ? `${t.activity.title} — ` : "") + t.title}
+                          </option>
+                        ))}
                       </select>
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
                     </div>
@@ -1376,7 +1381,7 @@ export default function Today() {
                       <InfoTooltip text="Con esto cambias la estimación de horas de tu tarea a una nueva. las horas deben ser menores a las actuales y mayores a 0.5." />
                     </span>
                   </label>
-                  
+
                   <div className="flex gap-3 items-center flex-wrap">
                     <Input
                       type="number"
@@ -1460,17 +1465,15 @@ export default function Today() {
       {showConflictOutcomeModal && conflictOutcome && (
         <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
           <div
-            className={`w-full max-w-[440px] bg-[#111827] rounded-3xl shadow-2xl shadow-black/60 overflow-hidden border ${
-              conflictOutcome.resolved ? "border-emerald-500/30" : "border-[#F59E0B]/30"
-            }`}
+            className={`w-full max-w-[440px] bg-[#111827] rounded-3xl shadow-2xl shadow-black/60 overflow-hidden border ${conflictOutcome.resolved ? "border-emerald-500/30" : "border-[#F59E0B]/30"
+              }`}
           >
             <div className="p-6 sm:p-7 text-center">
               <div
-                className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 border ${
-                  conflictOutcome.resolved
-                    ? "bg-emerald-500/20 border-emerald-500/30"
-                    : "bg-[#F59E0B]/10 border-[#F59E0B]/25"
-                }`}
+                className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 border ${conflictOutcome.resolved
+                  ? "bg-emerald-500/20 border-emerald-500/30"
+                  : "bg-[#F59E0B]/10 border-[#F59E0B]/25"
+                  }`}
               >
                 {conflictOutcome.resolved ? (
                   <CheckCircle2 className="w-8 h-8 text-emerald-400" strokeWidth={2} />
@@ -1483,8 +1486,8 @@ export default function Today() {
                 {conflictOutcome.resolved
                   ? "Conflicto solucionado"
                   : conflictOutcomeSource === "reduce"
-                  ? "Horas actualizadas, pero sigue el conflicto"
-                  : "Aún hay conflicto"}
+                    ? "Horas actualizadas, pero sigue el conflicto"
+                    : "Aún hay conflicto"}
               </h3>
 
               <p className="text-slate-400 text-base mt-3 leading-relaxed">
@@ -1745,14 +1748,14 @@ export default function Today() {
       {isPostponeModalOpen && postponingTask && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
           <div className="w-full max-w-lg bg-[#0B1220] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
-      
+
             {/* Header */}
             <div className="px-6 pt-6 pb-4 flex items-center gap-3">
               <div className="p-2 bg-blue-500/10 rounded-lg">
                 <Clock className="w-5 h-5 text-blue-500" />
               </div>
               <h2 className="text-xl font-semibold text-white tracking-tight">
-              Posponer subtarea
+                Posponer subtarea
               </h2>
             </div>
 
@@ -1805,6 +1808,66 @@ export default function Today() {
           </div>
         </div>
       )}
+
+      {/* Detail Task Modal */}
+      <Dialog open={!!detailTask} onOpenChange={(open) => { if (!open) setDetailTask(null); }}>
+        <DialogContent className="sm:max-w-[500px] bg-[#111827] border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold text-slate-100 dark:text-white">
+              Detalles de la subtarea
+            </DialogTitle>
+            <DialogDescription className="text-sm text-slate-400 dark:text-slate-400 pt-2">
+              Información completa de la subtarea
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                Nombre
+              </label>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-base font-medium text-slate-200 dark:text-white">
+                  {detailTask?.title}
+                </p>
+                {/* if target_date === today date, show HOY */}
+                {detailTask && differenceInDays(startOfDay(parseISO(detailTask.target_date)), startOfDay(new Date())) === 0 && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-500 text-white text-xs font-bold uppercase">
+                    HOY
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1">
+                  Fecha objetivo
+                </label>
+                <div className="flex items-center gap-2">
+                  <Calendar className="size-4 text-slate-400 dark:text-slate-500" />
+                  <span className="text-base text-slate-200 dark:text-white">{detailTask?.target_date ? getFormattedDate(detailTask.target_date) : ""}</span>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1">
+                  Horas estimadas
+                </label>
+                <div className="flex items-center gap-2">
+                  <Clock className="size-4 text-slate-400 dark:text-slate-500" />
+                  <span className="text-base text-slate-200 dark:text-white">{detailTask ? formatHours(detailTask.estimated_hours) : ""}</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                Estado
+              </label>
+              <p className="text-base text-slate-200 dark:text-white mt-1">
+                {detailTask?.status === "DONE" ? "Completada" : detailTask?.status === "POSTPONED" ? "Pospuesta" : "Pendiente"}
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1939,9 +2002,10 @@ function ScrollableTaskSection({ children }: { children: React.ReactNode }) {
 }
 
 // Sub-component for individual tasks matching the requested UI
-function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPostpone }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void, onEdit: () => void, onViewConflict?: () => void, onPostpone?: () => void, }) {
+function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPostpone, onTitleClick }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void, onEdit: () => void, onViewConflict?: () => void, onPostpone?: () => void, onTitleClick?: () => void }) {
   const navigate = useNavigate();
   const isDone = item.status === "DONE";
+  const isPostponed = item.status === "POSTPONED";
   const isConflicted = !isDone && !!item?.is_conflicted;
   const courseName = item.activity?.course?.name || "Actividad";
   const title = item.title;
@@ -1991,18 +2055,25 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
       icon: "text-blue-500/70",
       hover: "hover:border-blue-500/50",
       checkbox: "border-blue-500 checked:bg-blue-500",
+    },
+    purple: {
+      border: "border-[#8B5CF6]/30",
+      bg: "bg-[#8B5CF6]/[0.15]",
+      badge: "bg-[#8B5CF6] text-white",
+      text: "text-[#8B5CF6]",
+      icon: "text-[#8B5CF6]/70",
+      hover: "hover:border-[#7C3AED]/50",
+      checkbox: "border-[#8B5CF6] checked:bg-[#8B5CF6]",
     }
   };
 
-  const colors = themeColors[theme];
+  const colors = isPostponed ? themeColors.purple : themeColors[theme];
 
   return (
     <div
-      className={`relative flex flex-col gap-4 border ${
-        isConflicted ? 'border-2 border-[#F59E0B]' : colors.border
-      } ${colors.bg} rounded-3xl p-4 w-full transition-all duration-300 ${colors.hover} shadow-lg ${
-        isDone ? 'opacity-50 grayscale' : ''
-      }`}
+      className={`relative flex flex-col gap-4 border ${isConflicted ? 'border-[#F59E0B] animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.5)]' : colors.border
+        } ${colors.bg} rounded-3xl p-4 w-full transition-all duration-300 ${colors.hover} shadow-lg ${isDone ? 'opacity-50 grayscale' : ''
+        }`}
     >
       {badge && (
         <div className={`absolute -top-3 left-6 px-3 py-1 font-black text-[10px] tracking-widest uppercase rounded-full ${colors.badge} shadow-lg`}>
@@ -2044,7 +2115,10 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
               {item.activity?.title || "Actividad"}
             </Link>
           </p>
-          <h4 className={`mt-1 text-lg font-bold ${isDone ? 'text-slate-400 line-through' : 'text-slate-100'} leading-tight tracking-tight pr-2`}>
+          <h4
+            onClick={onTitleClick}
+            className={`mt-1 text-lg font-bold ${isDone ? 'text-slate-400 line-through' : 'text-slate-100'} leading-tight tracking-tight pr-2 ${onTitleClick ? 'cursor-pointer hover:text-blue-400 transition-colors' : ''}`}
+          >
             {title}
           </h4>
 
@@ -2061,45 +2135,49 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
       </div>
 
       <div className="pt-3 border-t border-slate-700/20 flex flex-wrap items-center justify-between gap-3">
-        {isConflicted && onViewConflict && (
-          <button
-            type="button"
-            onClick={onViewConflict}
-            className="inline-flex items-center gap-2 text-xs font-semibold text-[#F59E0B]/90 hover:text-[#F59E0B] bg-[#F59E0B]/20 hover:bg-[#F59E0B]/30 px-3 py-2 rounded-lg border border-[#F59E0B]/40 transition-colors cursor-pointer"
-          >
-            <AlertCircle className="w-4 h-4" />
-            Ver conflicto
-          </button>
-        )}
-
-        <button
-          type="button"
-          onClick={onEdit}
-          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer"
-        >
-          <Pencil className="w-4 h-4" />
-          Editar
-        </button>
-
-        <button
-          type="button"
-          onClick={handleReprogram}
-          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-blue-600/15 hover:bg-blue-600/25 px-3 py-2 rounded-lg border border-blue-500/30 transition-colors cursor-pointer"
-        >
-          <CalendarRange className="w-4 h-4" />
-          Reprogramar
-        </button>
-
-        {onPostpone && (
-          <button
-            type="button"
-            onClick={onPostpone}
-            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer"
-            > <Clock className="w-4 h-4" />
-            Posponer
+        <div className="flex items-center gap-3">
+          {isConflicted && onViewConflict && (
+            <button
+              type="button"
+              onClick={onViewConflict}
+              className="inline-flex items-center gap-2 text-xs font-semibold text-[#F59E0B]/90 hover:text-[#F59E0B] bg-[#F59E0B]/20 hover:bg-[#F59E0B]/30 px-3 py-2 rounded-lg border border-[#F59E0B]/40 transition-colors cursor-pointer"
+            >
+              <AlertCircle className="w-4 h-4" />
+              Ver conflicto
             </button>
-        )}
-        
+          )}
+
+          <button
+            type="button"
+            onClick={onEdit}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer"
+          >
+            <Pencil className="w-4 h-4" />
+            Editar
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3 ml-auto">
+          {onPostpone && (
+            <button
+              type="button"
+              onClick={onPostpone}
+              className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer"
+            >
+              <Clock className="w-4 h-4" />
+              Posponer
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleReprogram}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-blue-600/15 hover:bg-blue-600/25 px-3 py-2 rounded-lg border border-blue-500/30 transition-colors cursor-pointer"
+          >
+            <CalendarRange className="w-4 h-4" />
+            Reprogramar
+          </button>
+        </div>
       </div>
     </div>
   );

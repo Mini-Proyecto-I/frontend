@@ -4,7 +4,7 @@ import InfoTooltip from "@/features/create/components/InfoTooltip";
 import SubtaskForm, { Subtarea } from "@/features/create/components/SubtaskForm";
 import { getCourses, createCourse } from "@/api/services/course";
 import { updateActivity } from "@/api/services/activity";
-import { getSubtasksForActivity, createSubtask, updateSubtask, deleteSubtask } from "@/api/services/subtack";
+import { getSubtasksForActivity, createSubtask, updateSubtask, deleteSubtask } from "@/api/services/subtask";
 import {
   Dialog,
   DialogContent,
@@ -105,18 +105,18 @@ export default function EditActivityDialog({
   // Parsear fecha desde formato "Entrega 15 nov" a YYYY-MM-DD
   const parseDate = (dateStr: string): string => {
     if (!dateStr || dateStr === "Sin fecha") return "";
-    
+
     // Si ya viene en formato YYYY-MM-DD, retornarlo directamente
     if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
       return dateStr;
     }
-    
+
     // Intentar parsear formato "Entrega DD MMM"
     const months: { [key: string]: string } = {
       ene: "01", feb: "02", mar: "03", abr: "04", may: "05", jun: "06",
       jul: "07", ago: "08", sep: "09", oct: "10", nov: "11", dic: "12"
     };
-    
+
     const match = dateStr.match(/(\d{1,2})\s+(\w{3})/i);
     if (match) {
       const day = match[1].padStart(2, "0");
@@ -126,7 +126,7 @@ export default function EditActivityDialog({
         return `${currentYear}-${month}-${day}`;
       }
     }
-    
+
     return getTodayDate();
   };
 
@@ -139,22 +139,22 @@ export default function EditActivityDialog({
       setFechaEntrega(activityData.dueDate ? parseDate(activityData.dueDate) : "");
       setFechaEvento(activityData.eventDate || "");
       setDescripcion(activityData.description || "");
-      
+
       // Limpiar errores al abrir
       setErrors({});
-      
+
       // Función async para cargar subtareas originales y formatear
       const loadSubtasks = async () => {
         if (activityId) {
           try {
             const backendSubtasks = await getSubtasksForActivity(activityId);
-            const formattedBackendSubtasks = Array.isArray(backendSubtasks) 
+            const formattedBackendSubtasks = Array.isArray(backendSubtasks)
               ? backendSubtasks.map((s: any) => ({
-                  id: s.id,
-                  title: s.title || "",
-                  target_date: s.target_date || "",
-                  estimated_hours: s.estimated_hours || 0,
-                }))
+                id: s.id,
+                title: s.title || "",
+                target_date: s.target_date || "",
+                estimated_hours: s.estimated_hours || 0,
+              }))
               : [];
             setOriginalSubtasks(formattedBackendSubtasks);
 
@@ -166,7 +166,7 @@ export default function EditActivityDialog({
                 if (bs.estimated_hours) {
                   horasValue = String(bs.estimated_hours);
                 }
-                
+
                 return {
                   id: bs.id, // Siempre usar el ID del backend
                   nombre: bs.title || "",
@@ -183,10 +183,10 @@ export default function EditActivityDialog({
                   const cleanHours = subtask.horas.replace(/h/gi, "").trim();
                   horasValue = cleanHours && !isNaN(parseFloat(cleanHours)) ? cleanHours : "";
                 }
-                
+
                 return {
                   id: typeof subtask.id === 'number' && subtask.id < 1000000000000
-                    ? subtask.id 
+                    ? subtask.id
                     : Date.now() + index,
                   nombre: subtask.nombre || "",
                   fechaObjetivo: subtask.fechaObjetivo || "",
@@ -200,7 +200,7 @@ export default function EditActivityDialog({
           } catch (error) {
             console.error("Error al cargar subtareas originales:", error);
             setOriginalSubtasks([]);
-            
+
             // Si falla, usar los datos de activityData directamente
             if (activityData.subtasks && activityData.subtasks.length > 0) {
               const formattedSubtasks = activityData.subtasks.map((subtask, index) => {
@@ -209,7 +209,7 @@ export default function EditActivityDialog({
                   const cleanHours = subtask.horas.replace(/h/gi, "").trim();
                   horasValue = cleanHours && !isNaN(parseFloat(cleanHours)) ? cleanHours : "";
                 }
-                
+
                 return {
                   id: typeof subtask.id === 'number' ? subtask.id : (parseInt(String(subtask.id)) || Date.now() + index),
                   nombre: subtask.nombre || "",
@@ -230,7 +230,7 @@ export default function EditActivityDialog({
               const cleanHours = subtask.horas.replace(/h/gi, "").trim();
               horasValue = cleanHours && !isNaN(parseFloat(cleanHours)) ? cleanHours : "";
             }
-            
+
             return {
               id: typeof subtask.id === 'number' ? subtask.id : (parseInt(String(subtask.id)) || Date.now() + index),
               nombre: subtask.nombre || "",
@@ -434,7 +434,7 @@ export default function EditActivityDialog({
         subtareas.forEach((sub) => {
           const idStr = String(sub.id);
           const isOriginalId = originalBackendIds.has(idStr);
-          
+
           // Verificar si es un ID temporal (Date.now() genera números de 13+ dígitos)
           const isTemporaryId = !isOriginalId && (
             (typeof sub.id === 'number' && sub.id > 1000000000000) ||
@@ -506,39 +506,39 @@ export default function EditActivityDialog({
 
       // Mostrar mensaje de éxito
       showToast("¡Todo salió bien! La actividad se actualizó correctamente.", "success");
-      
+
       // Llamar al callback para actualizar los datos en el componente padre
       if (onActivityUpdated) {
         onActivityUpdated();
       }
-      
+
       // Cerrar el modal después de un breve delay
       setTimeout(() => {
         onOpenChange(false);
       }, 1500);
-      
+
     } catch (error: any) {
       console.error("Error al actualizar actividad:", error);
       console.error("Datos del error:", error?.response?.data);
-      
+
       let errorMessage = "Error al actualizar la actividad. Intenta de nuevo.";
-      
+
       if (error?.response?.data) {
         if (error.response.data.title) {
-          const titleError = Array.isArray(error.response.data.title) 
-            ? error.response.data.title[0] 
+          const titleError = Array.isArray(error.response.data.title)
+            ? error.response.data.title[0]
             : error.response.data.title;
           errorMessage = titleError || errorMessage;
         } else if (error.response.data.detail) {
           errorMessage = error.response.data.detail;
         } else if (error.response.data.deadline) {
-          const deadlineError = Array.isArray(error.response.data.deadline) 
-            ? error.response.data.deadline[0] 
+          const deadlineError = Array.isArray(error.response.data.deadline)
+            ? error.response.data.deadline[0]
             : error.response.data.deadline;
           errorMessage = deadlineError || errorMessage;
         } else if (error.response.data.event_datetime) {
-          const eventError = Array.isArray(error.response.data.event_datetime) 
-            ? error.response.data.event_datetime[0] 
+          const eventError = Array.isArray(error.response.data.event_datetime)
+            ? error.response.data.event_datetime[0]
             : error.response.data.event_datetime;
           errorMessage = eventError || errorMessage;
         } else if (typeof error.response.data === 'object') {
@@ -552,7 +552,7 @@ export default function EditActivityDialog({
       } else if (error?.message) {
         errorMessage = error.message;
       }
-      
+
       showToast(errorMessage, "error");
     } finally {
       setIsSaving(false);
@@ -571,7 +571,7 @@ export default function EditActivityDialog({
   };
 
   const updateSubtarea = (id: number, field: keyof Subtarea, value: string) => {
-    setSubtareas((prevSubtareas) => 
+    setSubtareas((prevSubtareas) =>
       prevSubtareas.map((s) => (s.id === id ? { ...s, [field]: value } : s))
     );
   };
@@ -806,13 +806,12 @@ export default function EditActivityDialog({
                           className="sr-only"
                         />
                         <div
-                          className={`h-4 w-4 rounded-full border-2 flex items-center justify-center transition-colors ${
-                            tipo === t.value
-                              ? "border-[#3B82F6] bg-[#3B82F6]"
-                              : errors.tipo
+                          className={`h-4 w-4 rounded-full border-2 flex items-center justify-center transition-colors ${tipo === t.value
+                            ? "border-[#3B82F6] bg-[#3B82F6]"
+                            : errors.tipo
                               ? "border-[#EF4444]"
                               : "border-muted-foreground"
-                          }`}
+                            }`}
                         >
                           {tipo === t.value && (
                             <div className="h-1.5 w-1.5 rounded-full bg-white" />

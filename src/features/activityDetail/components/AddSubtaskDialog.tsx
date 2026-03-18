@@ -10,7 +10,7 @@ import {
 } from "@/shared/components/dialog";
 import { Button } from "@/shared/components/button";
 import { useToast } from "@/shared/components/toast";
-import { createSubtask } from "@/api/services/subtack";
+import { createSubtask } from "@/api/services/subtask";
 
 interface AddSubtaskDialogProps {
   open: boolean;

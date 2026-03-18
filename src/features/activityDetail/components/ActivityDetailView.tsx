@@ -5,7 +5,7 @@ import ActivityDetailHeader from "./ActivityDetailHeader";
 import ActivityProgressCard from "./ActivityProgressCard";
 import StudyPlanSection from "./StudyPlanSection";
 import { getActivity } from "@/api/services/activity";
-import { getSubtasksForActivity } from "@/api/services/subtack";
+import { getSubtasksForActivity } from "@/api/services/subtask";
 import { useToast } from "@/shared/components/toast";
 
 interface ActivityDetailViewProps {

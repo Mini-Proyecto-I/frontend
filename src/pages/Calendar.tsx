@@ -18,7 +18,7 @@ import { es } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Clock, MoreVertical, Loader2, CalendarRange, CalendarCheck, Move, CirclePlus, X, Eye, Pencil, Trash2, CheckCircle2, AlertTriangle, AlertCircle } from "lucide-react";
 import { Button } from "@/shared/components/button";
 import { useHoy } from "@/features/today/hooks/useHoy";
-import { patchSubtask, deleteSubtask, putSubtaskWithConflictTolerance } from "@/api/services/subtack";
+import { patchSubtask, deleteSubtask, putSubtaskWithConflictTolerance } from "@/api/services/subtask";
 import { patchActivity } from "@/api/services/activity";
 import { queryCache } from "@/lib/queryCache";
 import { Link, useLocation, useNavigate } from "react-router-dom";

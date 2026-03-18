@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/shared/components/dialog";
 import EditSubtaskModal from "@/shared/components/EditSubtaskModal";
-import { patchSubtask, updateSubtask, deleteSubtask } from "@/api/services/subtack";
+import { patchSubtask, updateSubtask, deleteSubtask } from "@/api/services/subtask";
 import { useToast } from "@/shared/components/toast";
 
 interface SubtaskItemProps {
@@ -533,74 +533,74 @@ export default function SubtaskItem({
                 const conflictTitle = pendingEditData?.nombre?.trim() ? pendingEditData.nombre.trim() : title;
                 return (
                   <>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowConflictModal(false);
-                  setConflictData(null);
-                  setPendingEditData(null);
-                }}
-                className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
-                aria-label="Cerrar"
-              >
-                <X className="w-5 h-5" />
-              </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowConflictModal(false);
+                        setConflictData(null);
+                        setPendingEditData(null);
+                      }}
+                      className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
+                      aria-label="Cerrar"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
 
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-[#F59E0B]/10 border border-[#F59E0B]/20 flex items-center justify-center shrink-0">
-                  <AlertCircle className="w-6 h-6 text-[#F59E0B]" />
-                </div>
-                <div className="pr-8">
-                  <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-                    Conflicto de horas detectado
-                  </h3>
-                </div>
-              </div>
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-[#F59E0B]/10 border border-[#F59E0B]/20 flex items-center justify-center shrink-0">
+                        <AlertCircle className="w-6 h-6 text-[#F59E0B]" />
+                      </div>
+                      <div className="pr-8">
+                        <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                          Conflicto de horas detectado
+                        </h3>
+                      </div>
+                    </div>
 
-              <p className="mt-6 text-sm text-slate-300 leading-relaxed">
-                No pudimos actualizar{" "}
-                <span className="font-semibold text-white">"{conflictTitle}"</span> de{" "}
-                <span className="font-semibold text-white">{conflictData.horasAntiguas.toFixed(1)}h</span> a{" "}
-                <span className="font-semibold text-white">{conflictData.horasIntentadas.toFixed(1)}h</span> porque ese día se superaría tu límite de horas de estudio.
-              </p>
+                    <p className="mt-6 text-sm text-slate-300 leading-relaxed">
+                      No pudimos actualizar{" "}
+                      <span className="font-semibold text-white">"{conflictTitle}"</span> de{" "}
+                      <span className="font-semibold text-white">{conflictData.horasAntiguas.toFixed(1)}h</span> a{" "}
+                      <span className="font-semibold text-white">{conflictData.horasIntentadas.toFixed(1)}h</span> porque ese día se superaría tu límite de horas de estudio.
+                    </p>
 
-              <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
-                <div className="mt-3 flex items-center justify-center gap-2">
-                  <span className="text-2xl font-black text-red-400">
-                    {conflictData.horasOcupadas.toFixed(1)}h
-                  </span>
-                  <span className="text-slate-400">/</span>
-                  <span className="text-xl font-bold text-slate-300">
-                    {conflictData.limiteDiario.toFixed(1)}h
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400 mt-2 text-center">
-                  Horas resultantes / Límite diario de estudio
-                </p>
-              </div>
+                    <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                      <div className="mt-3 flex items-center justify-center gap-2">
+                        <span className="text-2xl font-black text-red-400">
+                          {conflictData.horasOcupadas.toFixed(1)}h
+                        </span>
+                        <span className="text-slate-400">/</span>
+                        <span className="text-xl font-bold text-slate-300">
+                          {conflictData.limiteDiario.toFixed(1)}h
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-2 text-center">
+                        Horas resultantes / Límite diario de estudio
+                      </p>
+                    </div>
 
-              <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                <button
-                  onClick={() => {
-                    setShowConflictModal(false);
-                    setConflictData(null);
-                    setShowEditDialog(true); // Volver a abrir el modal de editar
-                  }}
-                  className="flex-1 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-600/20 transition-all"
-                >
-                  Reajustar
-                </button>
-                <button
-                  onClick={() => {
-                    setShowConflictModal(false);
-                    setConflictData(null);
-                    setPendingEditData(null);
-                  }}
-                  className="flex-1 h-11 rounded-xl bg-white hover:bg-slate-100 text-blue-600 font-bold border border-slate-200 transition-all"
-                >
-                  Cerrar
-                </button>
-              </div>
+                    <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                      <button
+                        onClick={() => {
+                          setShowConflictModal(false);
+                          setConflictData(null);
+                          setShowEditDialog(true); // Volver a abrir el modal de editar
+                        }}
+                        className="flex-1 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-600/20 transition-all"
+                      >
+                        Reajustar
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowConflictModal(false);
+                          setConflictData(null);
+                          setPendingEditData(null);
+                        }}
+                        className="flex-1 h-11 rounded-xl bg-white hover:bg-slate-100 text-blue-600 font-bold border border-slate-200 transition-all"
+                      >
+                        Cerrar
+                      </button>
+                    </div>
                   </>
                 );
               })()}

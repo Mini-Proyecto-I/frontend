@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getCourses } from '../../../api/services/course';
 import { getActivities } from '../../../api/services/activity';
-import { getSubtasks } from '../../../api/services/subtack';
+import { getSubtasks } from '../../../api/services/subtask';
 import { getReprogrammingLogs } from '../../../api/services/reprogrammingLog';
 
 export const useTodayData = () => {
