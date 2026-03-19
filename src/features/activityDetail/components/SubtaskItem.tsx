@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Pencil, Trash2, Calendar, Clock, Loader2, CheckCircle2, AlertCircle, X } from "lucide-react";
+import { Pencil, Trash2, Calendar, Clock, Loader2, CheckCircle2, AlertCircle, AlertTriangle, X, FileText } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,12 +11,14 @@ import {
 import EditSubtaskModal from "@/shared/components/EditSubtaskModal";
 import { patchSubtask, updateSubtask, deleteSubtask } from "@/api/services/subtask";
 import { useToast } from "@/shared/components/toast";
+import { SubtaskDetailModal } from "@/shared/components/SubtaskDetailModal";
 
 interface SubtaskItemProps {
   id: string;
   activityId: string;
   title: string;
   date: string;
+  note?: string;
   dateOriginal?: string; // Fecha original en formato YYYY-MM-DD para el modal de edición
   hours: string;
   completed?: boolean;
@@ -25,6 +27,10 @@ interface SubtaskItemProps {
   onStatusChange?: (subtaskId: string, newStatus: boolean) => void; // Callback con ID y nuevo estado para actualización optimista
   onSubtaskUpdated?: () => void; // Callback para refrescar todas las subtareas después de editar
   deadlineDate?: string; // Fecha de entrega de la actividad
+  isConflicted?: boolean;
+  status?: string;
+  onOpenResolveConflict?: () => void;
+  onOpenPostpone?: () => void;
 }
 
 export default function SubtaskItem({
@@ -32,6 +38,7 @@ export default function SubtaskItem({
   activityId,
   title,
   date,
+  note,
   dateOriginal,
   hours,
   completed = false,
@@ -40,6 +47,10 @@ export default function SubtaskItem({
   onStatusChange,
   onSubtaskUpdated,
   deadlineDate,
+  isConflicted = false,
+  status = "PENDING",
+  onOpenResolveConflict,
+  onOpenPostpone,
 }: SubtaskItemProps) {
   const navigate = useNavigate();
   const [isChecked, setIsChecked] = useState(completed);
@@ -64,9 +75,13 @@ export default function SubtaskItem({
   const lastLocalStateRef = useRef<boolean | null>(null); // Ref para rastrear el último estado establecido localmente
   const deleteArmTimeoutRef = useRef<number | null>(null);
 
-  const borderClass = isActive
-    ? "border-l-4 border-l-primary hover:border-primary/50"
-    : "hover:border-primary/30";
+  const borderClass = isConflicted
+    ? "border-amber-400 animate-pulse shadow-[0_0_15px_rgba(251,191,36,0.5)] bg-amber-400/10"
+    : status === "POSTPONED"
+      ? "border-purple-500/30 bg-purple-500/5 shadow-[0_0_10px_rgba(168,85,247,0.1)]"
+      : isActive
+        ? "border-l-4 border-l-primary hover:border-primary/50"
+        : "hover:border-primary/30";
 
   // Sincronizar el estado del checkbox cuando cambie el prop completed
   // Solo si el cambio NO fue iniciado localmente y el estado es diferente
@@ -362,7 +377,7 @@ export default function SubtaskItem({
             )}
           </div>
         </label>
-        <div className={`flex-1 min-w-0 ${isChecked ? "line-through text-slate-500 dark:text-slate-400" : ""}`}>
+        <div className={`flex-1 min-w-0 ${isChecked ? "line-through text-slate-500 dark:text-slate-400" : ""} ${status === "POSTPONED" ? "opacity-80" : ""}`}>
           <div className="flex items-center gap-2 mb-2">
             <h4 className={`truncate font-bold ${isChecked ? "text-slate-500 dark:text-slate-400" : "text-slate-900 dark:text-white"}`}>
               {title}
@@ -382,9 +397,63 @@ export default function SubtaskItem({
               <Clock className="size-4 text-slate-400 dark:text-slate-500" />
               <span>{hours}</span>
             </div>
+            {isConflicted && (
+              <div className="flex items-center gap-1.5 text-amber-400 font-bold animate-pulse">
+                <AlertTriangle className="size-4" />
+                <span>Conflicto de horas</span>
+              </div>
+            )}
+            {status === "POSTPONED" && (
+              <div className="flex items-center gap-1.5 text-purple-400 font-bold italic">
+                <Clock className="size-4" />
+                <span>Pospuesta</span>
+              </div>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 mt-3 sm:mt-0">
+          {isConflicted && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenResolveConflict?.();
+              }}
+              className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-all font-bold text-sm shadow-lg shadow-amber-500/20"
+            >
+              <AlertTriangle className="size-4" />
+              Resolver conflicto
+            </button>
+          )}
+
+          {!isConflicted && !isChecked && status !== "POSTPONED" && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenPostpone?.();
+              }}
+              className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg transition-all font-bold text-sm"
+            >
+              <Clock className="size-4" />
+              Posponer
+            </button>
+          )}
+
+          {isChecked && note && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowDetailsDialog(true);
+              }}
+              className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-slate-400 bg-slate-500/10 hover:bg-slate-500/20 rounded-lg transition-all font-bold text-sm"
+            >
+              <FileText className="size-4" />
+              Ver nota
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handleEdit}
@@ -416,63 +485,17 @@ export default function SubtaskItem({
         </div>
       </article>
 
-      <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-slate-900 dark:text-white">
-              Detalles de la subtarea
-            </DialogTitle>
-            <DialogDescription className="text-sm text-slate-600 dark:text-slate-400 pt-2">
-              Información completa de la subtarea
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div>
-              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                Nombre
-              </label>
-              <div className="flex items-center gap-2 mt-1">
-                <p className="text-base font-medium text-slate-900 dark:text-white">
-                  {title}
-                </p>
-                {todayBadge && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-500 text-white text-xs font-bold uppercase">
-                    HOY
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div>
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1">
-                  Fecha objetivo
-                </label>
-                <div className="flex items-center gap-2">
-                  <Calendar className="size-4 text-slate-400 dark:text-slate-500" />
-                  <span className="text-base text-slate-900 dark:text-white">{date}</span>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1">
-                  Horas estimadas
-                </label>
-                <div className="flex items-center gap-2">
-                  <Clock className="size-4 text-slate-400 dark:text-slate-500" />
-                  <span className="text-base text-slate-900 dark:text-white">{hours}</span>
-                </div>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                Estado
-              </label>
-              <p className="text-base text-slate-900 dark:text-white mt-1">
-                {isChecked ? "Completada" : "Pendiente"}
-              </p>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <SubtaskDetailModal
+        open={showDetailsDialog}
+        onOpenChange={(open: boolean) => setShowDetailsDialog(open)}
+        subtask={{
+          title,
+          target_date: dateOriginal || date.split(" ")[0],
+          estimated_hours: hours.replace("h", ""),
+          status: isChecked ? "DONE" : "PENDING",
+          execution_note: note,
+        }}
+      />
 
       <EditSubtaskModal
         open={showEditDialog}
@@ -524,7 +547,7 @@ export default function SubtaskItem({
       {/* Modal de conflicto de horas */}
       {showConflictModal && conflictData && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-          <div className="w-full max-w-[560px] bg-[#111827] border border-[#F59E0B]/30 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
+          <div className="w-full max-w-[560px] bg-[#111827] border border-amber-400/30 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
             <div className="p-6 sm:p-7 relative">
               {/*
                 Usar el último nombre editado si existe (para consistencia entre el modal de edición y el de conflicto)
@@ -547,8 +570,8 @@ export default function SubtaskItem({
                     </button>
 
                     <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-[#F59E0B]/10 border border-[#F59E0B]/20 flex items-center justify-center shrink-0">
-                        <AlertCircle className="w-6 h-6 text-[#F59E0B]" />
+                      <div className="w-12 h-12 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center shrink-0">
+                        <AlertCircle className="w-6 h-6 text-amber-400" />
                       </div>
                       <div className="pr-8">
                         <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">

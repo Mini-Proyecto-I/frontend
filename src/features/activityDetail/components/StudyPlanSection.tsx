@@ -15,6 +15,9 @@ interface Subtask {
   completed?: boolean;
   isActive?: boolean;
   todayBadge?: boolean;
+  isConflicted?: boolean;
+  status?: string;
+  execution_note?: string;
 }
 
 interface StudyPlanSectionProps {
@@ -23,6 +26,8 @@ interface StudyPlanSectionProps {
   onSubtaskStatusChange?: (subtaskId: string, newStatus: boolean) => void;
   onSubtaskUpdated?: () => void; // Callback para refrescar todas las subtareas después de editar
   deadlineDate?: string; // Fecha de entrega de la actividad
+  onOpenResolveConflict?: (subtask: Subtask) => void;
+  onOpenPostpone?: (subtask: Subtask) => void;
 }
 
 export default function StudyPlanSection({
@@ -31,6 +36,8 @@ export default function StudyPlanSection({
   onSubtaskStatusChange,
   onSubtaskUpdated,
   deadlineDate,
+  onOpenResolveConflict,
+  onOpenPostpone,
 }: StudyPlanSectionProps) {
   const [activeFilter, setActiveFilter] = useState<FilterOption>("mostrar");
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -125,6 +132,7 @@ export default function StudyPlanSection({
             activityId={subtask.activityId || activityId}
             title={subtask.title}
             date={subtask.date}
+            note={subtask.execution_note}
             dateOriginal={subtask.dateOriginal}
             hours={subtask.hours}
             completed={subtask.completed}
@@ -133,6 +141,10 @@ export default function StudyPlanSection({
             onStatusChange={onSubtaskStatusChange}
             onSubtaskUpdated={onSubtaskUpdated}
             deadlineDate={deadlineDate}
+            isConflicted={subtask.isConflicted}
+            status={subtask.status}
+            onOpenResolveConflict={() => onOpenResolveConflict?.(subtask)}
+            onOpenPostpone={() => onOpenPostpone?.(subtask)}
           />
         ))
       )}

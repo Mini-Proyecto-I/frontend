@@ -29,6 +29,8 @@ import {
   DialogTitle,
 } from "@/shared/components/dialog";
 import InfoTooltip from "@/features/create/components/InfoTooltip";
+import { SubtaskDetailModal } from "@/shared/components/SubtaskDetailModal";
+import { Badge } from "@/shared/components/badge";
 
 function getGreeting(name: string) {
   const hour = new Date().getHours();
@@ -1515,64 +1517,12 @@ export default function Today() {
       )}
 
       {/* Detail Task Modal */}
-      <Dialog open={!!detailTask} onOpenChange={(open) => { if (!open) setDetailTask(null); }}>
-        <DialogContent className="sm:max-w-[500px] bg-[#111827] border-slate-800">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-slate-100 dark:text-white">
-              Detalles de la subtarea
-            </DialogTitle>
-            <DialogDescription className="text-sm text-slate-400 dark:text-slate-400 pt-2">
-              Información completa de la subtarea
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div>
-              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                Nombre
-              </label>
-              <div className="flex items-center gap-2 mt-1">
-                <p className="text-base font-medium text-slate-200 dark:text-white">
-                  {detailTask?.title}
-                </p>
-                {/* if target_date === today date, show HOY */}
-                {detailTask && differenceInDays(startOfDay(parseISO(detailTask.target_date)), startOfDay(new Date())) === 0 && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-500 text-white text-xs font-bold uppercase">
-                    HOY
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div>
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1">
-                  Fecha objetivo
-                </label>
-                <div className="flex items-center gap-2">
-                  <Calendar className="size-4 text-slate-400 dark:text-slate-500" />
-                  <span className="text-base text-slate-200 dark:text-white">{detailTask?.target_date ? getFormattedDate(detailTask.target_date) : ""}</span>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1">
-                  Horas estimadas
-                </label>
-                <div className="flex items-center gap-2">
-                  <Clock className="size-4 text-slate-400 dark:text-slate-500" />
-                  <span className="text-base text-slate-200 dark:text-white">{detailTask ? formatHours(detailTask.estimated_hours) : ""}</span>
-                </div>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                Estado
-              </label>
-              <p className="text-base text-slate-200 dark:text-white mt-1">
-                {detailTask?.status === "DONE" ? "Completada" : detailTask?.status === "POSTPONED" ? "Pospuesta" : "Pendiente"}
-              </p>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <SubtaskDetailModal
+        open={!!detailTask}
+        onOpenChange={(open: boolean) => { if (!open) setDetailTask(null); }}
+        subtask={detailTask}
+        getFormattedDate={getFormattedDate}
+      />
     </div>
   );
 }

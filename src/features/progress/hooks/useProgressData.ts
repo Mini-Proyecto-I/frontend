@@ -1,7 +1,7 @@
 // @/features/progress/hooks/useProgressData.ts
 import { useState, useEffect, useCallback } from 'react';
-import { getActivities } from '@/api/services/activity';
-import { getSubtasksForActivity, patchSubtask } from '@/api/services/subtask';
+import { getActivities, getCompletionPercent as getCompletionPercentApi } from '@/api/services/activity';
+import { getSubtasksForActivity, patchSubtask, postponeSubtask as apiPostponeSubtask } from '@/api/services/subtask';
 import { useToast } from '@/shared/components/toast';
 import { queryCache } from '@/lib/queryCache';
 
@@ -34,6 +34,9 @@ export interface Activity {
   deadline: string | null;
   subtasks: Subtask[];
   matchingSubtasks?: Subtask[];
+  total_subtasks?: number;
+  total_subtasks_done?: number;
+  completion_percent?: number;
 }
 
 export function useProgressData() {
@@ -75,40 +78,20 @@ export function useProgressData() {
 
       const activitiesData = await getActivities();
 
-      // Fetch subtasks for each activity (using per-activity cache entries)
-      const activitiesWithSubtasks = await Promise.all(
-        activitiesData.map(async (activity: any) => {
-          const subtaskKey = `subtasks:${activity.id}`;
-
-          // Check per-activity subtask cache
-          const cachedSubtasks = bypassCache
-            ? undefined
-            : queryCache.get<Subtask[]>(subtaskKey);
-
-          const subtasks = cachedSubtasks ?? await (async () => {
-            try {
-              const fetched = await getSubtasksForActivity(activity.id);
-              const result = Array.isArray(fetched) ? fetched : [];
-              queryCache.set(subtaskKey, result, SUBTASKS_TTL);
-              return result;
-            } catch {
-              return [];
-            }
-          })();
-
-          return {
-            ...activity,
-            subtasks,
-            course_color: activity.course_color || 'cyan',
-          };
-        })
-      );
+      // Since the backend now includes subtasks in the activity response 
+      // thanks to our recent Serializer update, we no longer need to 
+      // fetch them individually here. This fixes the N+1 API call issue.
+      const activitiesWithSubtasks = (activitiesData || []).map((activity: any) => ({
+        ...activity,
+        subtasks: Array.isArray(activity.subtasks) ? activity.subtasks : [],
+        course_color: activity.course_color || 'cyan',
+      }));
 
       queryCache.set('activities', activitiesWithSubtasks, ACTIVITIES_TTL);
       setActivities(activitiesWithSubtasks);
 
       const courseMap = new Map<string | number, Course>();
-      activitiesWithSubtasks.forEach((a) => {
+      activitiesWithSubtasks.forEach((a: Activity) => {
         if (typeof a.course === 'object' && a.course !== null) {
           const course = a.course as Course;
           courseMap.set(course.id, course);
@@ -134,16 +117,25 @@ export function useProgressData() {
     async (activityId: number, subtaskId: number, updates: Partial<Subtask>) => {
       // Optimistic local state update
       setActivities((prev: Activity[]) => {
-        const updated = prev.map((activity: Activity) =>
-          activity.id === activityId
-            ? {
-              ...activity,
-              subtasks: activity.subtasks.map((st: Subtask) =>
-                st.id === subtaskId ? { ...st, ...updates } : st
-              ),
-            }
-            : activity
-        );
+        const updated = prev.map((activity: Activity) => {
+          if (activity.id !== activityId) return activity;
+
+          const updatedSubtasks = activity.subtasks.map((st: Subtask) =>
+            st.id === subtaskId ? { ...st, ...updates } : st
+          );
+
+          // Recalculate counters for the activity to keep UI in sync optimistically
+          const total = activity.total_subtasks ?? updatedSubtasks.length;
+          const done = updatedSubtasks.filter(st => st.status === 'DONE').length;
+          const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+          return {
+            ...activity,
+            subtasks: updatedSubtasks,
+            total_subtasks_done: done,
+            completion_percent: pct
+          };
+        });
 
         // Sync the updated activities list back into cache
         queryCache.set('activities', updated, ACTIVITIES_TTL);
@@ -162,6 +154,8 @@ export function useProgressData() {
 
         if (updates.status === 'DONE') {
           showToast('Tarea completada exitosamente', 'success');
+        } else if (updates.status === 'PENDING') {
+          showToast('Tarea marcada como pendiente', 'success');
         } else {
           showToast('Cambios guardados correctamente', 'success');
         }
@@ -177,6 +171,58 @@ export function useProgressData() {
   );
 
   /**
+   * Postpone a subtask with optimistic update
+   */
+  const postponeSubtaskAction = useCallback(
+    async (activityId: number, subtaskId: number, note: string) => {
+      // Optimistic local state update
+      setActivities((prev: Activity[]) => {
+        const updated = prev.map((activity: Activity) => {
+          if (activity.id !== activityId) return activity;
+
+          const updatedSubtasks = activity.subtasks.map((st: Subtask) =>
+            st.id === subtaskId ? { ...st, status: 'POSTPONED' as any, note } : st
+          );
+
+          // Recalculate counters for the activity to keep UI in sync optimistically
+          const total = (activity as any).total_subtasks ?? updatedSubtasks.length;
+          const done = updatedSubtasks.filter(st => st.status === 'DONE').length;
+          const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+          return {
+            ...activity,
+            subtasks: updatedSubtasks,
+            total_subtasks_done: done,
+            completion_percent: pct
+          };
+        });
+
+        // Sync the updated activities list back into cache
+        queryCache.set('activities', updated, ACTIVITIES_TTL);
+
+        // Also update the per-activity subtask cache entry
+        const updatedActivity = updated.find((a) => a.id === activityId);
+        if (updatedActivity) {
+          queryCache.set(`subtasks:${activityId}`, updatedActivity.subtasks, SUBTASKS_TTL);
+        }
+
+        return updated;
+      });
+
+      try {
+        await apiPostponeSubtask(activityId, subtaskId, note);
+        showToast('Tarea pospuesta correctamente', 'success');
+      } catch (err) {
+        queryCache.invalidate('activities');
+        queryCache.invalidateByPrefix('subtasks:');
+        fetchActivities(true);
+        showToast('No se pudo posponer la tarea.', 'error');
+      }
+    },
+    [fetchActivities]
+  );
+
+  /**
    * Force a full re-fetch, clearing related cache entries first.
    */
   const refresh = useCallback(() => {
@@ -184,6 +230,16 @@ export function useProgressData() {
     queryCache.invalidateByPrefix('subtasks:');
     fetchActivities(true);
   }, [fetchActivities]);
+
+  const getGlobalProgress = useCallback(async (fromDate?: string, toDate?: string) => {
+    try {
+      const data = await getCompletionPercentApi(fromDate, toDate);
+      return data;
+    } catch (err) {
+      console.error('Error fetching global progress:', err);
+      return null;
+    }
+  }, []);
 
   useEffect(() => {
     fetchActivities(false);
@@ -196,5 +252,7 @@ export function useProgressData() {
     error,
     refresh,
     updateSubtask,
+    postponeSubtask: postponeSubtaskAction,
+    getGlobalProgress,
   };
 }

@@ -905,8 +905,18 @@ export default function Calendar() {
                                                         ring: "ring-[#F59E0B]/60 shadow-[#F59E0B]/40",
                                                         glow: "shadow-[0_0_15px_rgba(245,158,11,0.2)]"
                                                     };
-                                                    // Si está seleccionada, usar tema azul para no chocar con el borde amarillo de conflicto
-                                                    const activeTheme = isConflicted && !isSelected ? conflictTheme : theme;
+
+                                                    const isPostponed = activity.status === "POSTPONED";
+                                                    const postponedTheme = {
+                                                        border: "border-purple-500",
+                                                        text: "text-purple-400",
+                                                        bg: "hover:bg-purple-500/5",
+                                                        ring: "ring-purple-500/60 shadow-purple-500/40",
+                                                        glow: "shadow-[0_0_15px_rgba(168,85,247,0.2)]"
+                                                    };
+
+                                                    // Prioridad: Selección > Conflicto > Pospuesta > Tema por curso
+                                                    const activeTheme = isSelected ? theme : (isConflicted ? conflictTheme : (isPostponed ? postponedTheme : theme));
 
                                                     return (
                                                         <div
@@ -936,6 +946,12 @@ export default function Calendar() {
                                                                 <div className="absolute top-2 left-2 flex items-center gap-1">
                                                                     <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
                                                                     <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest">Conflicto</span>
+                                                                </div>
+                                                            )}
+                                                            {isPostponed && !isSelected && !isConflicted && (
+                                                                <div className="absolute top-2 left-2 flex items-center gap-1">
+                                                                    <div className="w-2 h-2 rounded-full bg-purple-500" />
+                                                                    <span className="text-[8px] font-black text-purple-400 uppercase tracking-widest">Pospuesta</span>
                                                                 </div>
                                                             )}
                                                             {isSelected && (

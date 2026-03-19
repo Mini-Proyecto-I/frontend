@@ -69,8 +69,8 @@ export function ResolveConflictModal({
           </button>
 
           <div className="flex items-start gap-4 pr-8">
-            <div className="w-12 h-12 rounded-2xl bg-[#F59E0B]/10 border border-[#F59E0B]/25 flex items-center justify-center shrink-0">
-              <AlertCircle className="w-6 h-6 text-[#F59E0B]" />
+            <div className="w-12 h-12 rounded-2xl bg-amber-400/10 border border-amber-400/25 flex items-center justify-center shrink-0">
+              <AlertCircle className="w-6 h-6 text-amber-400" />
             </div>
             <div>
               <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
@@ -156,7 +156,7 @@ export function ResolveConflictModal({
                   {overworkHours !== undefined && overworkHours > 0 && (
                     <div className="sm:col-span-2">
                       <p className="text-slate-500 text-sm font-medium mb-0.5">Sobretrabajo</p>
-                      <p className="text-base font-bold text-[#F59E0B]">
+                      <p className="text-base font-bold text-amber-500">
                         +{(overworkHours % 1 === 0 ? overworkHours : overworkHours.toFixed(1))}h sobre el límite
                       </p>
                     </div>
@@ -214,7 +214,7 @@ export function ResolveConflictModal({
                 </Button>
               </div>
               {reduceError && (
-                <p className="text-[#F59E0B] text-sm font-semibold mt-2">
+                <p className="text-amber-500 text-sm font-semibold mt-2">
                   {reduceError}
                 </p>
               )}

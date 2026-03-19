@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { format, parseISO, isValid, differenceInDays, startOfDay, isSameDay, isSameWeek, isSameMonth } from 'date-fns';
+import { useState, useMemo, useEffect } from 'react';
+import { format, parseISO, isValid, differenceInDays, startOfDay, isSameDay, isSameWeek, isSameMonth, startOfWeek, addWeeks, addDays, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
   CheckCircle2,
@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { AlertCircle } from 'lucide-react';
 import { useProgressData, Activity, Subtask, Course } from '@/features/progress/hooks/useProgressData';
-import { patchSubtask, putSubtaskWithConflictTolerance, postponeSubtask, deleteSubtask } from '@/api/services/subtask';
+import { putSubtaskWithConflictTolerance } from '@/api/services/subtask';
 import { queryCache } from '@/lib/queryCache';
 import { Card, CardContent } from '@/shared/components/card';
 import { Badge } from '@/shared/components/badge';
@@ -39,6 +39,7 @@ import { ResolveConflictModal } from '@/shared/components/ResolveConflictModal';
 import { ConflictOutcomeModal } from '@/shared/components/ConflictOutcomeModal';
 import EditSubtaskModal from '@/shared/components/EditSubtaskModal';
 import PostponeSubtaskModal from '@/shared/components/PostponeSubtaskModal';
+import { SubtaskDetailModal } from '@/shared/components/SubtaskDetailModal';
 import {
   Select,
   SelectContent,
@@ -210,7 +211,16 @@ function CircularProgress({ value, size = 160, strokeWidth = 8 }: { value: numbe
 
 export default function ProgressPage() {
   const navigate = useNavigate();
-  const { activities, courses, loading, error, refresh, updateSubtask } = useProgressData();
+  const {
+    activities,
+    courses,
+    loading,
+    error,
+    refresh,
+    updateSubtask,
+    postponeSubtask,
+    getGlobalProgress,
+  } = useProgressData();
 
   const { showToast, ToastComponent } = useToast();
 
@@ -218,6 +228,8 @@ export default function ProgressPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [timeFilter, setTimeFilter] = useState("week");
+  const [backendProgress, setBackendProgress] = useState<any>(null);
+  const [isStatsLoading, setIsStatsLoading] = useState(false);
 
   const hasActiveFilters =
     courseFilter !== "all" || statusFilter !== "all" || searchTerm !== "" || timeFilter !== "all";
@@ -251,6 +263,41 @@ export default function ProgressPage() {
   const [deletingTask, setDeletingTask] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      // If we have active filters other than time, we better stick to local calculation
+      // for the big circle, as the backend doesn't support search/course filtering in completion-percent yet.
+      // But we can still fetch it to see the "Official" period progress.
+
+      let fromDate: string | undefined;
+      let toDate: string | undefined;
+      const now = new Date();
+
+      if (timeFilter === "today") {
+        fromDate = format(now, "yyyy-MM-dd");
+        toDate = fromDate;
+      } else if (timeFilter === "week") {
+        const start = startOfWeek(now, { weekStartsOn: 1 });
+        const end = addWeeks(start, 1); // Not correct, addDays(start, 6)
+        fromDate = format(start, "yyyy-MM-dd");
+        toDate = format(addDays(start, 6), "yyyy-MM-dd");
+      } else if (timeFilter === "month") {
+        const start = startOfMonth(now);
+        fromDate = format(start, "yyyy-MM-dd");
+        toDate = format(endOfMonth(now), "yyyy-MM-dd");
+      }
+
+      setIsStatsLoading(true);
+      const data = await getGlobalProgress(fromDate, toDate);
+      if (data) {
+        setBackendProgress(data);
+      }
+      setIsStatsLoading(false);
+    };
+
+    fetchStats();
+  }, [timeFilter, getGlobalProgress]);
 
   const filteredActivities = useMemo(() => {
     return activities.map((activity: Activity) => {
@@ -290,7 +337,7 @@ export default function ProgressPage() {
         courseFilter === "all" ||
         getCourseName(activity.course) === courseFilter;
 
-      // If we are searching or filtering by time/status at subtask level, 
+      // If we are searching or filtering by time/status at subtask level,
       // only show activities that have matching subtasks.
       const hasMatches = activity.matchingSubtasks.length > 0;
 
@@ -299,26 +346,46 @@ export default function ProgressPage() {
   }, [activities, courseFilter, statusFilter, searchTerm, timeFilter]);
 
   const stats = useMemo(() => {
+    const hasComplexFilters = searchTerm !== "" || courseFilter !== "all" || statusFilter !== "all";
+
+    // Always calculate hours locally as backend doesn't provide them yet
+    let localHoursDone = 0;
+    filteredActivities.forEach((a: any) => {
+      a.matchingSubtasks.forEach((st: Subtask) => {
+        if (st.status === STATUS.DONE) {
+          const hours = typeof st.estimated_hours === 'string'
+            ? parseFloat(st.estimated_hours)
+            : (st.estimated_hours || 0);
+          localHoursDone += (isNaN(hours) ? 0 : hours);
+        }
+      });
+    });
+
+    if (!hasComplexFilters && backendProgress && timeFilter !== "all") {
+      return {
+        done: backendProgress.total_subtasks_done,
+        total: backendProgress.total_subtasks,
+        pct: Math.round(backendProgress.completion_percent),
+        hoursDone: localHoursDone
+      };
+    }
+
     let done = 0;
     let total = 0;
-    let hoursDone = 0;
+    // We already have hoursDone in localHoursDone at this point
 
     filteredActivities.forEach((a: any) => {
       a.matchingSubtasks.forEach((st: Subtask) => {
         total++;
         if (st.status === STATUS.DONE) {
           done++;
-          const hours = typeof st.estimated_hours === 'string'
-            ? parseFloat(st.estimated_hours)
-            : (st.estimated_hours || 0);
-          hoursDone += (isNaN(hours) ? 0 : hours);
         }
       });
     });
 
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-    return { done, total, pct, hoursDone };
-  }, [filteredActivities]);
+    return { done, total, pct, hoursDone: localHoursDone };
+  }, [filteredActivities, backendProgress, timeFilter, searchTerm, courseFilter, statusFilter]);
 
   const overallProgress = stats.pct;
   const totalDone = stats.done;
@@ -341,38 +408,43 @@ export default function ProgressPage() {
   const handleCompleteTask = async (
     activityId: number,
     subtaskId: number,
-    subtaskName: string,
-    courseName: string
   ) => {
     if (processingTasks.has(subtaskId)) return;
 
     queryCache.invalidateByPrefix('hoy:');
 
-    const note = noteValues[subtaskId];
-
-    const updateData: Partial<Subtask> = {
-      status: STATUS.DONE,
-    };
-
-    if (note && note.trim().length > 0) {
-      updateData.note = note.trim();
-    }
+    // Find current status to toggle
+    const activity = activities.find(a => a.id === activityId);
+    const subtask = activity?.subtasks.find(s => s.id === subtaskId);
+    const isCurrentlyDone = subtask?.status === STATUS.DONE;
+    const nextStatus = isCurrentlyDone ? STATUS.PENDING : STATUS.DONE;
 
     setProcessingTasks((prev) => new Set(prev).add(subtaskId));
 
     try {
+      const updateData = { status: nextStatus };
       await updateSubtask(activityId, subtaskId, updateData);
+
+      // Optimistic update for backendProgress to ensure the chart and stats update immediately
+      setBackendProgress((prev: any) => {
+        if (!prev) return prev;
+        const delta = nextStatus === STATUS.DONE ? 1 : -1;
+        const newDone = Math.max(0, prev.completed_count + delta);
+        return {
+          ...prev,
+          completed_count: newDone,
+          percent: prev.total_count > 0 ? Math.round((newDone / prev.total_count) * 100) : 0
+        };
+      });
 
       setNoteValues((prev) => {
         const copy = { ...prev };
         delete copy[subtaskId];
         return copy;
       });
-
     } catch (err: any) {
       console.error('❌ PATCH Error:', err);
-
-      showToast('No se pudo completar la tarea. Verifica tu conexión e intenta de nuevo.', 'error');
+      // showToast is handled by hook
       refresh();
     } finally {
       setProcessingTasks((prev) => {
@@ -394,11 +466,18 @@ export default function ProgressPage() {
 
     try {
       await postponeSubtask(activityId, subtaskId, note.trim());
+
+      // If it was DONE before and now it's POSTPONED (not really possible from UI but safe)
+      // or just ensure we don't need to decrement counts.
+      // Actually, postpone doesn't affect the DONE count unless it was DONE.
+      // But we can still refresh global progress to be sure, or just keep it as is.
+      // The most important thing is DONE/PENDING toggle.
+
       showToast('Tarea pospuesta correctamente', 'success');
       setIsPostponeModalOpen(false);
       setPostponingTask(null);
     } catch (err: any) {
-      console.error('❌ PATCH Error:', err);
+      console.error('❌ Postpone Error:', err);
       showToast('No se pudo posponer la tarea.', 'error');
       refresh();
     } finally {
@@ -426,6 +505,7 @@ export default function ProgressPage() {
 
     setIsDeleting(true);
     try {
+      const { deleteSubtask } = await import('@/api/services/subtask');
       await deleteSubtask(activityId, subtaskId);
       showToast('Tarea eliminada correctamente', 'success');
       setIsDeleteModalOpen(false);
@@ -659,9 +739,9 @@ export default function ProgressPage() {
               const courseColor = getCourseColor(activity.course);
               const CourseIcon = getCourseIcon(courseName);
 
-              const done = activity.subtasks.filter((s: Subtask) => s.status === STATUS.DONE).length;
-              const total = activity.subtasks.length;
-              const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+              const done = activity.total_subtasks_done ?? activity.subtasks.filter((s: Subtask) => s.status === STATUS.DONE).length;
+              const total = activity.total_subtasks ?? activity.subtasks.length;
+              const pct = activity.completion_percent !== undefined ? Math.round(activity.completion_percent) : (total > 0 ? Math.round((done / total) * 100) : 0);
               const isOpen = expanded[activity.id] ?? true;
 
               const pending = activity.subtasks.filter((s: Subtask) => s.status !== STATUS.DONE);
@@ -765,7 +845,7 @@ export default function ProgressPage() {
                             className={cn(
                               "group p-4 rounded-xl border transition-all duration-200 bg-[#1F2937]/30",
                               isConflicted
-                                ? "border-[#F59E0B] animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.5)] bg-[#F59E0B]/10"
+                                ? "border-amber-400 animate-pulse shadow-[0_0_15px_rgba(251,191,36,0.3)] bg-amber-400/5"
                                 : isPostponed
                                   ? "border-[#8B5CF6]/30 bg-[#8B5CF6]/20"
                                   : "border-slate-700/50 hover:border-blue-500/30 bg-slate-800/20",
@@ -775,7 +855,7 @@ export default function ProgressPage() {
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3">
                               <div className="flex items-center gap-3 mb-3 sm:mb-0">
                                 <button
-                                  onClick={() => handleCompleteTask(activity.id, st.id, st.name || st.title || "", courseName)}
+                                  onClick={() => handleCompleteTask(activity.id, st.id)}
                                   disabled={isProcessing}
                                   className={cn(
                                     "relative h-5 w-5 cursor-pointer rounded border transition-all flex items-center justify-center disabled:cursor-not-allowed",
@@ -811,22 +891,41 @@ export default function ProgressPage() {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-8 text-[11px] font-semibold bg-[#F59E0B]/20 text-[#F59E0B]/90 hover:text-[#F59E0B] border-[#F59E0B]/40 hover:bg-[#F59E0B]/30"
+                                    className="h-8 text-[11px] font-semibold bg-amber-400/20 text-amber-400 hover:text-amber-300 border-amber-400/40 hover:bg-amber-400/30"
                                     onClick={() => openConflictModal(st, activity)}
                                   >
                                     <AlertCircle className="h-3 w-3 mr-1" />
                                     Solucionar
                                   </Button>
                                 )}
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={isProcessing}
-                                  className="h-8 text-xs bg-transparent hover:bg-slate-600/30 border-slate-700 text-slate-300 disabled:opacity-50"
-                                  onClick={() => openPostponeModal(st, activity.id)}
-                                >
-                                  Posponer
-                                </Button>
+                                {isPostponed ? (
+                                  <Badge variant="secondary" className="text-[10px] bg-slate-700/50 text-slate-300 border-slate-600">
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    Pospuesta
+                                  </Badge>
+                                ) : st.status === STATUS.DONE ? (
+                                  st.note ? (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                                      onClick={() => setDetailTask(st)}
+                                    >
+                                      <FileText className="h-3 w-3 mr-1" />
+                                      Ver nota
+                                    </Button>
+                                  ) : null
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={isProcessing}
+                                    className="h-8 text-xs bg-transparent hover:bg-slate-600/30 border-slate-700 text-slate-300 disabled:opacity-50"
+                                    onClick={() => openPostponeModal(st, activity.id)}
+                                  >
+                                    Posponer
+                                  </Button>
+                                )}
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -839,21 +938,26 @@ export default function ProgressPage() {
                                 >
                                   <Pencil className="h-3.5 w-3.5" />
                                 </Button>
-                                {st.status !== STATUS.DONE && (
-                                  <Button
-                                    size="sm"
-                                    disabled={isProcessing}
-                                    className="h-8 text-xs bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white transition-all disabled:opacity-50"
-                                    onClick={() => handleCompleteTask(activity.id, st.id, st.name || st.title || "", courseName)}
-                                  >
-                                    {isProcessing ? (
-                                      <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                                    ) : (
-                                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                                    )}
-                                    <span>Hecho</span>
-                                  </Button>
-                                )}
+                                <Button
+                                  size="sm"
+                                  disabled={isProcessing}
+                                  className={cn(
+                                    "h-8 text-xs transition-all disabled:opacity-50",
+                                    st.status === STATUS.DONE
+                                      ? "bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white"
+                                      : "bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white"
+                                  )}
+                                  onClick={() => handleCompleteTask(activity.id, st.id)}
+                                >
+                                  {isProcessing ? (
+                                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                                  ) : st.status === STATUS.DONE ? (
+                                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                                  ) : (
+                                    <Circle className="h-3 w-3 mr-1" />
+                                  )}
+                                  <span>{st.status === STATUS.DONE ? 'Completada' : 'Hecho'}</span>
+                                </Button>
                               </div>
                             </div>
                           </div>
@@ -1152,96 +1256,12 @@ export default function ProgressPage() {
       />
 
       {/* Subtask Detail Dialog */}
-      <Dialog open={!!detailTask} onOpenChange={(open) => { if (!open) setDetailTask(null); }}>
-        <DialogContent className="sm:max-w-[500px] bg-[#111827] border-slate-800">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-slate-100 uppercase tracking-tight">
-              Detalles de la subtarea
-            </DialogTitle>
-            <DialogDescription className="text-sm text-slate-400 pt-2">
-              Información completa de la planificación
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6 mt-4">
-            <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-1">
-                Nombre de la tarea
-              </label>
-              <div className="flex items-center gap-3">
-                <p className="text-lg font-bold text-white">
-                  {detailTask?.title || detailTask?.name}
-                </p>
-                {detailTask?.target_date && isSameDay(parseISO(detailTask.target_date), new Date()) && (
-                  <Badge className="bg-blue-600 text-white border-none text-[10px] font-black uppercase tracking-widest px-2 py-0.5">
-                    HOY
-                  </Badge>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-2">
-                  Fecha planificada
-                </label>
-                <div className="flex items-center gap-2.5 text-slate-200">
-                  <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center">
-                    <Calendar className="size-4 text-blue-400" />
-                  </div>
-                  <span className="text-sm font-semibold">
-                    {detailTask?.target_date ? getFormattedDate(detailTask.target_date) : "Sin fecha"}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-2">
-                  Dedicación estimada
-                </label>
-                <div className="flex items-center gap-2.5 text-slate-200">
-                  <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center">
-                    <Clock className="size-4 text-emerald-400" />
-                  </div>
-                  <span className="text-sm font-semibold">
-                    {detailTask?.estimated_hours ? parseFloat(String(detailTask.estimated_hours)).toFixed(1) : "0.0"}h
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-2">
-                Estado actual
-              </label>
-              <div className="flex items-center gap-2">
-                <Badge
-                  className={cn(
-                    "text-[10px] font-black uppercase tracking-widest px-3 py-1 border-none",
-                    detailTask?.status === STATUS.DONE ? "bg-emerald-500/20 text-emerald-400" :
-                      detailTask?.status === STATUS.POSTPONED ? "bg-purple-500/20 text-purple-400" :
-                        "bg-blue-500/20 text-blue-400"
-                  )}
-                >
-                  {detailTask?.status === STATUS.DONE ? "Completada" :
-                    detailTask?.status === STATUS.POSTPONED ? "Pospuesta" :
-                      detailTask?.status === STATUS.WAITING ? "En espera" : "Pendiente"}
-                </Badge>
-              </div>
-            </div>
-
-            {detailTask?.execution_note && (
-              <div className="bg-slate-800/40 rounded-2xl p-4 border border-slate-700/50">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-2">
-                  Notas / Razón de posposición
-                </label>
-                <p className="text-sm text-slate-300 italic leading-relaxed">
-                  "{detailTask.execution_note}"
-                </p>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <SubtaskDetailModal
+        open={!!detailTask}
+        onOpenChange={(open) => { if (!open) setDetailTask(null); }}
+        subtask={detailTask}
+        getFormattedDate={getFormattedDate}
+      />
     </div>
   );
 }
