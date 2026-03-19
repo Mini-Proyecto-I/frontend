@@ -40,6 +40,7 @@ import { ConflictOutcomeModal } from '@/shared/components/ConflictOutcomeModal';
 import EditSubtaskModal from '@/shared/components/EditSubtaskModal';
 import PostponeSubtaskModal from '@/shared/components/PostponeSubtaskModal';
 import { SubtaskDetailModal } from '@/shared/components/SubtaskDetailModal';
+import { MessageModal } from "@/shared/components/MessageModal";
 import {
   Select,
   SelectContent,
@@ -257,6 +258,8 @@ export default function ProgressPage() {
   // Postpone Modal State
   const [isPostponeModalOpen, setIsPostponeModalOpen] = useState(false);
   const [postponingTask, setPostponingTask] = useState<any>(null);
+  const [postponeSuccessOpen, setPostponeSuccessOpen] = useState(false);
+  const [postponeSuccessMessage, setPostponeSuccessMessage] = useState("");
 
   // Delete State
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -458,6 +461,7 @@ export default function ProgressPage() {
   const handlePostponeTask = async (note: string) => {
     if (!postponingTask) return;
     const { activityId, id: subtaskId } = postponingTask;
+    const taskLabel = String(postponingTask?.title ?? postponingTask?.name ?? "esta subtarea");
 
     if (processingTasks.has(subtaskId)) return;
 
@@ -473,7 +477,10 @@ export default function ProgressPage() {
       // But we can still refresh global progress to be sure, or just keep it as is.
       // The most important thing is DONE/PENDING toggle.
 
-      showToast('Tarea pospuesta correctamente', 'success');
+      setPostponeSuccessMessage(
+        `Se cambió el estado de "${taskLabel}" a Pospuesta. La fecha de entrega no se verá afectada.`
+      );
+      setPostponeSuccessOpen(true);
       setIsPostponeModalOpen(false);
       setPostponingTask(null);
     } catch (err: any) {
@@ -627,12 +634,6 @@ export default function ProgressPage() {
             </h1>
             <p className="text-slate-400 font-medium">Haz seguimiento de tus actividades y gestiona las fechas límite pendientes.</p>
           </div>
-          <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20">
-            <Link to="/crear">
-              <Zap className="h-4 w-4 mr-2" />
-              Nueva tarea
-            </Link>
-          </Button>
         </div>
       </div>
 
@@ -1164,6 +1165,14 @@ export default function ProgressPage() {
         }}
         onConfirm={handlePostponeTask}
         isProcessing={postponingTask && processingTasks.has(postponingTask.id)}
+      />
+
+      <MessageModal
+        open={postponeSuccessOpen}
+        onOpenChange={setPostponeSuccessOpen}
+        type="success"
+        title="Pospuesta guardada"
+        message={postponeSuccessMessage}
       />
 
       {isDeleteModalOpen && deletingTask && (

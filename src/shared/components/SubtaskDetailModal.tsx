@@ -114,9 +114,16 @@ export function SubtaskDetailModal({
           {subtask.execution_note && (
             <div className="bg-slate-800/40 rounded-2xl p-4 border border-slate-700/50">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-2">
-                Notas / Razón de posposición
+                {subtask.status === "DONE"
+                  ? "Nota histórica de posposición"
+                  : "Razón de la posposición (nota)"}
               </label>
-              <p className="text-sm text-slate-300 italic leading-relaxed">
+              {subtask.status === "DONE" ? (
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  La tarea ya fue completada, pero antes fue pospuesta por esta razón:
+                </p>
+              ) : null}
+              <p className="text-sm text-slate-300 italic leading-relaxed mt-1">
                 "{subtask.execution_note}"
               </p>
             </div>

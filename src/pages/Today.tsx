@@ -31,6 +31,7 @@ import {
 import InfoTooltip from "@/features/create/components/InfoTooltip";
 import { SubtaskDetailModal } from "@/shared/components/SubtaskDetailModal";
 import { Badge } from "@/shared/components/badge";
+import { MessageModal } from "@/shared/components/MessageModal";
 
 function getGreeting(name: string) {
   const hour = new Date().getHours();
@@ -79,6 +80,8 @@ export default function Today() {
   const [isPostponeModalOpen, setIsPostponeModalOpen] = useState(false);
   const [postponingTask, setPostponingTask] = useState<any | null>(null);
   const [postponeNote, setPostponeNote] = useState("");
+  const [postponeSuccessOpen, setPostponeSuccessOpen] = useState(false);
+  const [postponeSuccessMessage, setPostponeSuccessMessage] = useState("");
   const [welcomeStep, setWelcomeStep] = useState(1);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [limitHours, setLimitHours] = useState(() => {
@@ -262,21 +265,36 @@ export default function Today() {
 
   const handlePostpone = async () => {
     if (!postponingTask) return;
+    const taskLabel = String(postponingTask?.title ?? postponingTask?.name ?? "esta subtarea");
     try {
       await postponeSubtask(postponingTask.activity?.id, postponingTask.id, postponeNote);
 
       setData((prev: any) => {
-        const filterList = (list: any[]) =>
-          list.filter((item) => item.id !== postponingTask.id);
+        // No movemos la fecha objetivo: solo cambiamos el estado a POSTPONED.
+        // Por eso debe seguir apareciendo en su sección (vencidas/para_hoy/proximas).
+        const updateList = (list: any[]) =>
+          list.map((item) => (item.id === postponingTask.id ? { ...item, status: "POSTPONED" } : item));
         return {
           ...prev,
-          para_hoy: filterList(prev.para_hoy),
+          vencidas: updateList(prev.vencidas),
+          para_hoy: updateList(prev.para_hoy),
+          proximas: updateList(prev.proximas),
         };
       });
+
+      // Actualizar también la lista usada para el cálculo de capacidad (tiempoData).
+      setTiempoData((prev: any[]) =>
+        prev.map((t: any) => (t.id === postponingTask.id ? { ...t, status: "POSTPONED" } : t)) as any
+      );
 
       queryCache.invalidate('activities');
       refetch();
       refetchTiempo();
+
+      setPostponeSuccessMessage(
+        `Se cambió el estado de "${taskLabel}" a Pospuesta. La fecha de entrega no se verá afectada.`
+      );
+      setPostponeSuccessOpen(true);
     } catch (e) {
       console.error("Error al posponer subtarea:", e);
     } finally {
@@ -687,7 +705,7 @@ export default function Today() {
             <p className="text-slate-400 font-medium tracking-wide">Cargando tus tareas de hoy...</p>
           </div>
         ) : (
-          <div className="flex-1 min-h-[500px]">
+          <div className="flex-1 min-h-[500px] cursor-pointer">
             {activeTab === 'vencidas' && (
               <div className="h-full animate-in fade-in zoom-in-95 duration-200">
                 {/* COLUMN 1: VENCIDAS */}
@@ -992,7 +1010,7 @@ export default function Today() {
                     backgroundColor: 'white',
                     fontFamily: '"Lexend", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
                   } : undefined}
-                  className={`w-full md:w-[200px] h-12 rounded-xl focus:ring-blue-500 shadow-inner border ${filters.course
+                  className={`w-full md:w-[200px] h-12 rounded-xl focus:ring-blue-500 shadow-inner border cursor-pointer ${filters.course
                     ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600"
                     : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
                     }`}
@@ -1022,7 +1040,7 @@ export default function Today() {
                     backgroundColor: 'white',
                     fontFamily: '"Lexend", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
                   } : undefined}
-                  className={`w-full md:w-[170px] h-12 rounded-xl focus:ring-blue-500 shadow-inner border ${filters.status
+                  className={`w-full md:w-[170px] h-12 rounded-xl focus:ring-blue-500 shadow-inner border cursor-pointer ${filters.status
                     ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600"
                     : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
                     }`}
@@ -1033,6 +1051,7 @@ export default function Today() {
                   <SelectItem value="all" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Cualquier estado</SelectItem>
                   <SelectItem value="PENDING" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Pendiente</SelectItem>
                   <SelectItem value="DONE" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Completado</SelectItem>
+                  <SelectItem value="POSTPONED" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Pospuesta</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1288,6 +1307,14 @@ export default function Today() {
         onMoveTask={handleMoveConflictTask}
       />
 
+      <MessageModal
+        open={postponeSuccessOpen}
+        onOpenChange={setPostponeSuccessOpen}
+        type="success"
+        title="Pospuesta guardada"
+        message={postponeSuccessMessage}
+      />
+
       {/* Modal resultado (solucionado vs pendiente) */}
       <ConflictOutcomeModal
         isOpen={showConflictOutcomeModal && !!conflictOutcome}
@@ -1501,13 +1528,13 @@ export default function Today() {
                   setPostponingTask(null);
                   setPostponeNote("");
                 }}
-                className="px-5 py-2.5 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                className="px-5 py-2.5 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 onClick={handlePostpone}
-                className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-all shadow-lg shadow-blue-500/20 active:scale-95"
+                className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-all shadow-lg shadow-blue-500/20 active:scale-95 cursor-pointer"
               >
                 Posponer
               </button>
@@ -1813,15 +1840,22 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
         </div>
 
         <div className="flex items-center gap-3 ml-auto">
-          {onPostpone && (
-            <button
-              type="button"
-              onClick={onPostpone}
-              className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer"
-            >
-              <Clock className="w-4 h-4" />
-              Posponer
-            </button>
+          {isPostponed ? (
+            <span className="inline-flex items-center gap-2 text-xs font-semibold text-purple-200 bg-[#8B5CF6]/15 border border-[#8B5CF6]/30 px-3 py-2 rounded-lg select-none">
+              <Clock className="w-4 h-4 text-[#A78BFA]" />
+              Pospuesta
+            </span>
+          ) : (
+            onPostpone && (
+              <button
+                type="button"
+                onClick={onPostpone}
+                className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer"
+              >
+                <Clock className="w-4 h-4" />
+                Posponer
+              </button>
+            )
           )}
 
           <button

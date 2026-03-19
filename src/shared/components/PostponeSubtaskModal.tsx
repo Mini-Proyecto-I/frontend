@@ -79,14 +79,14 @@ export default function PostponeSubtaskModal({
           <Button
             variant="ghost"
             onClick={onClose}
-            className="text-slate-300 hover:text-white hover:bg-slate-800"
+            className="text-slate-300 hover:text-white hover:bg-slate-800 cursor-pointer"
             disabled={isProcessing}
           >
             Cancelar
           </Button>
           <Button
             onClick={handleConfirm}
-            className="bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/20"
+            className="bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/20 cursor-pointer"
             disabled={isProcessing}
           >
             {isProcessing ? "Pospone..." : "Posponer"}
