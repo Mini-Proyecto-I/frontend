@@ -11,6 +11,8 @@ import { queryCache } from "@/lib/queryCache";
 import { Input } from "@/shared/components/input";
 import { Button } from "@/shared/components/button";
 import EditSubtaskModal from "@/shared/components/EditSubtaskModal";
+import { ResolveConflictModal } from "@/shared/components/ResolveConflictModal";
+import { ConflictOutcomeModal } from "@/shared/components/ConflictOutcomeModal";
 import { OverloadAlert } from "@/features/today/components/OverloadAlert";
 import {
   Select,
@@ -357,7 +359,7 @@ export default function Today() {
 
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
   const [showConflictOutcomeModal, setShowConflictOutcomeModal] = useState(false);
-  const [conflictOutcomeSource, setConflictOutcomeSource] = useState<"calendar" | "reduce" | null>(null);
+  const [conflictOutcomeSource, setConflictOutcomeSource] = useState<"move" | "reduce" | null>(null);
   const [conflictOutcome, setConflictOutcome] = useState<null | {
     dateKey: string;
     usedHours: number;
@@ -563,7 +565,7 @@ export default function Today() {
 
     setConflictOutcome(incoming);
     setShowConflictOutcomeModal(true);
-    setConflictOutcomeSource("calendar");
+    setConflictOutcomeSource("move");
 
     // Limpiar state para evitar que se re-muestre.
     navigate(location.pathname, { replace: true, state: {} });
@@ -1263,342 +1265,45 @@ export default function Today() {
         <HelpCircle className="w-6 h-6" />
       </button>
 
-      {/* Conflict Alert Modal */}
-      {isConflictModalOpen && conflictedCount > 0 && selectedConflict && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-          <div className="w-full max-w-[560px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
-            <div className="p-6 sm:p-7 relative">
-              <button
-                type="button"
-                onClick={() => setIsConflictModalOpen(false)}
-                className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
-                aria-label="Cerrar"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="flex items-start gap-4 pr-8">
-                <div className="w-12 h-12 rounded-2xl bg-[#F59E0B]/10 border border-[#F59E0B]/25 flex items-center justify-center shrink-0">
-                  <AlertCircle className="w-6 h-6 text-[#F59E0B]" />
-                </div>
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-                    Conflictos sin resolver
-                  </h3>
-                  <p className="text-slate-400 text-base mt-1.5 leading-relaxed">
-                    Tienes todavía{" "}
-                    <span className="text-white font-semibold">{conflictedCount}</span>{" "}
-                    {conflictedCount === 1 ? "tarea" : "tareas"} en conflicto. Puedes resolverlo moviendo la tarea o reduciendo sus horas.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-6 space-y-4">
-                {/* Selector de tarea */}
-                {conflictedCount > 1 && (
-                  <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-4">
-                    <label className="text-sm font-bold text-slate-400 uppercase tracking-wider block mb-3">
-                      Seleccionar tarea
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={String(selectedConflictId ?? selectedConflict.id)}
-                        onChange={(e) => setSelectedConflictId(e.target.value)}
-                        className="w-full h-12 rounded-xl bg-[#1F2937]/60 border border-slate-700/60 text-slate-200 text-base font-medium pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500/50 cursor-pointer appearance-none"
-                      >
-                        {conflictedTasks.map((t: any) => (
-                          <option key={t.id} value={String(t.id)}>
-                            {(t.activity?.title ? `${t.activity.title} — ` : "") + t.title}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
-                    </div>
-                  </div>
-                )}
-
-                {/* Info de la tarea seleccionada */}
-                <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5">
-                  <h4 className="text-lg font-bold text-white leading-snug mb-2">
-                    {selectedConflict.title}
-                  </h4>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-base text-slate-300">
-                    <span>
-                      <span className="text-slate-500 font-medium">Actividad:</span>{" "}
-                      <span className="font-semibold text-slate-200">{selectedConflict.activity?.title || "Actividad"}</span>
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <Clock className="w-4 h-4 text-slate-500" />
-                      <span className="font-semibold text-slate-200">
-                        {parseFloat(String(selectedConflict.estimated_hours ?? 0)).toFixed(1)}h
-                      </span>
-                    </span>
-                  </div>
-                </div>
-
-                {/* Resumen del día: fecha, usadas/límite, sobretrabajo */}
-                {(() => {
-                  const dayKey = selectedConflict?.target_date;
-                  const stats = computeDayLoadForDateKey(dayKey);
-                  const label = dayKey ? getRelativeDateLabel(dayKey) : "";
-                  const dateFormatted = dayKey ? getFormattedDate(dayKey) : "";
-                  const over = stats.overworkHours;
-                  return (
-                    <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5">
-                      <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Resumen del día</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-slate-500 text-sm font-medium mb-0.5">Fecha</p>
-                          <p className="text-lg font-bold text-white capitalize">{dateFormatted || "—"}</p>
-                          {label && !label.startsWith("HACE") && (
-                            <p className="text-sm text-slate-500 mt-1">{label}</p>
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-slate-500 text-sm font-medium mb-0.5">Horas usadas / Límite</p>
-                          <p className="text-lg font-bold text-amber-400">
-                            {(stats.usedHours % 1 === 0 ? stats.usedHours : stats.usedHours.toFixed(1))}h / {stats.limitHours}h
-                          </p>
-                        </div>
-                        {over > 0 && (
-                          <div className="sm:col-span-2">
-                            <p className="text-slate-500 text-sm font-medium mb-0.5">Sobretrabajo</p>
-                            <p className="text-base font-bold text-[#F59E0B]">
-                              +{(over % 1 === 0 ? over : over.toFixed(1))}h sobre el límite
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Reducir horas */}
-                <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5">
-                  <label className="text-sm font-bold text-slate-400 uppercase tracking-wider block mb-3">
-                    <span className="inline-flex items-center gap-2">
-                      <span>Reestablecer nueva estimación de horas</span>
-                      <InfoTooltip text="Con esto cambias la estimación de horas de tu tarea a una nueva. las horas deben ser menores a las actuales y mayores a 0.5." />
-                    </span>
-                  </label>
-
-                  <div className="flex gap-3 items-center flex-wrap">
-                    <Input
-                      type="number"
-                      step="0.25"
-                      min="0.5"
-                      max={selectedConflict?.estimated_hours ?? undefined}
-                      value={reduceHours}
-                      onKeyDown={(e) => {
-                        // Evitar ingresar el carácter '-' (valores negativos)
-                        if (e.key === "-" || e.key === "Minus") {
-                          e.preventDefault();
-                        }
-                      }}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        if (!selectedConflict) {
-                          setReduceHours(raw);
-                          return;
-                        }
-
-                        const current = parseFloat(String(selectedConflict.estimated_hours ?? 0));
-                        let num = parseFloat(raw);
-
-                        if (!Number.isFinite(num)) {
-                          setReduceHours(raw);
-                          return;
-                        }
-
-                        // Límite superior: no más que las horas actuales
-                        if (Number.isFinite(current) && current > 0 && num > current) {
-                          num = current;
-                        }
-
-                        // Límite inferior: nunca menos de 0.5h (evita negativos y valores absurdamente pequeños)
-                        if (num < 0.5) {
-                          num = 0.5;
-                        }
-
-                        setReduceHours(String(num));
-                      }}
-                      className="h-12 w-24 text-base font-semibold bg-[#1F2937]/60 border-slate-700/60 text-slate-200 rounded-xl focus-visible:ring-2 focus-visible:ring-blue-500"
-                    />
-                    <Button
-                      onClick={handleReduceConflictHours}
-                      disabled={isReducing}
-                      className="h-12 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-600/20 text-base"
-                    >
-                      Establecer
-                    </Button>
-                  </div>
-                  {reduceError && (
-                    <p className="text-[#F59E0B] text-sm font-semibold mt-2">
-                      {reduceError}
-                    </p>
-                  )}
-                </div>
-
-                {/* Acciones */}
-                <div className="flex flex-col sm:flex-row gap-3 pt-1">
-                  <Button
-                    onClick={handleMoveConflictTask}
-                    className="h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold shadow-lg shadow-blue-600/20 text-base"
-                  >
-                    Mover tarea
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsConflictModalOpen(false)}
-                    className="h-12 rounded-xl border-slate-700 bg-slate-800/50 hover:bg-slate-700/60 text-slate-200 font-bold text-base"
-                  >
-                    Más tarde
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ResolveConflictModal
+        isOpen={isConflictModalOpen && conflictedCount > 0 && !!selectedConflict}
+        onClose={() => setIsConflictModalOpen(false)}
+        conflictedCount={conflictedCount}
+        conflictedTasks={conflictedTasks}
+        selectedConflict={selectedConflict}
+        selectedConflictId={selectedConflictId ? String(selectedConflictId) : undefined}
+        onSelectConflictId={(id) => setSelectedConflictId(id)}
+        dateFormatted={selectedConflict?.target_date ? getFormattedDate(selectedConflict.target_date) : undefined}
+        dayLabel={selectedConflict?.target_date ? getRelativeDateLabel(selectedConflict.target_date) : undefined}
+        usedHours={selectedConflict?.target_date ? computeDayLoadForDateKey(selectedConflict.target_date).usedHours : undefined}
+        limitHours={selectedConflict?.target_date ? computeDayLoadForDateKey(selectedConflict.target_date).limitHours : undefined}
+        overworkHours={selectedConflict?.target_date ? computeDayLoadForDateKey(selectedConflict.target_date).overworkHours : undefined}
+        reduceHours={reduceHours}
+        setReduceHours={setReduceHours}
+        isReducing={isReducing}
+        reduceError={reduceError || ""}
+        onReduceConfirm={handleReduceConflictHours}
+        onMoveTask={handleMoveConflictTask}
+      />
 
       {/* Modal resultado (solucionado vs pendiente) */}
-      {showConflictOutcomeModal && conflictOutcome && (
-        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-          <div
-            className={`w-full max-w-[440px] bg-[#111827] rounded-3xl shadow-2xl shadow-black/60 overflow-hidden border ${conflictOutcome.resolved ? "border-emerald-500/30" : "border-[#F59E0B]/30"
-              }`}
-          >
-            <div className="p-6 sm:p-7 text-center">
-              <div
-                className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 border ${conflictOutcome.resolved
-                  ? "bg-emerald-500/20 border-emerald-500/30"
-                  : "bg-[#F59E0B]/10 border-[#F59E0B]/25"
-                  }`}
-              >
-                {conflictOutcome.resolved ? (
-                  <CheckCircle2 className="w-8 h-8 text-emerald-400" strokeWidth={2} />
-                ) : (
-                  <AlertCircle className="w-8 h-8 text-[#F59E0B]" strokeWidth={2} />
-                )}
-              </div>
-
-              <h3 className="text-xl font-extrabold text-white tracking-tight">
-                {conflictOutcome.resolved
-                  ? "Conflicto solucionado"
-                  : conflictOutcomeSource === "reduce"
-                    ? "Horas actualizadas, pero sigue el conflicto"
-                    : "Aún hay conflicto"}
-              </h3>
-
-              <p className="text-slate-400 text-base mt-3 leading-relaxed">
-                {conflictOutcome.resolved ? (
-                  <>
-                    {(() => {
-                      const todayKey = new Date().toISOString().slice(0, 10);
-                      const isToday = conflictOutcome.dateKey === todayKey;
-                      const label = getRelativeDateLabel(conflictOutcome.dateKey);
-                      const fullDate = getFormattedDate(conflictOutcome.dateKey);
-                      return (
-                        <>
-                          {isToday ? (
-                            <>
-                              El conflicto de{" "}
-                              <span className="text-white font-bold">{label}</span>{" "}
-                              fue solucionado. Te quedan{" "}
-                            </>
-                          ) : (
-                            <>
-                              Para el día{" "}
-                              <span className="text-white font-bold">
-                                {fullDate || conflictOutcome.dateKey}
-                              </span>{" "}
-                              el conflicto fue solucionado. Te quedan{" "}
-                            </>
-                          )}
-                          <span className="text-emerald-300 font-extrabold">
-                            {conflictOutcome.availableHours % 1 === 0
-                              ? conflictOutcome.availableHours
-                              : conflictOutcome.availableHours.toFixed(1)}
-                            h
-                          </span>{" "}
-                          disponibles.
-                        </>
-                      );
-                    })()}
-                  </>
-                ) : conflictOutcomeSource === "reduce" ? (
-                  <>
-                    Se redujeron las horas de la tarea, pero el día{" "}
-                    <span className="text-white font-bold">
-                      {getRelativeDateLabel(conflictOutcome.dateKey)}
-                    </span>{" "}
-                    sigue en conflicto. Puedes seguir ajustando esta u otras tareas para resolverlo.
-                  </>
-                ) : (
-                  <>
-                    El día{" "}
-                    <span className="text-white font-bold">
-                      {getRelativeDateLabel(conflictOutcome.dateKey)}
-                    </span>{" "}
-                    sigue sobrecargado. Hay un sobretrabajo de{" "}
-                    <span className="text-[#F59E0B] font-extrabold">
-                      {conflictOutcome.overworkHours % 1 === 0
-                        ? conflictOutcome.overworkHours
-                        : conflictOutcome.overworkHours.toFixed(1)}
-                      h
-                    </span>{" "}
-                    sobre tu límite de{" "}
-                    <span className="text-slate-200 font-bold">
-                      {conflictOutcome.limitHours}h
-                    </span>
-                    .
-                  </>
-                )}
-              </p>
-
-              {conflictOutcome.resolved || conflictOutcomeSource !== "reduce" ? (
-                <Button
-                  onClick={() => {
-                    setShowConflictOutcomeModal(false);
-                    setConflictOutcome(null);
-                    setConflictOutcomeSource(null);
-                  }}
-                  className="mt-6 w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-600/20 text-base"
-                >
-                  Entendido
-                </Button>
-              ) : (
-                <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                  <Button
-                    onClick={() => {
-                      // Volver al modal de conflicto para seguir resolviendo
-                      setShowConflictOutcomeModal(false);
-                      setConflictOutcomeSource(null);
-                      setIsConflictModalOpen(true);
-                    }}
-                    className="h-12 flex-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold shadow-lg shadow-blue-600/20 text-base"
-                  >
-                    Seguir resolviendo
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      // Cerrar ambos modales y continuar más tarde
-                      setShowConflictOutcomeModal(false);
-                      setConflictOutcome(null);
-                      setConflictOutcomeSource(null);
-                      setIsConflictModalOpen(false);
-                    }}
-                    className="h-12 flex-1 rounded-xl border-slate-700 bg-slate-800/50 hover:bg-slate-700/60 text-slate-200 font-bold text-base"
-                  >
-                    Más tarde
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <ConflictOutcomeModal
+        isOpen={showConflictOutcomeModal && !!conflictOutcome}
+        onClose={() => {
+          setShowConflictOutcomeModal(false);
+          setConflictOutcome(null);
+          setConflictOutcomeSource(null);
+        }}
+        outcome={conflictOutcome}
+        source={conflictOutcomeSource}
+        getRelativeDateLabel={getRelativeDateLabel}
+        getFormattedDate={getFormattedDate}
+        onContinueResolving={() => {
+          setShowConflictOutcomeModal(false);
+          setConflictOutcomeSource(null);
+          setIsConflictModalOpen(true);
+        }}
+      />
 
       {/* Edit Subtask Modal */}
       <EditSubtaskModal

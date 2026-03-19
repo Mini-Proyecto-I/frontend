@@ -18,9 +18,12 @@ export interface Course {
 export interface Subtask {
   id: number;
   name: string;
+  title?: string;
   status: 'PENDING' | 'DONE' | 'POSTPONED' | 'WAITING';
   estimated_hours?: number;
   note?: string;
+  is_conflicted?: boolean;
+  target_date?: string;
 }
 
 export interface Activity {
@@ -30,6 +33,7 @@ export interface Activity {
   course_color?: string;
   deadline: string | null;
   subtasks: Subtask[];
+  matchingSubtasks?: Subtask[];
 }
 
 export function useProgressData() {

@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { format, parseISO, isValid, differenceInDays } from 'date-fns';
+import { useState, useMemo } from 'react';
+import { format, parseISO, isValid, differenceInDays, startOfDay, isSameDay, isSameWeek, isSameMonth } from 'date-fns';
+import { es } from 'date-fns/locale';
 import {
   CheckCircle2,
   Circle,
@@ -18,16 +19,26 @@ import {
   FlaskConical,
   Target,
   X,
+  Search,
+  CalendarDays,
+  CalendarRange,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { useProgressData, Activity, Subtask, Course } from '@/features/progress/hooks/useProgressData';
-import { patchSubtask } from '@/api/services/subtask';
+import { patchSubtask, putSubtaskWithConflictTolerance, postponeSubtask, deleteSubtask } from '@/api/services/subtask';
 import { queryCache } from '@/lib/queryCache';
 import { Card, CardContent } from '@/shared/components/card';
 import { Badge } from '@/shared/components/badge';
 import { Button } from '@/shared/components/button';
 import { Input } from '@/shared/components/input';
 import { cn } from '@/shared/utils/utils';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { ResolveConflictModal } from '@/shared/components/ResolveConflictModal';
+import { ConflictOutcomeModal } from '@/shared/components/ConflictOutcomeModal';
+import EditSubtaskModal from '@/shared/components/EditSubtaskModal';
+import PostponeSubtaskModal from '@/shared/components/PostponeSubtaskModal';
 import {
   Select,
   SelectContent,
@@ -35,6 +46,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/dialog";
 
 import { useToast } from '@/shared/components/toast';
 
@@ -130,6 +148,28 @@ const getDeadlineColor = (dateString: string | null | undefined, progress: numbe
   return 'text-slate-400';
 };
 
+function getRelativeDateLabel(targetDateStr: string) {
+  if (!targetDateStr) return "";
+  const date = startOfDay(parseISO(targetDateStr));
+  const today = startOfDay(new Date());
+  const diffDays = differenceInDays(date, today);
+
+  if (diffDays === 0) return "HOY";
+  if (diffDays === -1) return "AYER";
+  if (diffDays === 1) return "MAÑANA";
+  if (diffDays < -1) return `HACE ${Math.abs(diffDays)} DÍAS`;
+  return format(date, "EEEE", { locale: es }).toUpperCase();
+}
+
+function getFormattedDate(targetDateStr: string) {
+  if (!targetDateStr) return "";
+  try {
+    return format(parseISO(targetDateStr), "EEEE d 'de' MMMM", { locale: es });
+  } catch {
+    return targetDateStr;
+  }
+}
+
 function CircularProgress({ value, size = 160, strokeWidth = 8 }: { value: number; size?: number; strokeWidth?: number }) {
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
@@ -169,53 +209,121 @@ function CircularProgress({ value, size = 160, strokeWidth = 8 }: { value: numbe
 }
 
 export default function ProgressPage() {
+  const navigate = useNavigate();
   const { activities, courses, loading, error, refresh, updateSubtask } = useProgressData();
 
   const { showToast, ToastComponent } = useToast();
 
   const [courseFilter, setCourseFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [timeFilter, setTimeFilter] = useState("week");
 
   const hasActiveFilters =
-    courseFilter !== "all" || statusFilter !== "all";
+    courseFilter !== "all" || statusFilter !== "all" || searchTerm !== "" || timeFilter !== "all";
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [noteValues, setNoteValues] = useState<Record<number, string>>({});
   const [processingTasks, setProcessingTasks] = useState<Set<number>>(new Set());
 
+  // Conflict Modals State
+  const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
+  const [conflictModalTask, setConflictModalTask] = useState<any>(null);
+  const [conflictActivityMeta, setConflictActivityMeta] = useState<any>(null);
+  const [reduceHours, setReduceHours] = useState("");
+  const [isReducing, setIsReducing] = useState(false);
+  const [reduceError, setReduceError] = useState("");
+  const [conflictOutcome, setConflictOutcome] = useState<any>(null);
+  const [conflictOutcomeSource, setConflictOutcomeSource] = useState<"reduce" | "move" | null>(null);
 
-  const filteredActivities = activities.filter((activity: Activity) => {
+  // Detail Modal State
+  const [detailTask, setDetailTask] = useState<any>(null);
 
-    const courseMatch =
-      courseFilter === "all" ||
-      getCourseName(activity.course) === courseFilter;
+  // Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<any>(null);
 
-    const statusMatch =
-      statusFilter === "all" ||
-      activity.subtasks.some((s: Subtask) => s.status === statusFilter);
+  // Postpone Modal State
+  const [isPostponeModalOpen, setIsPostponeModalOpen] = useState(false);
+  const [postponingTask, setPostponingTask] = useState<any>(null);
 
-    return courseMatch && statusMatch;
-  });
+  // Delete State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletingTask, setDeletingTask] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const totalDone = activities.reduce(
-    (sum: number, a: Activity) => sum + a.subtasks.filter((st: Subtask) => st.status === STATUS.DONE).length,
-    0
-  );
-  const totalAll = activities.reduce((sum: number, a: Activity) => sum + a.subtasks.length, 0);
-  const overallProgress = totalAll > 0 ? Math.round((totalDone / totalAll) * 100) : 0;
 
-  const totalHoursDone = activities.reduce(
-    (sum: number, a: Activity) =>
-      sum +
-      a.subtasks
-        .filter((st: Subtask) => st.status === STATUS.DONE)
-        .reduce((h: number, st: Subtask) => {
+  const filteredActivities = useMemo(() => {
+    return activities.map((activity: Activity) => {
+      // Filter subtasks by search term and time period
+      const subtasks = activity.subtasks.filter((st: Subtask | any) => {
+        const subtaskName = st.name || st.title || "";
+        const matchesSearch = subtaskName.toLowerCase().includes(searchTerm.toLowerCase());
+
+        let matchesTime = true;
+        if (timeFilter !== "all") {
+          if (!st.target_date) {
+            matchesTime = false;
+          } else {
+            const date = parseISO(st.target_date);
+            const now = new Date();
+            if (timeFilter === "today") {
+              matchesTime = isSameDay(date, now);
+            } else if (timeFilter === "week") {
+              matchesTime = isSameWeek(date, now, { weekStartsOn: 1 });
+            } else if (timeFilter === "month") {
+              matchesTime = isSameMonth(date, now);
+            }
+          }
+        }
+
+        const matchesStatus = statusFilter === "all" || st.status === statusFilter;
+
+        return matchesSearch && matchesTime && matchesStatus;
+      });
+
+      return {
+        ...activity,
+        matchingSubtasks: subtasks
+      };
+    }).filter((activity) => {
+      const courseMatch =
+        courseFilter === "all" ||
+        getCourseName(activity.course) === courseFilter;
+
+      // If we are searching or filtering by time/status at subtask level, 
+      // only show activities that have matching subtasks.
+      const hasMatches = activity.matchingSubtasks.length > 0;
+
+      return courseMatch && (searchTerm || timeFilter !== "all" || statusFilter !== "all" ? hasMatches : true);
+    });
+  }, [activities, courseFilter, statusFilter, searchTerm, timeFilter]);
+
+  const stats = useMemo(() => {
+    let done = 0;
+    let total = 0;
+    let hoursDone = 0;
+
+    filteredActivities.forEach((a: any) => {
+      a.matchingSubtasks.forEach((st: Subtask) => {
+        total++;
+        if (st.status === STATUS.DONE) {
+          done++;
           const hours = typeof st.estimated_hours === 'string'
             ? parseFloat(st.estimated_hours)
             : (st.estimated_hours || 0);
-          return h + (isNaN(hours) ? 0 : hours);
-        }, 0),
-    0
-  );
+          hoursDone += (isNaN(hours) ? 0 : hours);
+        }
+      });
+    });
+
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    return { done, total, pct, hoursDone };
+  }, [filteredActivities]);
+
+  const overallProgress = stats.pct;
+  const totalDone = stats.done;
+  const totalAll = stats.total;
+  const totalHoursDone = stats.hoursDone;
 
   const recentWins = activities
     .flatMap((a: Activity) =>
@@ -253,10 +361,7 @@ export default function ProgressPage() {
     setProcessingTasks((prev) => new Set(prev).add(subtaskId));
 
     try {
-      await patchSubtask(activityId, subtaskId, updateData);
       await updateSubtask(activityId, subtaskId, updateData);
-
-      showToast('Tarea completada exitosamente', 'success');
 
       setNoteValues((prev) => {
         const copy = { ...prev };
@@ -278,29 +383,23 @@ export default function ProgressPage() {
     }
   };
 
-  const handlePostponeTask = async (
-    activityId: number,
-    subtaskId: number,
-    subtaskName: string
-  ) => {
+  const handlePostponeTask = async (note: string) => {
+    if (!postponingTask) return;
+    const { activityId, id: subtaskId } = postponingTask;
+
     if (processingTasks.has(subtaskId)) return;
 
     queryCache.invalidateByPrefix('hoy:');
-
     setProcessingTasks((prev) => new Set(prev).add(subtaskId));
 
     try {
-      const updateData = { status: STATUS.POSTPONED };
-
-      await patchSubtask(activityId, subtaskId, updateData);
-      await updateSubtask(activityId, subtaskId, updateData);
-
+      await postponeSubtask(activityId, subtaskId, note.trim());
       showToast('Tarea pospuesta correctamente', 'success');
-
+      setIsPostponeModalOpen(false);
+      setPostponingTask(null);
     } catch (err: any) {
       console.error('❌ PATCH Error:', err);
-
-      showToast('No se pudo posponer la tarea. Verifica tu conexión e intenta de nuevo.', 'error');
+      showToast('No se pudo posponer la tarea.', 'error');
       refresh();
     } finally {
       setProcessingTasks((prev) => {
@@ -309,6 +408,100 @@ export default function ProgressPage() {
         return next;
       });
     }
+  };
+
+  const openPostponeModal = (st: Subtask, activityId: number) => {
+    setPostponingTask({ ...st, activityId });
+    setIsPostponeModalOpen(true);
+  };
+
+  const openDeleteModal = (st: Subtask, activityId: number) => {
+    setDeletingTask({ ...st, activityId });
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDeleteTask = async () => {
+    if (!deletingTask) return;
+    const { activityId, id: subtaskId } = deletingTask;
+
+    setIsDeleting(true);
+    try {
+      await deleteSubtask(activityId, subtaskId);
+      showToast('Tarea eliminada correctamente', 'success');
+      setIsDeleteModalOpen(false);
+      setDeletingTask(null);
+      refresh();
+    } catch (err) {
+      showToast('Error al eliminar la tarea', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const openConflictModal = (st: Subtask, activity: Activity) => {
+    setConflictModalTask(st);
+    setConflictActivityMeta({ id: activity.id, title: activity.title, deadline: activity.deadline });
+    setReduceHours(st.estimated_hours ? String(st.estimated_hours) : "");
+    setReduceError("");
+    setIsConflictModalOpen(true);
+  };
+
+  const handleReduceConflictHours = async () => {
+    if (!conflictModalTask || !conflictActivityMeta) return;
+    const hrs = parseFloat(reduceHours);
+    if (isNaN(hrs) || hrs < 0.5) {
+      setReduceError("Ingresa un número válido (mínimo 0.5)");
+      return;
+    }
+
+    setIsReducing(true);
+    setReduceError("");
+    try {
+      const res = await putSubtaskWithConflictTolerance(conflictModalTask.id, {
+        estimated_hours: hrs
+      });
+      const resolved = !res.is_conflicted;
+      await updateSubtask(conflictActivityMeta.id, conflictModalTask.id, {
+        estimated_hours: hrs,
+        is_conflicted: res.is_conflicted
+      });
+
+      setConflictModalTask(null);
+      setIsConflictModalOpen(false);
+      setConflictOutcomeSource("reduce");
+      setConflictOutcome({
+        resolved,
+        dateKey: res.target_date || res.target_date || new Date().toISOString().slice(0, 10),
+        availableHours: res.available_hours || 0,
+        overworkHours: res.overwork_hours || 0,
+        limitHours: res.limit_hours || 6,
+      });
+    } catch (err: any) {
+      setReduceError(err?.response?.data?.detail || "Error al actualizar las horas.");
+    } finally {
+      setIsReducing(false);
+    }
+  };
+
+  const handleMoveConflictTask = () => {
+    if (!conflictModalTask || !conflictActivityMeta) return;
+    const task = conflictModalTask;
+    const meta = conflictActivityMeta;
+    setConflictModalTask(null);
+    setIsConflictModalOpen(false);
+    navigate("/calendario", {
+      state: {
+        focusDate: task.target_date || new Date().toISOString().slice(0, 10),
+        reprogramSubtask: {
+          id: task.id,
+          activityId: meta.id,
+          title: task.name,
+          deadline: meta.deadline,
+          dateKey: task.target_date || new Date().toISOString().slice(0, 10),
+          durationNum: task.estimated_hours || 0,
+        }
+      }
+    });
   };
 
   if (loading) {
@@ -400,10 +593,42 @@ export default function ProgressPage() {
           </Select>
         </div>
 
+        {/* Barra de Búsqueda */}
+        <div className="relative flex-1 min-w-[240px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+          <Input
+            placeholder="Buscar subtarea..."
+            className="pl-9 bg-[#1F2937]/60 border-slate-700/50 text-slate-200 rounded-xl focus-visible:ring-blue-500"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        {/* Filtro Período */}
+        <div className="flex items-center gap-2 bg-[#1F2937]/60 border border-slate-700/50 rounded-xl px-3 py-2">
+          <CalendarDays className="h-4 w-4 text-slate-500" />
+          <Select value={timeFilter} onValueChange={setTimeFilter}>
+            <SelectTrigger className="bg-transparent border-none p-0 h-auto gap-1 text-slate-200 focus:ring-0">
+              <SelectValue placeholder="Periodo" />
+            </SelectTrigger>
+            <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl">
+              <SelectItem value="all">Todo el tiempo</SelectItem>
+              <SelectItem value="today">Hoy</SelectItem>
+              <SelectItem value="week">Esta semana</SelectItem>
+              <SelectItem value="month">Este mes</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Botón limpiar — solo visible si hay filtros activos */}
         {hasActiveFilters && (
           <button
-            onClick={() => { setCourseFilter("all"); setStatusFilter("all"); }}
+            onClick={() => {
+              setCourseFilter("all");
+              setStatusFilter("all");
+              setSearchTerm("");
+              setTimeFilter("all");
+            }}
             className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-red-400 transition-colors px-3 py-2 rounded-xl border border-slate-700/50 bg-[#1F2937]/60"
           >
             <X className="w-3.5 h-3.5" /> Limpiar
@@ -444,7 +669,6 @@ export default function ProgressPage() {
               const allCompleted = total > 0 && done === total;
 
               const isBehind = pct < 50 && getDaysLeft(activity.deadline) !== null && getDaysLeft(activity.deadline)! <= 5;
-
               return (
                 <div
                   key={activity.id}
@@ -466,12 +690,18 @@ export default function ProgressPage() {
                         >
                           {activity.title}
                         </Link>
-                        <p className="text-sm text-slate-400 mt-1">
-                          Próxima fecha límite:{' '}
-                          <span className={cn("font-medium", getDeadlineColor(activity.deadline, pct))}>
-                            {getDeadlineText(activity.deadline)}
-                          </span>
-                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-[10px] font-bold bg-slate-800/50 text-slate-400 border-slate-700 uppercase tracking-tighter">
+                            {courseName}
+                          </Badge>
+                          <span className="text-slate-600">•</span>
+                          <p className="text-sm text-slate-500">
+                            Próxima fecha límite:{' '}
+                            <span className={cn("font-medium", getDeadlineColor(activity.deadline, pct))}>
+                              {getDeadlineText(activity.deadline)}
+                            </span>
+                          </p>
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -519,37 +749,53 @@ export default function ProgressPage() {
                   </div>
 
                   {/* Subtasks List */}
-                  {isOpen && pending.length > 0 && (
+                  {isOpen && activity.matchingSubtasks && activity.matchingSubtasks.length > 0 && (
                     <div className="space-y-4">
                       <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
-                        Tareas pendientes ({pending.length})
+                        Tareas ({activity.matchingSubtasks?.length})
                       </h4>
-                      {pending.map((st: Subtask) => {
+                      {activity.matchingSubtasks?.map((st: Subtask | any) => {
                         const isProcessing = processingTasks.has(st.id);
+                        const isPostponed = st.status === STATUS.POSTPONED;
+                        const isConflicted = st.is_conflicted && st.status !== STATUS.DONE;
+
                         return (
                           <div
                             key={st.id}
                             className={cn(
-                              "group p-4 rounded-xl border transition-all duration-200",
-                              "bg-slate-800/30",
-                              "border-slate-700/50",
-                              "hover:border-blue-500/30",
+                              "group p-4 rounded-xl border transition-all duration-200 bg-[#1F2937]/30",
+                              isConflicted
+                                ? "border-[#F59E0B] animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.5)] bg-[#F59E0B]/10"
+                                : isPostponed
+                                  ? "border-[#8B5CF6]/30 bg-[#8B5CF6]/20"
+                                  : "border-slate-700/50 hover:border-blue-500/30 bg-slate-800/20",
                               isProcessing && "opacity-50 pointer-events-none"
                             )}
                           >
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3">
                               <div className="flex items-center gap-3 mb-3 sm:mb-0">
                                 <button
-                                  onClick={() => handleCompleteTask(activity.id, st.id, st.name, courseName)}
+                                  onClick={() => handleCompleteTask(activity.id, st.id, st.name || st.title || "", courseName)}
                                   disabled={isProcessing}
-                                  className="relative h-5 w-5 cursor-pointer rounded border border-slate-600 
-                                               bg-transparent hover:border-blue-500 transition-all flex items-center justify-center
-                                               disabled:cursor-not-allowed"
+                                  className={cn(
+                                    "relative h-5 w-5 cursor-pointer rounded border transition-all flex items-center justify-center disabled:cursor-not-allowed",
+                                    st.status === STATUS.DONE
+                                      ? "bg-emerald-500 border-emerald-500"
+                                      : "bg-transparent border-slate-600 hover:border-blue-500"
+                                  )}
                                 >
-                                  <Circle className="h-4 w-4 text-slate-500" />
+                                  {st.status === STATUS.DONE ? (
+                                    <CheckCircle2 className="h-4 w-4 text-white" />
+                                  ) : (
+                                    <Circle className="h-4 w-4 text-slate-500" />
+                                  )}
                                 </button>
-                                <span className="text-sm font-medium text-slate-200 group-hover:text-blue-400 transition-colors">
-                                  {st.name}
+                                <span className={cn(
+                                  "text-sm font-medium transition-colors cursor-pointer hover:text-blue-400 transition-colors",
+                                  st.status === STATUS.DONE ? "text-slate-500 line-through" : "text-slate-200 group-hover:text-blue-400"
+                                )}
+                                  onClick={() => setDetailTask(st)}>
+                                  {st.name || st.title || ""}
                                 </span>
                                 {st.estimated_hours && (
                                   <Badge variant="secondary" className="text-[10px] bg-slate-700/50 text-slate-300 border-slate-600">
@@ -561,37 +807,55 @@ export default function ProgressPage() {
                                 )}
                               </div>
                               <div className="flex items-center gap-2 pl-8 sm:pl-0">
+                                {isConflicted && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 text-[11px] font-semibold bg-[#F59E0B]/20 text-[#F59E0B]/90 hover:text-[#F59E0B] border-[#F59E0B]/40 hover:bg-[#F59E0B]/30"
+                                    onClick={() => openConflictModal(st, activity)}
+                                  >
+                                    <AlertCircle className="h-3 w-3 mr-1" />
+                                    Solucionar
+                                  </Button>
+                                )}
                                 <Button
                                   variant="outline"
                                   size="sm"
                                   disabled={isProcessing}
-                                  className="h-8 text-xs bg-transparent hover:bg-blue-500/10 hover:text-blue-400 border-slate-700 text-slate-300 disabled:opacity-50"
-                                  onClick={() => handlePostponeTask(activity.id, st.id, st.name)}
+                                  className="h-8 text-xs bg-transparent hover:bg-slate-600/30 border-slate-700 text-slate-300 disabled:opacity-50"
+                                  onClick={() => openPostponeModal(st, activity.id)}
                                 >
                                   Posponer
                                 </Button>
                                 <Button
+                                  variant="outline"
                                   size="sm"
                                   disabled={isProcessing}
-                                  className="h-8 text-xs bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white transition-all disabled:opacity-50"
-                                  onClick={() => handleCompleteTask(activity.id, st.id, st.name, courseName)}
+                                  className="h-8 w-8 p-0 text-slate-400 hover:text-blue-400 border-slate-700"
+                                  onClick={() => {
+                                    setEditingTask({ ...st, title: st.name || st.title, activity });
+                                    setIsEditModalOpen(true);
+                                  }}
                                 >
-                                  {isProcessing ? (
-                                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                                  ) : (
-                                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  )}
-                                  <span>Hecho</span>
+                                  <Pencil className="h-3.5 w-3.5" />
                                 </Button>
+                                {st.status !== STATUS.DONE && (
+                                  <Button
+                                    size="sm"
+                                    disabled={isProcessing}
+                                    className="h-8 text-xs bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white transition-all disabled:opacity-50"
+                                    onClick={() => handleCompleteTask(activity.id, st.id, st.name || st.title || "", courseName)}
+                                  >
+                                    {isProcessing ? (
+                                      <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                                    ) : (
+                                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                                    )}
+                                    <span>Hecho</span>
+                                  </Button>
+                                )}
                               </div>
                             </div>
-                            <Input
-                              placeholder="Nota de reflexión (opcional) — ¿Qué fue difícil?"
-                              className="text-xs h-9 bg-[#1F2937]/50 border-slate-700 text-slate-200 placeholder:text-slate-500 pl-8"
-                              value={noteValues[st.id] || ''}
-                              onChange={(e) => setNoteValues({ ...noteValues, [st.id]: e.target.value })}
-                              disabled={isProcessing}
-                            />
                           </div>
                         );
                       })}
@@ -620,7 +884,7 @@ export default function ProgressPage() {
         <aside className="lg:col-span-1 space-y-6">
           {/* Today's Focus - Circular Progress */}
           <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20">
-            <h3 className="text-lg font-semibold text-white mb-6">Enfoque de hoy</h3>
+            <h3 className="text-lg font-semibold text-white mb-6">Progreso de {timeFilter === "today" ? "hoy" : timeFilter === "week" ? "esta semana" : "este mes"}</h3>
             <div className="flex items-center justify-center mb-6">
               <CircularProgress value={overallProgress} />
             </div>
@@ -635,32 +899,6 @@ export default function ProgressPage() {
               </div>
             </div>
           </div>
-
-          {/* Recent Achievements */}
-          {recentWins.length > 0 && (
-            <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20">
-              <div className="flex items-center gap-3 mb-4">
-                <Trophy className="h-5 w-5 text-yellow-500" />
-                <h3 className="text-lg font-semibold text-white">Logros recientes</h3>
-              </div>
-              <ul className="space-y-4">
-                {recentWins.map((w: Subtask & { course: string }) => (
-                  <li key={w.id} className="flex gap-3 items-start">
-                    <div className={cn(
-                      "mt-1 w-2 h-2 rounded-full",
-                      recentWins.indexOf(w) === 0 ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' :
-                        recentWins.indexOf(w) === 1 ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]' :
-                          'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.6)]'
-                    )} />
-                    <div>
-                      <p className="text-sm font-medium text-slate-200">{w.name}</p>
-                      <p className="text-xs text-slate-400">{w.course}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
 
           {/* Upcoming Deadlines */}
           {upcomingDeadlines.length > 0 && (
@@ -713,7 +951,7 @@ export default function ProgressPage() {
                         <span className="px-2 py-0.5 rounded-md bg-yellow-500/10 text-yellow-400 text-[10px] font-black uppercase">
                           Pospuesto
                         </span>
-                        <p className="text-sm font-semibold text-slate-200 truncate">{t.name}</p>
+                        <p className="text-sm font-semibold text-slate-200 truncate">{t.name || t.title || ""}</p>
                       </div>
                       <p className="text-xs text-slate-500 pl-0.5">{t.course}</p>
                       {t.note && (
@@ -745,7 +983,7 @@ export default function ProgressPage() {
                     <div key={t.id} className="flex items-start gap-2 text-slate-400">
                       <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-slate-600" />
                       <div>
-                        <p className="text-xs text-slate-300 truncate">{t.name}</p>
+                        <p className="text-xs text-slate-300 truncate">{t.name || t.title || ""}</p>
                         <p className="text-[10px] text-slate-500">{t.course}</p>
                       </div>
                     </div>
@@ -757,6 +995,253 @@ export default function ProgressPage() {
 
         </aside>
       </div>
+
+      <EditSubtaskModal
+        open={Boolean(isEditModalOpen && editingTask)}
+        onOpenChange={(open) => {
+          setIsEditModalOpen(open);
+          if (!open) setEditingTask(null);
+        }}
+        initialTitle={String(editingTask?.title ?? "")}
+        initialHours={editingTask?.estimated_hours}
+        onReprogram={() => {
+          if (!editingTask) return;
+          const targetDate = editingTask.target_date;
+          const estimatedHours = parseFloat(String(editingTask.estimated_hours || 0)) || 0;
+          navigate("/calendario", {
+            state: {
+              focusDate: targetDate,
+              reprogramSubtask: {
+                id: editingTask.id,
+                activityId: editingTask.activity?.id,
+                title: editingTask.title,
+                deadline: editingTask.activity?.deadline,
+                dateKey: targetDate,
+                durationNum: estimatedHours,
+              },
+            },
+          });
+        }}
+        onDelete={() => {
+          if (!editingTask) return;
+          setIsEditModalOpen(false);
+          openDeleteModal(editingTask, editingTask.activity.id);
+        }}
+        onSave={async ({ title, estimatedHours }) => {
+          if (!editingTask) return { ok: false, error: "No hay subtarea seleccionada." };
+
+          const activityId = editingTask.activity?.id;
+          const subtaskId = editingTask.id;
+
+          try {
+            await updateSubtask(activityId, subtaskId, {
+              title,
+              estimated_hours: estimatedHours,
+            });
+
+            setIsEditModalOpen(false);
+            setEditingTask(null);
+            return { ok: true };
+          } catch {
+            return {
+              ok: false,
+              error:
+                "No pudimos guardar los cambios. Revisa que las horas no superen tu límite diario de estudio y vuelve a intentarlo.",
+            };
+          }
+        }}
+      />
+
+      <PostponeSubtaskModal
+        isOpen={isPostponeModalOpen}
+        onClose={() => {
+          setIsPostponeModalOpen(false);
+          setPostponingTask(null);
+        }}
+        onConfirm={handlePostponeTask}
+        isProcessing={postponingTask && processingTasks.has(postponingTask.id)}
+      />
+
+      {isDeleteModalOpen && deletingTask && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div className="w-full max-w-[560px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
+            <div className="p-6 sm:p-7 relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setDeletingTask(null);
+                }}
+                className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
+                aria-label="Cerrar"
+                disabled={isDeleting}
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-start gap-4 mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-6 h-6 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+                    Eliminar subtarea
+                  </h3>
+                  <p className="text-slate-400 text-sm mt-1 leading-relaxed">
+                    ¿Estás seguro de que quieres eliminar la subtarea{" "}
+                    <span className="text-red-400 font-semibold italic">"{deletingTask.name || deletingTask.title}"</span>? Esta acción no se puede deshacer.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 justify-end pt-4 border-t border-slate-800/60">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsDeleteModalOpen(false);
+                    setDeletingTask(null);
+                  }}
+                  className="h-11 px-6 rounded-xl border-slate-700 text-slate-400 hover:bg-slate-800"
+                  disabled={isDeleting}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleDeleteTask}
+                  className="h-11 px-8 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-lg shadow-red-600/20"
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? "Eliminando..." : "Eliminar tarea"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Conflict Resolution Modals */}
+      <ResolveConflictModal
+        isOpen={isConflictModalOpen}
+        onClose={() => {
+          setIsConflictModalOpen(false);
+          setConflictModalTask(null);
+        }}
+        selectedConflict={conflictModalTask}
+        dateFormatted={conflictModalTask?.target_date ? getFormattedDate(conflictModalTask.target_date) : ""}
+        dayLabel={conflictModalTask?.target_date ? getRelativeDateLabel(conflictModalTask.target_date) : ""}
+        reduceHours={reduceHours}
+        setReduceHours={setReduceHours}
+        isReducing={isReducing}
+        reduceError={reduceError}
+        onReduceConfirm={handleReduceConflictHours}
+        onMoveTask={handleMoveConflictTask}
+      />
+
+      <ConflictOutcomeModal
+        isOpen={!!conflictOutcome}
+        onClose={() => setConflictOutcome(null)}
+        outcome={conflictOutcome}
+        source={conflictOutcomeSource}
+        onContinueResolving={() => {
+          setConflictOutcome(null);
+          // If there were more conflicts we could keep it open, 
+          // but Progress view handles them one by one.
+        }}
+        getRelativeDateLabel={getRelativeDateLabel}
+        getFormattedDate={getFormattedDate}
+      />
+
+      {/* Subtask Detail Dialog */}
+      <Dialog open={!!detailTask} onOpenChange={(open) => { if (!open) setDetailTask(null); }}>
+        <DialogContent className="sm:max-w-[500px] bg-[#111827] border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold text-slate-100 uppercase tracking-tight">
+              Detalles de la subtarea
+            </DialogTitle>
+            <DialogDescription className="text-sm text-slate-400 pt-2">
+              Información completa de la planificación
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 mt-4">
+            <div>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-1">
+                Nombre de la tarea
+              </label>
+              <div className="flex items-center gap-3">
+                <p className="text-lg font-bold text-white">
+                  {detailTask?.title || detailTask?.name}
+                </p>
+                {detailTask?.target_date && isSameDay(parseISO(detailTask.target_date), new Date()) && (
+                  <Badge className="bg-blue-600 text-white border-none text-[10px] font-black uppercase tracking-widest px-2 py-0.5">
+                    HOY
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-2">
+                  Fecha planificada
+                </label>
+                <div className="flex items-center gap-2.5 text-slate-200">
+                  <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center">
+                    <Calendar className="size-4 text-blue-400" />
+                  </div>
+                  <span className="text-sm font-semibold">
+                    {detailTask?.target_date ? getFormattedDate(detailTask.target_date) : "Sin fecha"}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-2">
+                  Dedicación estimada
+                </label>
+                <div className="flex items-center gap-2.5 text-slate-200">
+                  <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center">
+                    <Clock className="size-4 text-emerald-400" />
+                  </div>
+                  <span className="text-sm font-semibold">
+                    {detailTask?.estimated_hours ? parseFloat(String(detailTask.estimated_hours)).toFixed(1) : "0.0"}h
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-2">
+                Estado actual
+              </label>
+              <div className="flex items-center gap-2">
+                <Badge
+                  className={cn(
+                    "text-[10px] font-black uppercase tracking-widest px-3 py-1 border-none",
+                    detailTask?.status === STATUS.DONE ? "bg-emerald-500/20 text-emerald-400" :
+                      detailTask?.status === STATUS.POSTPONED ? "bg-purple-500/20 text-purple-400" :
+                        "bg-blue-500/20 text-blue-400"
+                  )}
+                >
+                  {detailTask?.status === STATUS.DONE ? "Completada" :
+                    detailTask?.status === STATUS.POSTPONED ? "Pospuesta" :
+                      detailTask?.status === STATUS.WAITING ? "En espera" : "Pendiente"}
+                </Badge>
+              </div>
+            </div>
+
+            {detailTask?.execution_note && (
+              <div className="bg-slate-800/40 rounded-2xl p-4 border border-slate-700/50">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-2">
+                  Notas / Razón de posposición
+                </label>
+                <p className="text-sm text-slate-300 italic leading-relaxed">
+                  "{detailTask.execution_note}"
+                </p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
