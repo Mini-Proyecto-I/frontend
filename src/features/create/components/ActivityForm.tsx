@@ -4,7 +4,7 @@ import { AlertTriangle, Calendar, CheckCircle2, ClipboardList, Save } from "luci
 import InfoTooltip from "@/features/create/components/InfoTooltip";
 import { getCourses, createCourse } from "@/api/services/course";
 import { createActivity, getActivities, patchActivity } from "@/api/services/activity";
-import { createSubtask, putSubtaskWithConflictTolerance } from "@/api/services/subtack";
+import { createSubtask, putSubtaskWithConflictTolerance } from "@/api/services/subtask";
 import {
     Dialog,
     DialogContent,
@@ -393,7 +393,7 @@ const ActivityForm = () => {
         // Manejar error de límite diario de horas (estimated_hours)
         if (errorData?.estimated_hours) {
             const hoursError = Array.isArray(errorData.estimated_hours) ? errorData.estimated_hours[0] : errorData.estimated_hours;
-            if (hoursError?.toLowerCase().includes("limite diario") || 
+            if (hoursError?.toLowerCase().includes("limite diario") ||
                 hoursError?.toLowerCase().includes("excede") ||
                 hoursError?.toLowerCase().includes("límite")) {
                 return String(hoursError) || "Se excede el límite diario de horas planificadas. Por favor, reduce las horas o cambia la fecha objetivo.";
@@ -723,7 +723,7 @@ const ActivityForm = () => {
                 setModalTitle("Error al guardar subtareas");
                 setModalMessage(
                     generalErrorMessage ||
-                        "Algunas subtareas exceden el límite de horas. Ajusta las subtareas y vuelve a intentar."
+                    "Algunas subtareas exceden el límite de horas. Ajusta las subtareas y vuelve a intentar."
                 );
                 setModalOpen(true);
 
@@ -1003,24 +1003,24 @@ const ActivityForm = () => {
                                         placeholder="e.j. Examen final de cálculo"
                                         className={`${inputClass} ${errors.titulo ? 'border-red-500 focus:ring-red-500' : ''}`}
                                     />
-                                        {errors.titulo && (
-                                            <div className="mt-2 flex items-start gap-2">
-                                                <div className="flex-shrink-0 mt-0.5">
-                                                    <svg
-                                                        className="h-4 w-4 text-red-500"
-                                                        fill="currentColor"
-                                                        viewBox="0 0 20 20"
-                                                    >
-                                                        <path
-                                                            fillRule="evenodd"
-                                                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                                                            clipRule="evenodd"
-                                                        />
-                                                    </svg>
-                                                </div>
-                                                <p className="text-sm text-red-500 font-medium flex-1">{errors.titulo}</p>
+                                    {errors.titulo && (
+                                        <div className="mt-2 flex items-start gap-2">
+                                            <div className="flex-shrink-0 mt-0.5">
+                                                <svg
+                                                    className="h-4 w-4 text-red-500"
+                                                    fill="currentColor"
+                                                    viewBox="0 0 20 20"
+                                                >
+                                                    <path
+                                                        fillRule="evenodd"
+                                                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                                                        clipRule="evenodd"
+                                                    />
+                                                </svg>
                                             </div>
-                                        )}
+                                            <p className="text-sm text-red-500 font-medium flex-1">{errors.titulo}</p>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Curso + Tipo */}
@@ -1042,7 +1042,7 @@ const ActivityForm = () => {
                                             }}
                                             disabled={loadingCourses}
                                         >
-                                            <SelectTrigger 
+                                            <SelectTrigger
                                                 className={`w-full rounded-xl !bg-[#1F2937]/50 border border-slate-700/50 h-12 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${errors.curso ? 'border-red-500 focus:ring-red-500' : ''} ${loadingCourses ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             >
                                                 <SelectValue placeholder="Selecciona un curso" />

@@ -18,10 +18,11 @@ import { es } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Clock, MoreVertical, Loader2, CalendarRange, CalendarCheck, Move, CirclePlus, X, Eye, Pencil, Trash2, CheckCircle2, AlertTriangle, AlertCircle } from "lucide-react";
 import { Button } from "@/shared/components/button";
 import { useHoy } from "@/features/today/hooks/useHoy";
-import { patchSubtask, deleteSubtask, putSubtaskWithConflictTolerance } from "@/api/services/subtack";
+import { patchSubtask, deleteSubtask, putSubtaskWithConflictTolerance } from "@/api/services/subtask";
 import { patchActivity } from "@/api/services/activity";
 import { queryCache } from "@/lib/queryCache";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import EditSubtaskModal from "@/shared/components/EditSubtaskModal";
 
 export default function Calendar() {
     const navigate = useNavigate();
@@ -77,6 +78,7 @@ export default function Calendar() {
         targetDateKey: string;
     } | null>(null);
     const pendingNavigateAfterModalRef = useRef<{ to: string; state?: object } | null>(null);
+    const [editingSubtask, setEditingSubtask] = useState<any | null>(null);
 
     const { vencidas, para_hoy, proximas, loading, refetch } = useHoy({ days_ahead: 30 });
 
@@ -903,8 +905,18 @@ export default function Calendar() {
                                                         ring: "ring-[#F59E0B]/60 shadow-[#F59E0B]/40",
                                                         glow: "shadow-[0_0_15px_rgba(245,158,11,0.2)]"
                                                     };
-                                                    // Si está seleccionada, usar tema azul para no chocar con el borde amarillo de conflicto
-                                                    const activeTheme = isConflicted && !isSelected ? conflictTheme : theme;
+
+                                                    const isPostponed = activity.status === "POSTPONED";
+                                                    const postponedTheme = {
+                                                        border: "border-purple-500",
+                                                        text: "text-purple-400",
+                                                        bg: "hover:bg-purple-500/5",
+                                                        ring: "ring-purple-500/60 shadow-purple-500/40",
+                                                        glow: "shadow-[0_0_15px_rgba(168,85,247,0.2)]"
+                                                    };
+
+                                                    // Prioridad: Selección > Conflicto > Pospuesta > Tema por curso
+                                                    const activeTheme = isSelected ? theme : (isConflicted ? conflictTheme : (isPostponed ? postponedTheme : theme));
 
                                                     return (
                                                         <div
@@ -936,6 +948,12 @@ export default function Calendar() {
                                                                     <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest">Conflicto</span>
                                                                 </div>
                                                             )}
+                                                            {isPostponed && !isSelected && !isConflicted && (
+                                                                <div className="absolute top-2 left-2 flex items-center gap-1">
+                                                                    <div className="w-2 h-2 rounded-full bg-purple-500" />
+                                                                    <span className="text-[8px] font-black text-purple-400 uppercase tracking-widest">Pospuesta</span>
+                                                                </div>
+                                                            )}
                                                             {isSelected && (
                                                                 <div className={`absolute -top-3 -right-2 px-3 py-1 font-black text-[10px] tracking-widest uppercase rounded-full bg-blue-500 text-white shadow-lg z-30 animate-bounce`}>
                                                                     SELECCIONADO
@@ -963,7 +981,10 @@ export default function Calendar() {
                                                                             Ver detalle
                                                                         </Link>
                                                                         <button
-                                                                            onClick={() => navigate(`/actividad/${activity.activityId}`)}
+                                                                            onClick={() => {
+                                                                                setEditingSubtask(activity);
+                                                                                setMenuOpenId(null);
+                                                                            }}
                                                                             className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-slate-300 hover:bg-slate-800 hover:text-white transition-colors border-b border-slate-700/30"
                                                                         >
                                                                             <Pencil className="w-4 h-4 text-emerald-400" />
@@ -1702,6 +1723,46 @@ export default function Calendar() {
                     </div>
                 </div>
             )}
+
+            {/* Edit Subtask Modal */}
+            <EditSubtaskModal
+                open={Boolean(editingSubtask)}
+                onOpenChange={(open) => {
+                    if (!open) setEditingSubtask(null);
+                }}
+                initialTitle={editingSubtask?.title ?? ""}
+                initialHours={editingSubtask?.durationNum}
+                onReprogram={() => {
+                    if (!editingSubtask) return;
+                    handleSelectForMove(editingSubtask);
+                    setEditingSubtask(null);
+                }}
+                onDelete={() => {
+                    if (!editingSubtask) return;
+                    setEditingSubtask(null);
+                    handleDelete(editingSubtask.activityId, editingSubtask.id);
+                }}
+                onSave={async ({ title, estimatedHours }) => {
+                    if (!editingSubtask) return { ok: false, error: "No hay subtarea seleccionada." };
+
+                    try {
+                        await patchSubtask(editingSubtask.activityId, editingSubtask.id, {
+                            title,
+                            estimated_hours: estimatedHours,
+                        });
+                        queryCache.invalidate("activities");
+                        await refetch();
+                        setEditingSubtask(null);
+                        return { ok: true };
+                    } catch (error) {
+                        return {
+                            ok: false,
+                            error:
+                                "No pudimos guardar los cambios. Revisa que las horas no superen tu límite diario de estudio y vuelve a intentarlo.",
+                        };
+                    }
+                }}
+            />
         </div>
     );
 }

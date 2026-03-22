@@ -33,6 +33,16 @@ export const deleteActivity = async (activityId) => {
   await apiClient.delete(`activity/${activityId}/`);
 };
 
+// Porcentaje global de completitud por periodo: /api/activity/completion-percent/?from_date=...&to_date=...
+export const getCompletionPercent = async (fromDate, toDate) => {
+  const params = {};
+  if (fromDate) params.from_date = fromDate;
+  if (toDate) params.to_date = toDate;
+
+  const { data } = await apiClient.get("activity/completion-percent/", { params });
+  return data;
+};
+
 // Tipos de actividad (si el backend expone este endpoint auxiliar)
 export const getActivityTypes = async () => {
   try {

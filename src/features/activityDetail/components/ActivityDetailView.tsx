@@ -1,12 +1,26 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { RefreshCw, ChevronRight } from "lucide-react";
+import { RefreshCw, ChevronRight, AlertTriangle, Clock } from "lucide-react";
+import { format, parseISO, startOfDay, differenceInDays } from "date-fns";
+import { es } from "date-fns/locale";
+import { ResolveConflictModal } from "@/shared/components/ResolveConflictModal";
+import { ConflictOutcomeModal } from "@/shared/components/ConflictOutcomeModal";
+import PostponeSubtaskModal from "@/shared/components/PostponeSubtaskModal";
+import { postponeSubtask, updateSubtask, getSubtasksForActivity, patchSubtask } from "@/api/services/subtask";
+import { queryCache } from "@/lib/queryCache";
+import { cn } from "@/shared/utils/utils";
 import ActivityDetailHeader from "./ActivityDetailHeader";
 import ActivityProgressCard from "./ActivityProgressCard";
 import StudyPlanSection from "./StudyPlanSection";
 import { getActivity } from "@/api/services/activity";
-import { getSubtasksForActivity } from "@/api/services/subtack";
 import { useToast } from "@/shared/components/toast";
+
+const PROGRESS_STATUS = {
+  PENDING: "PENDING",
+  DONE: "DONE",
+  POSTPONED: "POSTPONED",
+  WAITING: "WAITING",
+};
 
 interface ActivityDetailViewProps {
   activityId?: string;
@@ -34,6 +48,7 @@ interface BackendSubtask {
   estimated_hours?: number;
   status?: "PENDING" | "DONE" | "POSTPONED" | "WAITING";
   execution_note?: string;
+  is_conflicted?: boolean;
 }
 
 export default function ActivityDetailView({ activityId }: ActivityDetailViewProps) {
@@ -41,8 +56,49 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
   const [subtasks, setSubtasks] = useState<BackendSubtask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Conflict Modals State
+  const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
+  const [conflictModalTask, setConflictModalTask] = useState<any>(null);
+  const [conflictOutcome, setConflictOutcome] = useState<any>(null);
+  const [conflictOutcomeSource, setConflictOutcomeSource] = useState<"reduce" | "move" | null>(null);
+
+  // Postpone Modal State
+  const [isPostponeModalOpen, setIsPostponeModalOpen] = useState(false);
+  const [postponingTask, setPostponingTask] = useState<any>(null);
+  const [isPostponing, setIsPostponing] = useState(false);
+
+  // Conflict Resolution logic states (as seen in Progress.tsx)
+  const [reduceHours, setReduceHours] = useState("");
+  const [isReducing, setIsReducing] = useState(false);
+  const [reduceError, setReduceError] = useState("");
+
   const navigate = useNavigate();
   const { showToast, ToastComponent } = useToast();
+
+  const getFormattedDate = (dateString: string) => {
+    try {
+      return format(parseISO(dateString), "EEEE d 'de' MMMM", { locale: es });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const getRelativeDateLabel = (dateString: string) => {
+    try {
+      const date = startOfDay(parseISO(dateString));
+      const today = startOfDay(new Date());
+      const diff = differenceInDays(date, today);
+
+      if (diff === 0) return "PARA HOY";
+      if (diff === 1) return "PARA MAÑANA";
+      if (diff === -1) return "HACE 1 DÍA";
+      if (diff < -1) return `HACE ${Math.abs(diff)} DÍAS`;
+      return `EN ${diff} DÍAS`;
+    } catch {
+      return "";
+    }
+  };
 
   const isMountedRef = useRef(true);
 
@@ -339,9 +395,100 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
         completed: subtask.status === "DONE",
         isActive: subtask.status === "PENDING" && !isToday,
         todayBadge: isToday,
+        execution_note: subtask.execution_note,
+        isConflicted: !!subtask.is_conflicted,
+        status: subtask.status || "PENDING",
       };
     })
     : [];
+
+  const handlePostponeTask = async (note: string) => {
+    if (!postponingTask) return;
+    const { id: subtaskId } = postponingTask;
+
+    try {
+      setIsPostponing(true);
+
+      // Optimistic Update
+      setSubtasks((prev) =>
+        prev.map((s) =>
+          s.id === subtaskId ? { ...s, status: "POSTPONED" as any, execution_note: note.trim() } : s
+        )
+      );
+
+      await postponeSubtask(activityId!, subtaskId, note.trim());
+      showToast('Tarea pospuesta correctamente', 'success');
+      setIsPostponeModalOpen(false);
+      setPostponingTask(null);
+      queryCache.invalidateByPrefix('hoy:');
+    } catch (err: any) {
+      console.error('Error postponing task:', err);
+      showToast('No se pudo posponer la tarea.', 'error');
+      // On error, let the refetch handle correcting the state (or add rollback logic)
+      fetchSubtasksOnly();
+    } finally {
+      setIsPostponing(false);
+    }
+  };
+
+  const handleMoveConflictTask = () => {
+    if (!conflictModalTask) return;
+    const { id, target_date, estimated_hours, title } = conflictModalTask;
+    navigate("/calendario", {
+      state: {
+        focusDate: target_date,
+        reprogramSubtask: {
+          id,
+          activityId: activity?.id,
+          title,
+          deadline: activity?.deadline,
+          dateKey: target_date,
+          durationNum: estimated_hours,
+        },
+      },
+    });
+    setIsConflictModalOpen(false);
+    setConflictModalTask(null);
+  };
+
+  const handleReduceConflictHours = async () => {
+    if (!conflictModalTask || !reduceHours) return;
+
+    const val = parseFloat(reduceHours);
+    if (isNaN(val) || val <= 0) {
+      setReduceError("Ingresa un número válido de horas.");
+      return;
+    }
+
+    setIsReducing(true);
+    setReduceError("");
+
+    try {
+      const result = await updateSubtask(activity?.id || "", conflictModalTask.id, {
+        estimated_hours: val,
+      });
+
+      // The backend returns { resolved, date_key, available_hours, overwork_hours, limit_hours }
+      setConflictOutcome({
+        resolved: result.resolved,
+        dateKey: result.date_key,
+        availableHours: result.available_hours || 0,
+        overworkHours: result.overwork_hours || 0,
+        limitHours: result.limit_hours || 6,
+      });
+
+      setConflictOutcomeSource("reduce");
+      setIsConflictModalOpen(false);
+      setConflictModalTask(null);
+      setReduceHours("");
+      fetchSubtasksOnly();
+    } catch (err: any) {
+      console.error("Error reducing hours:", err);
+      setReduceError(err?.response?.data?.detail || "No se pudieron actualizar las horas.");
+    } finally {
+      setIsReducing(false);
+    }
+  };
 
   return (
     <>
@@ -381,10 +528,69 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
               onSubtaskStatusChange={handleSubtaskStatusChange}
               onSubtaskUpdated={fetchSubtasksOnly}
               deadlineDate={activity.deadline}
+              onOpenResolveConflict={(st: any) => {
+                setConflictModalTask(st);
+                setIsConflictModalOpen(true);
+              }}
+              onOpenPostpone={(st: any) => {
+                setPostponingTask(st);
+                setIsPostponeModalOpen(true);
+              }}
             />
           </div>
         </div>
       </div>
+
+      {/* Conflict & Postpone Modals */}
+      {isConflictModalOpen && conflictModalTask && (
+        <ResolveConflictModal
+          isOpen={isConflictModalOpen}
+          onClose={() => {
+            setIsConflictModalOpen(false);
+            setConflictModalTask(null);
+            setReduceHours("");
+            setReduceError("");
+          }}
+          selectedConflict={conflictModalTask}
+          dateFormatted={conflictModalTask?.target_date ? getFormattedDate(conflictModalTask.target_date) : ""}
+          dayLabel={conflictModalTask?.target_date ? getRelativeDateLabel(conflictModalTask.target_date) : ""}
+          reduceHours={reduceHours}
+          setReduceHours={setReduceHours}
+          isReducing={isReducing}
+          reduceError={reduceError}
+          onReduceConfirm={handleReduceConflictHours}
+          onMoveTask={handleMoveConflictTask}
+        />
+      )}
+
+      {conflictOutcome && (
+        <ConflictOutcomeModal
+          isOpen={!!conflictOutcome}
+          onClose={() => {
+            setConflictOutcome(null);
+            setConflictOutcomeSource(null);
+          }}
+          outcome={conflictOutcome}
+          source={conflictOutcomeSource}
+          onContinueResolving={() => {
+            setConflictOutcome(null);
+          }}
+          getRelativeDateLabel={getRelativeDateLabel}
+          getFormattedDate={getFormattedDate}
+        />
+      )}
+
+      {isPostponeModalOpen && (
+        <PostponeSubtaskModal
+          isOpen={isPostponeModalOpen}
+          onClose={() => {
+            setIsPostponeModalOpen(false);
+            setPostponingTask(null);
+          }}
+          onConfirm={handlePostponeTask}
+          isProcessing={isPostponing}
+        />
+      )}
     </>
   );
 }

@@ -78,3 +78,21 @@ export const putSubtaskWithConflictTolerance = async (subtaskId, payload) => {
 export const deleteSubtask = async (activityId, subtaskId) => {
   await apiClient.delete(`activity/${activityId}/subtasks/${subtaskId}/`);
 };
+
+export const postponeSubtask = async (activityId, subtaskId, note = "") => {
+  const { data } = await apiClient.patch(
+    `activity/${activityId}/subtasks/${subtaskId}/postpone/`,
+    { execution_note: note }
+  );
+  return data;
+};
+
+// Obtener disponibilidad en el calendario (7 días) para una subtarea
+export const getSubtaskCalendar = async (subtaskId, date = null) => {
+  const params = date ? { date } : {};
+  const { data } = await apiClient.get(
+    `subtareas/${subtaskId}/calendar/`, 
+    { params }
+  );
+  return data;
+};

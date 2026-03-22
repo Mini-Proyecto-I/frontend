@@ -5,12 +5,14 @@ import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, In
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import { useAuth } from "@/app/authContext";
-import { patchSubtask, deleteSubtask, putSubtaskWithConflictTolerance } from "@/api/services/subtack";
+import { patchSubtask, deleteSubtask, putSubtaskWithConflictTolerance, postponeSubtask } from "@/api/services/subtask";
 import { updateConfig, getConfig } from "@/api/services/config";
 import { queryCache } from "@/lib/queryCache";
 import { Input } from "@/shared/components/input";
 import { Button } from "@/shared/components/button";
 import EditSubtaskModal from "@/shared/components/EditSubtaskModal";
+import { ResolveConflictModal } from "@/shared/components/ResolveConflictModal";
+import { ConflictOutcomeModal } from "@/shared/components/ConflictOutcomeModal";
 import { OverloadAlert } from "@/features/today/components/OverloadAlert";
 import {
   Select,
@@ -19,7 +21,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/shared/components/dialog";
 import InfoTooltip from "@/features/create/components/InfoTooltip";
+import { SubtaskDetailModal } from "@/shared/components/SubtaskDetailModal";
+import { Badge } from "@/shared/components/badge";
+import { MessageModal } from "@/shared/components/MessageModal";
 
 function getGreeting(name: string) {
   const hour = new Date().getHours();
@@ -65,6 +77,11 @@ export default function Today() {
   const location = useLocation();
   const navigate = useNavigate();
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [isPostponeModalOpen, setIsPostponeModalOpen] = useState(false);
+  const [postponingTask, setPostponingTask] = useState<any | null>(null);
+  const [postponeNote, setPostponeNote] = useState("");
+  const [postponeSuccessOpen, setPostponeSuccessOpen] = useState(false);
+  const [postponeSuccessMessage, setPostponeSuccessMessage] = useState("");
   const [welcomeStep, setWelcomeStep] = useState(1);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [limitHours, setLimitHours] = useState(() => {
@@ -79,6 +96,7 @@ export default function Today() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingTask, setDeletingTask] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [detailTask, setDetailTask] = useState<any | null>(null);
 
   const openEditModal = (task: any) => {
     setEditingTask(task);
@@ -136,13 +154,13 @@ export default function Today() {
     try {
       // Sincronizar con el backend
       await updateConfig(val);
-      
+
       // Actualizar estado local
       setLimitHours(val);
       setTempLimit(val.toString());
       window.localStorage.setItem("studyLimitHours", val.toString());
       setIsEditingLimit(false);
-      
+
       // Refrescar datos para recalcular conflictos con el nuevo límite
       refetch();
     } catch (error) {
@@ -226,7 +244,7 @@ export default function Today() {
         if (config?.daily_hours_limit) {
           const backendLimit = parseFloat(config.daily_hours_limit);
           const currentLimit = parseFloat(window.localStorage.getItem("studyLimitHours") || "6");
-          
+
           // Solo actualizar si es diferente para evitar refrescos innecesarios
           if (Math.abs(backendLimit - currentLimit) > 0.01) {
             setLimitHours(backendLimit);
@@ -243,6 +261,48 @@ export default function Today() {
     };
     loadLimitFromBackend();
   }, [refetch]);
+
+
+  const handlePostpone = async () => {
+    if (!postponingTask) return;
+    const taskLabel = String(postponingTask?.title ?? postponingTask?.name ?? "esta subtarea");
+    try {
+      await postponeSubtask(postponingTask.activity?.id, postponingTask.id, postponeNote);
+
+      setData((prev: any) => {
+        // No movemos la fecha objetivo: solo cambiamos el estado a POSTPONED.
+        // Por eso debe seguir apareciendo en su sección (vencidas/para_hoy/proximas).
+        const updateList = (list: any[]) =>
+          list.map((item) => (item.id === postponingTask.id ? { ...item, status: "POSTPONED" } : item));
+        return {
+          ...prev,
+          vencidas: updateList(prev.vencidas),
+          para_hoy: updateList(prev.para_hoy),
+          proximas: updateList(prev.proximas),
+        };
+      });
+
+      // Actualizar también la lista usada para el cálculo de capacidad (tiempoData).
+      setTiempoData((prev: any[]) =>
+        prev.map((t: any) => (t.id === postponingTask.id ? { ...t, status: "POSTPONED" } : t)) as any
+      );
+
+      queryCache.invalidate('activities');
+      refetch();
+      refetchTiempo();
+
+      setPostponeSuccessMessage(
+        `Se cambió el estado de "${taskLabel}" a Pospuesta. La fecha de entrega no se verá afectada.`
+      );
+      setPostponeSuccessOpen(true);
+    } catch (e) {
+      console.error("Error al posponer subtarea:", e);
+    } finally {
+      setIsPostponeModalOpen(false);
+      setPostponingTask(null);
+      setPostponeNote("");
+    }
+  };
 
   const handleToggleSubtask = async (activityId: string, subtaskId: string, currentStatus: string) => {
     const newStatus = currentStatus === "DONE" ? "PENDING" : "DONE";
@@ -319,7 +379,7 @@ export default function Today() {
 
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
   const [showConflictOutcomeModal, setShowConflictOutcomeModal] = useState(false);
-  const [conflictOutcomeSource, setConflictOutcomeSource] = useState<"calendar" | "reduce" | null>(null);
+  const [conflictOutcomeSource, setConflictOutcomeSource] = useState<"move" | "reduce" | null>(null);
   const [conflictOutcome, setConflictOutcome] = useState<null | {
     dateKey: string;
     usedHours: number;
@@ -525,7 +585,7 @@ export default function Today() {
 
     setConflictOutcome(incoming);
     setShowConflictOutcomeModal(true);
-    setConflictOutcomeSource("calendar");
+    setConflictOutcomeSource("move");
 
     // Limpiar state para evitar que se re-muestre.
     navigate(location.pathname, { replace: true, state: {} });
@@ -533,7 +593,7 @@ export default function Today() {
   }, [location.state]);
 
   // Filter lists locally by search query
-  const searchFilter = (item: any) => { 
+  const searchFilter = (item: any) => {
     if (!search) return true;
     const s = search.toLowerCase();
     return item.title.toLowerCase().includes(s) || (item.activity?.course?.name || "").toLowerCase().includes(s);
@@ -645,7 +705,7 @@ export default function Today() {
             <p className="text-slate-400 font-medium tracking-wide">Cargando tus tareas de hoy...</p>
           </div>
         ) : (
-          <div className="flex-1 min-h-[500px]">
+          <div className="flex-1 min-h-[500px] cursor-pointer">
             {activeTab === 'vencidas' && (
               <div className="h-full animate-in fade-in zoom-in-95 duration-200">
                 {/* COLUMN 1: VENCIDAS */}
@@ -663,7 +723,12 @@ export default function Today() {
                         theme="red"
                         onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
                         onEdit={() => openEditModal(item)}
+                        onPostpone={() => {
+                          setPostponingTask(item);
+                          setIsPostponeModalOpen(true);
+                        }}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
+                        onTitleClick={() => setDetailTask(item)}
                       />
                     ))}
                     {filteredVencidas.length === 0 && (
@@ -697,7 +762,12 @@ export default function Today() {
                         theme="emerald"
                         onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
                         onEdit={() => openEditModal(item)}
+                        onPostpone={() => {
+                          setPostponingTask(item);
+                          setIsPostponeModalOpen(true);
+                        }}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
+                        onTitleClick={() => setDetailTask(item)}
                       />
                     ))}
                     {filteredParaHoy.length === 0 && (
@@ -741,7 +811,12 @@ export default function Today() {
                         theme="blue"
                         onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
                         onEdit={() => openEditModal(item)}
+                        onPostpone={() => {
+                          setPostponingTask(item);
+                          setIsPostponeModalOpen(true);
+                        }}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
+                        onTitleClick={() => setDetailTask(item)}
                       />
                     ))}
                     {filteredProximas.length === 0 && (
@@ -935,11 +1010,10 @@ export default function Today() {
                     backgroundColor: 'white',
                     fontFamily: '"Lexend", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
                   } : undefined}
-                  className={`w-full md:w-[200px] h-12 rounded-xl focus:ring-blue-500 shadow-inner border ${
-                    filters.course
-                      ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600"
-                      : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
-                  }`}
+                  className={`w-full md:w-[200px] h-12 rounded-xl focus:ring-blue-500 shadow-inner border cursor-pointer ${filters.course
+                    ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600"
+                    : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
+                    }`}
                 >
                   <SelectValue placeholder="Todos los cursos" />
                 </SelectTrigger>
@@ -966,11 +1040,10 @@ export default function Today() {
                     backgroundColor: 'white',
                     fontFamily: '"Lexend", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
                   } : undefined}
-                  className={`w-full md:w-[170px] h-12 rounded-xl focus:ring-blue-500 shadow-inner border ${
-                    filters.status
-                      ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600"
-                      : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
-                  }`}
+                  className={`w-full md:w-[170px] h-12 rounded-xl focus:ring-blue-500 shadow-inner border cursor-pointer ${filters.status
+                    ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600"
+                    : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
+                    }`}
                 >
                   <SelectValue placeholder="Cualquier estado" />
                 </SelectTrigger>
@@ -978,6 +1051,7 @@ export default function Today() {
                   <SelectItem value="all" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Cualquier estado</SelectItem>
                   <SelectItem value="PENDING" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Pendiente</SelectItem>
                   <SelectItem value="DONE" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Completado</SelectItem>
+                  <SelectItem value="POSTPONED" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Pospuesta</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -986,11 +1060,10 @@ export default function Today() {
               variant="outline"
               onClick={handleClearFilters}
               disabled={!hasActiveFilters}
-              className={`h-12 rounded-xl mb-[1px] transition-all ${
-                hasActiveFilters
-                  ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
-                  : "border-slate-700/50 bg-[#1F2937]/50 text-slate-400 cursor-not-allowed opacity-50"
-              }`}
+              className={`h-12 rounded-xl mb-[1px] transition-all ${hasActiveFilters
+                ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
+                : "border-slate-700/50 bg-[#1F2937]/50 text-slate-400 cursor-not-allowed opacity-50"
+                }`}
             >
               <X className="w-4 h-4 mr-2" /> Limpiar Filtros
             </Button>
@@ -1213,344 +1286,53 @@ export default function Today() {
         <HelpCircle className="w-6 h-6" />
       </button>
 
-      {/* Conflict Alert Modal */}
-      {isConflictModalOpen && conflictedCount > 0 && selectedConflict && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-          <div className="w-full max-w-[560px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
-            <div className="p-6 sm:p-7 relative">
-              <button
-                type="button"
-                onClick={() => setIsConflictModalOpen(false)}
-                className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
-                aria-label="Cerrar"
-              >
-                <X className="w-5 h-5" />
-              </button>
+      <ResolveConflictModal
+        isOpen={isConflictModalOpen && conflictedCount > 0 && !!selectedConflict}
+        onClose={() => setIsConflictModalOpen(false)}
+        conflictedCount={conflictedCount}
+        conflictedTasks={conflictedTasks}
+        selectedConflict={selectedConflict}
+        selectedConflictId={selectedConflictId ? String(selectedConflictId) : undefined}
+        onSelectConflictId={(id) => setSelectedConflictId(id)}
+        dateFormatted={selectedConflict?.target_date ? getFormattedDate(selectedConflict.target_date) : undefined}
+        dayLabel={selectedConflict?.target_date ? getRelativeDateLabel(selectedConflict.target_date) : undefined}
+        usedHours={selectedConflict?.target_date ? computeDayLoadForDateKey(selectedConflict.target_date).usedHours : undefined}
+        limitHours={selectedConflict?.target_date ? computeDayLoadForDateKey(selectedConflict.target_date).limitHours : undefined}
+        overworkHours={selectedConflict?.target_date ? computeDayLoadForDateKey(selectedConflict.target_date).overworkHours : undefined}
+        reduceHours={reduceHours}
+        setReduceHours={setReduceHours}
+        isReducing={isReducing}
+        reduceError={reduceError || ""}
+        onReduceConfirm={handleReduceConflictHours}
+        onMoveTask={handleMoveConflictTask}
+      />
 
-              <div className="flex items-start gap-4 pr-8">
-                <div className="w-12 h-12 rounded-2xl bg-[#F59E0B]/10 border border-[#F59E0B]/25 flex items-center justify-center shrink-0">
-                  <AlertCircle className="w-6 h-6 text-[#F59E0B]" />
-                </div>
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-                    Conflictos sin resolver
-                  </h3>
-                  <p className="text-slate-400 text-base mt-1.5 leading-relaxed">
-                    Tienes todavía{" "}
-                    <span className="text-white font-semibold">{conflictedCount}</span>{" "}
-                    {conflictedCount === 1 ? "tarea" : "tareas"} en conflicto. Puedes resolverlo moviendo la tarea o reduciendo sus horas.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-6 space-y-4">
-                {/* Selector de tarea */}
-                {conflictedCount > 1 && (
-                  <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-4">
-                    <label className="text-sm font-bold text-slate-400 uppercase tracking-wider block mb-3">
-                      Seleccionar tarea
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={String(selectedConflictId ?? selectedConflict.id)}
-                        onChange={(e) => setSelectedConflictId(e.target.value)}
-                        className="w-full h-12 rounded-xl bg-[#1F2937]/60 border border-slate-700/60 text-slate-200 text-base font-medium pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500/50 cursor-pointer appearance-none"
-                      >
-                      {conflictedTasks.map((t: any) => (
-                        <option key={t.id} value={String(t.id)}>
-                          {(t.activity?.title ? `${t.activity.title} — ` : "") + t.title}
-                        </option>
-                      ))}
-                      </select>
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
-                    </div>
-                  </div>
-                )}
-
-                {/* Info de la tarea seleccionada */}
-                <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5">
-                  <h4 className="text-lg font-bold text-white leading-snug mb-2">
-                    {selectedConflict.title}
-                  </h4>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-base text-slate-300">
-                    <span>
-                      <span className="text-slate-500 font-medium">Actividad:</span>{" "}
-                      <span className="font-semibold text-slate-200">{selectedConflict.activity?.title || "Actividad"}</span>
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <Clock className="w-4 h-4 text-slate-500" />
-                      <span className="font-semibold text-slate-200">
-                        {parseFloat(String(selectedConflict.estimated_hours ?? 0)).toFixed(1)}h
-                      </span>
-                    </span>
-                  </div>
-                </div>
-
-                {/* Resumen del día: fecha, usadas/límite, sobretrabajo */}
-                {(() => {
-                  const dayKey = selectedConflict?.target_date;
-                  const stats = computeDayLoadForDateKey(dayKey);
-                  const label = dayKey ? getRelativeDateLabel(dayKey) : "";
-                  const dateFormatted = dayKey ? getFormattedDate(dayKey) : "";
-                  const over = stats.overworkHours;
-                  return (
-                    <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5">
-                      <p className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Resumen del día</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-slate-500 text-sm font-medium mb-0.5">Fecha</p>
-                          <p className="text-lg font-bold text-white capitalize">{dateFormatted || "—"}</p>
-                          {label && !label.startsWith("HACE") && (
-                            <p className="text-sm text-slate-500 mt-1">{label}</p>
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-slate-500 text-sm font-medium mb-0.5">Horas usadas / Límite</p>
-                          <p className="text-lg font-bold text-amber-400">
-                            {(stats.usedHours % 1 === 0 ? stats.usedHours : stats.usedHours.toFixed(1))}h / {stats.limitHours}h
-                          </p>
-                        </div>
-                        {over > 0 && (
-                          <div className="sm:col-span-2">
-                            <p className="text-slate-500 text-sm font-medium mb-0.5">Sobretrabajo</p>
-                            <p className="text-base font-bold text-[#F59E0B]">
-                              +{(over % 1 === 0 ? over : over.toFixed(1))}h sobre el límite
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Reducir horas */}
-                <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5">
-                  <label className="text-sm font-bold text-slate-400 uppercase tracking-wider block mb-3">
-                    <span className="inline-flex items-center gap-2">
-                      <span>Reestablecer nueva estimación de horas</span>
-                      <InfoTooltip text="Con esto cambias la estimación de horas de tu tarea a una nueva. las horas deben ser menores a las actuales y mayores a 0.5." />
-                    </span>
-                  </label>
-                  
-                  <div className="flex gap-3 items-center flex-wrap">
-                    <Input
-                      type="number"
-                      step="0.25"
-                      min="0.5"
-                      max={selectedConflict?.estimated_hours ?? undefined}
-                      value={reduceHours}
-                      onKeyDown={(e) => {
-                        // Evitar ingresar el carácter '-' (valores negativos)
-                        if (e.key === "-" || e.key === "Minus") {
-                          e.preventDefault();
-                        }
-                      }}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        if (!selectedConflict) {
-                          setReduceHours(raw);
-                          return;
-                        }
-
-                        const current = parseFloat(String(selectedConflict.estimated_hours ?? 0));
-                        let num = parseFloat(raw);
-
-                        if (!Number.isFinite(num)) {
-                          setReduceHours(raw);
-                          return;
-                        }
-
-                        // Límite superior: no más que las horas actuales
-                        if (Number.isFinite(current) && current > 0 && num > current) {
-                          num = current;
-                        }
-
-                        // Límite inferior: nunca menos de 0.5h (evita negativos y valores absurdamente pequeños)
-                        if (num < 0.5) {
-                          num = 0.5;
-                        }
-
-                        setReduceHours(String(num));
-                      }}
-                      className="h-12 w-24 text-base font-semibold bg-[#1F2937]/60 border-slate-700/60 text-slate-200 rounded-xl focus-visible:ring-2 focus-visible:ring-blue-500"
-                    />
-                    <Button
-                      onClick={handleReduceConflictHours}
-                      disabled={isReducing}
-                      className="h-12 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-600/20 text-base"
-                    >
-                      Establecer
-                    </Button>
-                  </div>
-                  {reduceError && (
-                    <p className="text-[#F59E0B] text-sm font-semibold mt-2">
-                      {reduceError}
-                    </p>
-                  )}
-                </div>
-
-                {/* Acciones */}
-                <div className="flex flex-col sm:flex-row gap-3 pt-1">
-                  <Button
-                    onClick={handleMoveConflictTask}
-                    className="h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold shadow-lg shadow-blue-600/20 text-base"
-                  >
-                    Mover tarea
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsConflictModalOpen(false)}
-                    className="h-12 rounded-xl border-slate-700 bg-slate-800/50 hover:bg-slate-700/60 text-slate-200 font-bold text-base"
-                  >
-                    Más tarde
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <MessageModal
+        open={postponeSuccessOpen}
+        onOpenChange={setPostponeSuccessOpen}
+        type="success"
+        title="Pospuesta guardada"
+        message={postponeSuccessMessage}
+      />
 
       {/* Modal resultado (solucionado vs pendiente) */}
-      {showConflictOutcomeModal && conflictOutcome && (
-        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-          <div
-            className={`w-full max-w-[440px] bg-[#111827] rounded-3xl shadow-2xl shadow-black/60 overflow-hidden border ${
-              conflictOutcome.resolved ? "border-emerald-500/30" : "border-[#F59E0B]/30"
-            }`}
-          >
-            <div className="p-6 sm:p-7 text-center">
-              <div
-                className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 border ${
-                  conflictOutcome.resolved
-                    ? "bg-emerald-500/20 border-emerald-500/30"
-                    : "bg-[#F59E0B]/10 border-[#F59E0B]/25"
-                }`}
-              >
-                {conflictOutcome.resolved ? (
-                  <CheckCircle2 className="w-8 h-8 text-emerald-400" strokeWidth={2} />
-                ) : (
-                  <AlertCircle className="w-8 h-8 text-[#F59E0B]" strokeWidth={2} />
-                )}
-              </div>
-
-              <h3 className="text-xl font-extrabold text-white tracking-tight">
-                {conflictOutcome.resolved
-                  ? "Conflicto solucionado"
-                  : conflictOutcomeSource === "reduce"
-                  ? "Horas actualizadas, pero sigue el conflicto"
-                  : "Aún hay conflicto"}
-              </h3>
-
-              <p className="text-slate-400 text-base mt-3 leading-relaxed">
-                {conflictOutcome.resolved ? (
-                  <>
-                    {(() => {
-                      const todayKey = new Date().toISOString().slice(0, 10);
-                      const isToday = conflictOutcome.dateKey === todayKey;
-                      const label = getRelativeDateLabel(conflictOutcome.dateKey);
-                      const fullDate = getFormattedDate(conflictOutcome.dateKey);
-                      return (
-                        <>
-                          {isToday ? (
-                            <>
-                              El conflicto de{" "}
-                              <span className="text-white font-bold">{label}</span>{" "}
-                              fue solucionado. Te quedan{" "}
-                            </>
-                          ) : (
-                            <>
-                              Para el día{" "}
-                              <span className="text-white font-bold">
-                                {fullDate || conflictOutcome.dateKey}
-                              </span>{" "}
-                              el conflicto fue solucionado. Te quedan{" "}
-                            </>
-                          )}
-                          <span className="text-emerald-300 font-extrabold">
-                            {conflictOutcome.availableHours % 1 === 0
-                              ? conflictOutcome.availableHours
-                              : conflictOutcome.availableHours.toFixed(1)}
-                            h
-                          </span>{" "}
-                          disponibles.
-                        </>
-                      );
-                    })()}
-                  </>
-                ) : conflictOutcomeSource === "reduce" ? (
-                  <>
-                    Se redujeron las horas de la tarea, pero el día{" "}
-                    <span className="text-white font-bold">
-                      {getRelativeDateLabel(conflictOutcome.dateKey)}
-                    </span>{" "}
-                    sigue en conflicto. Puedes seguir ajustando esta u otras tareas para resolverlo.
-                  </>
-                ) : (
-                  <>
-                    El día{" "}
-                    <span className="text-white font-bold">
-                      {getRelativeDateLabel(conflictOutcome.dateKey)}
-                    </span>{" "}
-                    sigue sobrecargado. Hay un sobretrabajo de{" "}
-                    <span className="text-[#F59E0B] font-extrabold">
-                      {conflictOutcome.overworkHours % 1 === 0
-                        ? conflictOutcome.overworkHours
-                        : conflictOutcome.overworkHours.toFixed(1)}
-                      h
-                    </span>{" "}
-                    sobre tu límite de{" "}
-                    <span className="text-slate-200 font-bold">
-                      {conflictOutcome.limitHours}h
-                    </span>
-                    .
-                  </>
-                )}
-              </p>
-
-              {conflictOutcome.resolved || conflictOutcomeSource !== "reduce" ? (
-                <Button
-                  onClick={() => {
-                    setShowConflictOutcomeModal(false);
-                    setConflictOutcome(null);
-                    setConflictOutcomeSource(null);
-                  }}
-                  className="mt-6 w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-600/20 text-base"
-                >
-                  Entendido
-                </Button>
-              ) : (
-                <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                  <Button
-                    onClick={() => {
-                      // Volver al modal de conflicto para seguir resolviendo
-                      setShowConflictOutcomeModal(false);
-                      setConflictOutcomeSource(null);
-                      setIsConflictModalOpen(true);
-                    }}
-                    className="h-12 flex-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold shadow-lg shadow-blue-600/20 text-base"
-                  >
-                    Seguir resolviendo
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      // Cerrar ambos modales y continuar más tarde
-                      setShowConflictOutcomeModal(false);
-                      setConflictOutcome(null);
-                      setConflictOutcomeSource(null);
-                      setIsConflictModalOpen(false);
-                    }}
-                    className="h-12 flex-1 rounded-xl border-slate-700 bg-slate-800/50 hover:bg-slate-700/60 text-slate-200 font-bold text-base"
-                  >
-                    Más tarde
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <ConflictOutcomeModal
+        isOpen={showConflictOutcomeModal && !!conflictOutcome}
+        onClose={() => {
+          setShowConflictOutcomeModal(false);
+          setConflictOutcome(null);
+          setConflictOutcomeSource(null);
+        }}
+        outcome={conflictOutcome}
+        source={conflictOutcomeSource}
+        getRelativeDateLabel={getRelativeDateLabel}
+        getFormattedDate={getFormattedDate}
+        onContinueResolving={() => {
+          setShowConflictOutcomeModal(false);
+          setConflictOutcomeSource(null);
+          setIsConflictModalOpen(true);
+        }}
+      />
 
       {/* Edit Subtask Modal */}
       <EditSubtaskModal
@@ -1697,6 +1479,77 @@ export default function Today() {
           </div>
         </div>
       )}
+      {isPostponeModalOpen && postponingTask && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="w-full max-w-lg bg-[#0B1220] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
+
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 flex items-center gap-3">
+              <div className="p-2 bg-blue-500/10 rounded-lg">
+                <Clock className="w-5 h-5 text-blue-500" />
+              </div>
+              <h2 className="text-xl font-semibold text-white tracking-tight">
+                Posponer subtarea
+              </h2>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-2">
+              <p className="text-slate-400 text-sm leading-relaxed mb-6">
+                Esta acción actualizará el estado de la tarea a{" "}
+                <span className="text-white font-medium">"Pospuesta"</span>.
+                La fecha de entrega no se verá afectada.
+              </p>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-300">
+                  Nota opcional
+                </label>
+                <textarea
+                  value={postponeNote}
+                  onChange={(e) => setPostponeNote(e.target.value)}
+                  placeholder="Añade una nota sobre por qué pospones esta subtarea..."
+                  rows={4}
+                  className="w-full bg-slate-900/50 border border-slate-800 rounded-xl text-white text-sm p-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-none placeholder:text-slate-600"
+                />
+                <div className="flex items-start gap-2 pt-1">
+                  <Info className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
+                  <p className="text-xs text-slate-400">
+                    La nota es visible cuando revises la subtarea.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-6 mt-2 flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setIsPostponeModalOpen(false);
+                  setPostponingTask(null);
+                  setPostponeNote("");
+                }}
+                className="px-5 py-2.5 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handlePostpone}
+                className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-all shadow-lg shadow-blue-500/20 active:scale-95 cursor-pointer"
+              >
+                Posponer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail Task Modal */}
+      <SubtaskDetailModal
+        open={!!detailTask}
+        onOpenChange={(open: boolean) => { if (!open) setDetailTask(null); }}
+        subtask={detailTask}
+        getFormattedDate={getFormattedDate}
+      />
     </div>
   );
 }
@@ -1831,9 +1684,10 @@ function ScrollableTaskSection({ children }: { children: React.ReactNode }) {
 }
 
 // Sub-component for individual tasks matching the requested UI
-function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void, onEdit: () => void, onViewConflict?: () => void }) {
+function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPostpone, onTitleClick }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void, onEdit: () => void, onViewConflict?: () => void, onPostpone?: () => void, onTitleClick?: () => void }) {
   const navigate = useNavigate();
   const isDone = item.status === "DONE";
+  const isPostponed = item.status === "POSTPONED";
   const isConflicted = !isDone && !!item?.is_conflicted;
   const courseName = item.activity?.course?.name || "Actividad";
   const title = item.title;
@@ -1883,18 +1737,25 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict }: { it
       icon: "text-blue-500/70",
       hover: "hover:border-blue-500/50",
       checkbox: "border-blue-500 checked:bg-blue-500",
+    },
+    purple: {
+      border: "border-[#8B5CF6]/30",
+      bg: "bg-[#8B5CF6]/[0.15]",
+      badge: "bg-[#8B5CF6] text-white",
+      text: "text-[#8B5CF6]",
+      icon: "text-[#8B5CF6]/70",
+      hover: "hover:border-[#7C3AED]/50",
+      checkbox: "border-[#8B5CF6] checked:bg-[#8B5CF6]",
     }
   };
 
-  const colors = themeColors[theme];
+  const colors = isPostponed ? themeColors.purple : themeColors[theme];
 
   return (
     <div
-      className={`relative flex flex-col gap-4 border ${
-        isConflicted ? 'border-2 border-[#F59E0B]' : colors.border
-      } ${colors.bg} rounded-3xl p-4 w-full transition-all duration-300 ${colors.hover} shadow-lg ${
-        isDone ? 'opacity-50 grayscale' : ''
-      }`}
+      className={`relative flex flex-col gap-4 border ${isConflicted ? 'border-[#F59E0B] animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.5)]' : colors.border
+        } ${colors.bg} rounded-3xl p-4 w-full transition-all duration-300 ${colors.hover} shadow-lg ${isDone ? 'opacity-50 grayscale' : ''
+        }`}
     >
       {badge && (
         <div className={`absolute -top-3 left-6 px-3 py-1 font-black text-[10px] tracking-widest uppercase rounded-full ${colors.badge} shadow-lg`}>
@@ -1936,7 +1797,10 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict }: { it
               {item.activity?.title || "Actividad"}
             </Link>
           </p>
-          <h4 className={`mt-1 text-lg font-bold ${isDone ? 'text-slate-400 line-through' : 'text-slate-100'} leading-tight tracking-tight pr-2`}>
+          <h4
+            onClick={onTitleClick}
+            className={`mt-1 text-lg font-bold ${isDone ? 'text-slate-400 line-through' : 'text-slate-100'} leading-tight tracking-tight pr-2 ${onTitleClick ? 'cursor-pointer hover:text-blue-400 transition-colors' : ''}`}
+          >
             {title}
           </h4>
 
@@ -1953,34 +1817,56 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict }: { it
       </div>
 
       <div className="pt-3 border-t border-slate-700/20 flex flex-wrap items-center justify-between gap-3">
-        {isConflicted && onViewConflict && (
+        <div className="flex items-center gap-3">
+          {isConflicted && onViewConflict && (
+            <button
+              type="button"
+              onClick={onViewConflict}
+              className="inline-flex items-center gap-2 text-xs font-semibold text-[#F59E0B]/90 hover:text-[#F59E0B] bg-[#F59E0B]/20 hover:bg-[#F59E0B]/30 px-3 py-2 rounded-lg border border-[#F59E0B]/40 transition-colors cursor-pointer"
+            >
+              <AlertCircle className="w-4 h-4" />
+              Ver conflicto
+            </button>
+          )}
+
           <button
             type="button"
-            onClick={onViewConflict}
-            className="inline-flex items-center gap-2 text-xs font-semibold text-[#F59E0B]/90 hover:text-[#F59E0B] bg-[#F59E0B]/20 hover:bg-[#F59E0B]/30 px-3 py-2 rounded-lg border border-[#F59E0B]/40 transition-colors cursor-pointer"
+            onClick={onEdit}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer"
           >
-            <AlertCircle className="w-4 h-4" />
-            Ver conflicto
+            <Pencil className="w-4 h-4" />
+            Editar
           </button>
-        )}
+        </div>
 
-        <button
-          type="button"
-          onClick={onEdit}
-          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer"
-        >
-          <Pencil className="w-4 h-4" />
-          Editar
-        </button>
+        <div className="flex items-center gap-3 ml-auto">
+          {isPostponed ? (
+            <span className="inline-flex items-center gap-2 text-xs font-semibold text-purple-200 bg-[#8B5CF6]/15 border border-[#8B5CF6]/30 px-3 py-2 rounded-lg select-none">
+              <Clock className="w-4 h-4 text-[#A78BFA]" />
+              Pospuesta
+            </span>
+          ) : (
+            onPostpone && (
+              <button
+                type="button"
+                onClick={onPostpone}
+                className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer"
+              >
+                <Clock className="w-4 h-4" />
+                Posponer
+              </button>
+            )
+          )}
 
-        <button
-          type="button"
-          onClick={handleReprogram}
-          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-blue-600/15 hover:bg-blue-600/25 px-3 py-2 rounded-lg border border-blue-500/30 transition-colors cursor-pointer"
-        >
-          <CalendarRange className="w-4 h-4" />
-          Reprogramar
-        </button>
+          <button
+            type="button"
+            onClick={handleReprogram}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-blue-600/15 hover:bg-blue-600/25 px-3 py-2 rounded-lg border border-blue-500/30 transition-colors cursor-pointer"
+          >
+            <CalendarRange className="w-4 h-4" />
+            Reprogramar
+          </button>
+        </div>
       </div>
     </div>
   );
