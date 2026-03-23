@@ -34,13 +34,13 @@ export function SubtaskDetailModal({
   if (!subtask) return null;
 
   const isToday = subtask.target_date && isSameDay(parseISO(subtask.target_date), new Date());
-  
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] bg-[#111827] border-slate-800">
         <DialogHeader>
-          <DialogTitle className="text-xl font-semibold text-slate-100 uppercase tracking-tight">
-            Detalles de la subtarea
+          <DialogTitle className="text-xl font-bold text-white text-slate-100 tracking-tight">
+            Detalles de la Tarea
           </DialogTitle>
           <DialogDescription className="text-sm text-slate-400 pt-2">
             Información completa de la planificación

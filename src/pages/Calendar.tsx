@@ -345,6 +345,7 @@ export default function Calendar() {
             await patchSubtask(activityId, subtaskId, {
                 target_date: newDateKey,
                 ...(shouldPatchEstimatedHours ? { estimated_hours: hoursForSelected } : {}),
+                status: "PENDING",
             });
 
             if (options?.awaitRefetch) {
@@ -471,6 +472,7 @@ export default function Calendar() {
             const updated = await putSubtaskWithConflictTolerance(selectedSubtask.id, {
                 target_date: dateKey,
                 estimated_hours: next,
+                ...(selectedSubtask.status === "POSTPONED" ? { status: "PENDING" } : {}),
             });
 
             // Recalcular conflicto desde la respuesta del backend

@@ -37,3 +37,8 @@ export const patchReprogrammingLog = async (logId, partialData) => {
 export const deleteReprogrammingLog = async (logId) => {
   await apiClient.delete(`reprogramming_log/${logId}/`);
 };
+
+export const getNotesOfSubtask = async (subtaskId) => {
+  const { data } = await apiClient.get(`reprogramming_log/notes-of-subtask/${subtaskId}/`);
+  return data;
+};

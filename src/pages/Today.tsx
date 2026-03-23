@@ -21,17 +21,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/shared/components/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/components/dialog";
 import InfoTooltip from "@/features/create/components/InfoTooltip";
 import { SubtaskDetailModal } from "@/shared/components/SubtaskDetailModal";
 import { Badge } from "@/shared/components/badge";
 import { MessageModal } from "@/shared/components/MessageModal";
+import { TaskHistoryModal } from "@/shared/components/TaskHistoryModal";
+import { History } from "lucide-react";
 
 function getGreeting(name: string) {
   const hour = new Date().getHours();
@@ -97,6 +92,15 @@ export default function Today() {
   const [deletingTask, setDeletingTask] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [detailTask, setDetailTask] = useState<any | null>(null);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [historySubtaskId, setHistorySubtaskId] = useState<string | null>(null);
+  const [historyTaskTitle, setHistoryTaskTitle] = useState("");
+
+  const handleShowHistory = (subtaskId: string, title: string) => {
+    setHistorySubtaskId(subtaskId);
+    setHistoryTaskTitle(title);
+    setIsHistoryModalOpen(true);
+  };
 
   const openEditModal = (task: any) => {
     setEditingTask(task);
@@ -705,7 +709,7 @@ export default function Today() {
             <p className="text-slate-400 font-medium tracking-wide">Cargando tus tareas de hoy...</p>
           </div>
         ) : (
-          <div className="flex-1 min-h-[500px] cursor-pointer">
+          <div className="flex-1 min-h-[500px]">
             {activeTab === 'vencidas' && (
               <div className="h-full animate-in fade-in zoom-in-95 duration-200">
                 {/* COLUMN 1: VENCIDAS */}
@@ -729,6 +733,7 @@ export default function Today() {
                         }}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
                         onTitleClick={() => setDetailTask(item)}
+                        onShowHistory={handleShowHistory}
                       />
                     ))}
                     {filteredVencidas.length === 0 && (
@@ -768,6 +773,7 @@ export default function Today() {
                         }}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
                         onTitleClick={() => setDetailTask(item)}
+                        onShowHistory={handleShowHistory}
                       />
                     ))}
                     {filteredParaHoy.length === 0 && (
@@ -817,6 +823,7 @@ export default function Today() {
                         }}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
                         onTitleClick={() => setDetailTask(item)}
+                        onShowHistory={handleShowHistory}
                       />
                     ))}
                     {filteredProximas.length === 0 && (
@@ -1550,6 +1557,13 @@ export default function Today() {
         subtask={detailTask}
         getFormattedDate={getFormattedDate}
       />
+
+      <TaskHistoryModal
+        open={isHistoryModalOpen}
+        onOpenChange={setIsHistoryModalOpen}
+        subtaskId={historySubtaskId}
+        taskTitle={historyTaskTitle}
+      />
     </div>
   );
 }
@@ -1684,7 +1698,7 @@ function ScrollableTaskSection({ children }: { children: React.ReactNode }) {
 }
 
 // Sub-component for individual tasks matching the requested UI
-function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPostpone, onTitleClick }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void, onEdit: () => void, onViewConflict?: () => void, onPostpone?: () => void, onTitleClick?: () => void }) {
+function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPostpone, onTitleClick, onShowHistory }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void, onEdit: () => void, onViewConflict?: () => void, onPostpone?: () => void, onTitleClick?: () => void, onShowHistory?: (subtaskId: string, title: string) => void }) {
   const navigate = useNavigate();
   const isDone = item.status === "DONE";
   const isPostponed = item.status === "POSTPONED";
@@ -1768,6 +1782,16 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
         </div>
       )}
 
+      {/* History Button - Top Right */}
+      <button
+        type="button"
+        onClick={() => onShowHistory?.(item.id, title)}
+        className="absolute top-4 right-4 p-2 rounded-xl text-slate-500 hover:text-blue-400 bg-slate-800/20 hover:bg-blue-500/10 transition-all group cursor-pointer border border-transparent hover:border-blue-500/20"
+        title="Ver historial de la tarea"
+      >
+        <History className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+      </button>
+
       <div className="flex items-start gap-8">
         <button
           onClick={onToggle}
@@ -1799,7 +1823,7 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
           </p>
           <h4
             onClick={onTitleClick}
-            className={`mt-1 text-lg font-bold ${isDone ? 'text-slate-400 line-through' : 'text-slate-100'} leading-tight tracking-tight pr-2 ${onTitleClick ? 'cursor-pointer hover:text-blue-400 transition-colors' : ''}`}
+            className={`mt-1 w-fit text-lg font-bold ${isDone ? 'text-slate-400 line-through' : 'text-slate-100'} leading-tight tracking-tight pr-2 ${onTitleClick ? 'cursor-pointer hover:text-blue-400 transition-colors' : ''}`}
           >
             {title}
           </h4>
@@ -1841,10 +1865,15 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
 
         <div className="flex items-center gap-3 ml-auto">
           {isPostponed ? (
-            <span className="inline-flex items-center gap-2 text-xs font-semibold text-purple-200 bg-[#8B5CF6]/15 border border-[#8B5CF6]/30 px-3 py-2 rounded-lg select-none">
-              <Clock className="w-4 h-4 text-[#A78BFA]" />
+            <button
+              type="button"
+              onClick={() => onShowHistory?.(item.id, title)}
+              className="inline-flex items-center gap-2 text-xs font-semibold text-purple-200 bg-[#8B5CF6]/15 hover:bg-[#8B5CF6]/25 border border-[#8B5CF6]/30 px-3 py-2 rounded-lg transition-all active:scale-95 cursor-pointer group"
+              title="Ver notas de posposición"
+            >
+              <Clock className="w-4 h-4 text-[#A78BFA] group-hover:animate-pulse" />
               Pospuesta
-            </span>
+            </button>
           ) : (
             onPostpone && (
               <button
