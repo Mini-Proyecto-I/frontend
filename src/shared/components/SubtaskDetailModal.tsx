@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import { parseISO, isSameDay } from "date-fns";
-import { Calendar, Clock } from "lucide-react";
+import { Calendar, Clock, History } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import {
 } from "@/shared/components/dialog";
 import { Badge } from "@/shared/components/badge";
 import { cn } from "@/shared/utils/utils";
+import { TaskHistoryModal } from "./TaskHistoryModal";
 
 export interface SubtaskDetailModalProps {
   open: boolean;
@@ -31,16 +32,26 @@ export function SubtaskDetailModal({
   subtask,
   getFormattedDate = (d) => d,
 }: SubtaskDetailModalProps) {
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [historySubtaskId, setHistorySubtaskId] = useState<string | null>(null);
+  const [historyTaskTitle, setHistoryTaskTitle] = useState("");
+
+  const handleShowHistory = (subtaskId: string, title: string) => {
+    setHistorySubtaskId(subtaskId);
+    setHistoryTaskTitle(title);
+    setIsHistoryModalOpen(true);
+  };
+
   if (!subtask) return null;
 
   const isToday = subtask.target_date && isSameDay(parseISO(subtask.target_date), new Date());
-  
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] bg-[#111827] border-slate-800">
         <DialogHeader>
-          <DialogTitle className="text-xl font-semibold text-slate-100 uppercase tracking-tight">
-            Detalles de la subtarea
+          <DialogTitle className="text-xl font-bold text-white text-slate-100 tracking-tight">
+            Detalles de la Tarea
           </DialogTitle>
           <DialogDescription className="text-sm text-slate-400 pt-2">
             Información completa de la planificación
@@ -111,23 +122,25 @@ export function SubtaskDetailModal({
             </div>
           </div>
 
-          {subtask.execution_note && (
-            <div className="bg-slate-800/40 rounded-2xl p-4 border border-slate-700/50">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-2">
-                {subtask.status === "DONE"
-                  ? "Nota histórica de posposición"
-                  : "Razón de la posposición (nota)"}
-              </label>
-              {subtask.status === "DONE" ? (
-                <p className="text-sm text-slate-300 leading-relaxed">
-                  La tarea ya fue completada, pero antes fue pospuesta por esta razón:
-                </p>
-              ) : null}
-              <p className="text-sm text-slate-300 italic leading-relaxed mt-1">
-                "{subtask.execution_note}"
-              </p>
+          <button
+            type="button"
+            onClick={() => handleShowHistory(subtask.id, subtask.title || subtask.name)}
+            className="left-4 p-2 rounded-xl text-slate-500 hover:text-blue-400 bg-slate-800/20 hover:bg-blue-500/10 transition-all group cursor-pointer border border-transparent hover:border-blue-500/20"
+            title="Ver historial de la tarea"
+          >
+            <div className="flex items-center gap-2">
+              <History className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+              <span className="text-sm font-semibold">Ver historial</span>
             </div>
-          )}
+          </button>
+
+          <TaskHistoryModal
+            open={isHistoryModalOpen}
+            onOpenChange={setIsHistoryModalOpen}
+            subtaskId={historySubtaskId}
+            taskTitle={historyTaskTitle}
+          />
+
         </div>
       </DialogContent>
     </Dialog>
