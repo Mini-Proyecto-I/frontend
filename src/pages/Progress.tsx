@@ -888,7 +888,7 @@
                     {/* Progress Bar */}
                     <div className="mb-8">
                       <div className="flex justify-between items-end mb-2">
-                        <span className="text-sm font-medium text-slate-400">Progreso</span>
+                        <span className="text-sm font-medium text-slate-400">Progreso de la actividad</span>
                         <span className={cn("text-2xl font-bold", pct === 100 ? 'text-emerald-400' : 'text-blue-500')}>
                           {pct}%
                         </span>
