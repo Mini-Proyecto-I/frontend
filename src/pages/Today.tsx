@@ -1558,6 +1558,7 @@ export default function Today() {
         getFormattedDate={getFormattedDate}
       />
 
+      {/* History Task Modal */}
       <TaskHistoryModal
         open={isHistoryModalOpen}
         onOpenChange={setIsHistoryModalOpen}

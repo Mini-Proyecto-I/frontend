@@ -1172,7 +1172,7 @@ export default function Calendar() {
                                         className="h-auto min-h-12 py-3 rounded-xl border-slate-600 bg-slate-800/40 hover:bg-slate-700/60 text-slate-100 font-bold justify-start px-4"
                                     >
                                         <span className="flex flex-col items-start text-left">
-                                            <span>1) Reducir horas de la tarea actual</span>
+                                            <span>1. Reducir horas de la tarea actual</span>
                                             <span className="text-[11px] font-medium text-slate-400 mt-0.5">
                                                 Ajusta las horas actuales para guardar en este día.
                                             </span>
@@ -1188,7 +1188,7 @@ export default function Calendar() {
                                         className="h-auto min-h-12 py-3 rounded-xl border-slate-600 bg-slate-800/40 hover:bg-slate-700/60 text-slate-100 font-bold justify-start px-4"
                                     >
                                         <span className="flex flex-col items-start text-left">
-                                            <span>2) Mover tarea a otro día</span>
+                                            <span>2. Mover tarea a otro día</span>
                                             <span className="text-[11px] font-medium text-slate-400 mt-0.5">
                                                 Elige otro día directamente en el calendario.
                                             </span>
@@ -1202,7 +1202,7 @@ export default function Calendar() {
                                         className="h-auto min-h-12 py-3 rounded-xl border-slate-600 bg-slate-800/40 hover:bg-slate-700/60 text-slate-100 font-bold justify-start px-4"
                                     >
                                         <span className="flex flex-col items-start text-left">
-                                            <span>3) Mover otras tareas</span>
+                                            <span>3. Mover otras tareas</span>
                                             <span className="text-[11px] font-medium text-slate-400 mt-0.5">
                                                 Mueve otra tarea de este día para liberar horas y resolver este conflicto.
                                             </span>
@@ -1214,9 +1214,9 @@ export default function Calendar() {
                                         className="h-auto min-h-12 py-3 rounded-xl border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold justify-start px-4"
                                     >
                                         <span className="flex flex-col items-start text-left">
-                                            <span>4) Posponer la solución</span>
+                                            <span>4. Cancelar reprogramación </span>
                                             <span className="text-[11px] font-medium text-amber-200/80 mt-0.5">
-                                                Pospón la reprogramación de esta tarea.
+                                                Cancela la reprogramación de esta tarea.
                                             </span>
                                         </span>
                                     </Button>

@@ -82,19 +82,16 @@ export const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
               <div key={`${item.type}-${item.id}`} className="relative pl-6 pb-6 last:pb-2">
                 {/* Timeline indicator */}
                 <div className="absolute left-[7px] top-1 bottom-0 w-[2px] bg-slate-800" />
-                <div className={`absolute left-0 top-1 w-[16px] h-[16px] rounded-full border-4 border-[#0F172A] z-10 ${
-                  item.type === 'posponed' ? 'bg-purple-500' : 'bg-blue-500'
-                }`} />
+                <div className={`absolute left-0 top-1 w-[16px] h-[16px] rounded-full border-4 border-[#0F172A] z-10 ${item.type === 'posponed' ? 'bg-purple-500' : 'bg-blue-500'
+                  }`} />
 
-                <div className={`bg-slate-900/50 border border-slate-800 p-4 rounded-2xl transition-colors shadow-sm ${
-                  item.type === 'posponed' ? 'hover:border-purple-500/30' : 'hover:border-blue-500/30'
-                }`}>
+                <div className={`bg-slate-900/50 border border-slate-800 p-4 rounded-2xl transition-colors shadow-sm ${item.type === 'posponed' ? 'hover:border-purple-500/30' : 'hover:border-blue-500/30'
+                  }`}>
                   <div className="flex items-center justify-between mb-2">
-                    <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${
-                      item.type === 'posponed' 
-                        ? 'text-purple-400 bg-purple-500/10' 
-                        : 'text-blue-400 bg-blue-500/10'
-                    }`}>
+                    <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${item.type === 'posponed'
+                      ? 'text-purple-400 bg-purple-500/10'
+                      : 'text-blue-400 bg-blue-500/10'
+                      }`}>
                       {item.type === 'posponed' ? (
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" /> Pospuesta
@@ -118,9 +115,6 @@ export const TaskHistoryModal: React.FC<TaskHistoryModalProps> = ({
                     <div className="space-y-1">
                       <p className="text-xs text-slate-400">
                         De <span className="text-slate-300 font-medium">{format(parseISO(item.previous_date), "d 'de' MMMM", { locale: es })}</span> a <span className="text-blue-300 font-medium">{format(parseISO(item.new_date), "d 'de' MMMM", { locale: es })}</span>
-                      </p>
-                      <p className="text-sm text-slate-200 leading-relaxed">
-                        <span className="text-slate-500 text-xs italic">Motivo:</span> {item.reason || "Sin motivo especificado"}
                       </p>
                     </div>
                   )}
