@@ -705,7 +705,7 @@ export default function Today() {
             <p className="text-slate-400 font-medium tracking-wide">Cargando tus tareas de hoy...</p>
           </div>
         ) : (
-          <div className="flex-1 min-h-[500px] cursor-pointer">
+          <div className="flex-1 min-h-[500px]">
             {activeTab === 'vencidas' && (
               <div className="h-full animate-in fade-in zoom-in-95 duration-200">
                 {/* COLUMN 1: VENCIDAS */}
