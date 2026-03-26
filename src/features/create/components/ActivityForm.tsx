@@ -83,6 +83,8 @@ const ActivityForm = () => {
     const [creatingCourse, setCreatingCourse] = useState(false);
     const [courseError, setCourseError] = useState<string>("");
 
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+
     // Estados de errores de validación
     const [errors, setErrors] = useState<{
         titulo?: string;
@@ -610,16 +612,13 @@ const ActivityForm = () => {
         return conflicts;
     }, [subtareas, existingHoursByDate, studyLimitHours, getExistingTasksForDate]);
 
-    const navigateToCreateSuccess = () => {
-        if (!createdActivityId) return;
-        navigate("/crear/exito", {
-            state: {
-                activityId: createdActivityId,
-                title: titulo,
-                courseId: curso,
-            },
-        });
-    };
+        const navigateToCreateSuccess = () => {
+            if (!createdActivityId) return;
+            setModalType("success");
+            setModalTitle("¡Actividad creada exitosamente!");
+            setModalMessage(`Ya hemos preparado <strong class="text-white">"${titulo}"</strong> en tu calendario y subtareas.`);
+            setModalOpen(true);
+        };
 
     const getFirstConflictDate = (conflicts: ConflictInfo[]): string | null => {
         if (conflicts.length === 0) return null;
@@ -822,6 +821,10 @@ const ActivityForm = () => {
                 type={modalType}
                 title={modalTitle}
                 message={modalMessage}
+                onConfirm={modalType === "success" && modalTitle.includes("exitosamente")
+        ? () => navigate("/hoy")
+        : undefined
+    }
             />
             <Dialog open={showConflictConfirmModal} onOpenChange={setShowConflictConfirmModal}>
                 <DialogContent className="sm:max-w-[520px] bg-[#111827] border-slate-800/60 rounded-3xl shadow-2xl shadow-[#F59E0B]/5 p-0 overflow-hidden">
