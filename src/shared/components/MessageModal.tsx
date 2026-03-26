@@ -1,11 +1,4 @@
-import { CheckCircle2, XCircle, AlertCircle } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/shared/components/dialog";
+import { CheckCircle2, XCircle, AlertCircle, X } from "lucide-react";
 import { Button } from "@/shared/components/button";
 
 interface MessageModalProps {
@@ -25,66 +18,69 @@ export const MessageModal = ({
   message,
   onConfirm,
 }: MessageModalProps) => {
+  if (!open) return null;
+
   const handleConfirm = () => {
-    if (onConfirm) {
-      onConfirm();
-    }
+    if (onConfirm) onConfirm();
     onOpenChange(false);
   };
 
-  const getIcon = () => {
-    switch (type) {
-      case "success":
-        return <CheckCircle2 className="h-12 w-12 text-[#10B981]" />;
-      case "error":
-        return <XCircle className="h-12 w-12 text-[#EF4444]" />;
-      case "warning":
-        return <AlertCircle className="h-12 w-12 text-[#F59E0B]" />;
-      default:
-        return null;
-    }
-  };
-
-  const getButtonColor = () => {
-    switch (type) {
-      case "success":
-        return "bg-[#10B981] hover:bg-[#10B981]/90 text-white";
-      case "error":
-        return "bg-[#EF4444] hover:bg-[#EF4444]/90 text-white";
-      case "warning":
-        return "bg-[#F59E0B] hover:bg-[#F59E0B]/90 text-white";
-      default:
-        return "bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white";
-    }
-  };
+  const config = {
+    success: {
+      icon: <CheckCircle2 className="w-7 h-7 text-emerald-400" />,
+      iconBg: "bg-emerald-400/10 border-emerald-400/20",
+      button: "bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20",
+    },
+    error: {
+      icon: <XCircle className="w-7 h-7 text-red-400" />,
+      iconBg: "bg-red-500/10 border-red-500/20",
+      button: "bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/20",
+    },
+    warning: {
+      icon: <AlertCircle className="w-7 h-7 text-amber-400" />,
+      iconBg: "bg-amber-400/10 border-amber-400/20",
+      button: "bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/20",
+    },
+  }[type];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] bg-[#111827] border border-slate-800 rounded-3xl">
-        <DialogHeader>
-          <div className="flex flex-col items-center gap-4 py-4">
-            {getIcon()}
-            <DialogTitle className="text-xl text-foreground text-center">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+      <div className="w-full max-w-[480px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="p-6 sm:p-8 relative">
+          {/* Close button */}
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          {/* Icon + Title */}
+          <div className="flex flex-col items-center text-center gap-4 mb-6">
+            <div className={`w-14 h-14 rounded-2xl border flex items-center justify-center ${config.iconBg}`}>
+              {config.icon}
+            </div>
+            <h3 className="text-xl font-extrabold text-white tracking-tight">
               {title}
-            </DialogTitle>
+            </h3>
           </div>
-        </DialogHeader>
-        <div className="py-4">
-          <div 
-            className="text-sm text-muted-foreground text-center leading-relaxed whitespace-pre-line"
+
+          {/* Message */}
+          <p
+            className="text-sm text-slate-400 text-center leading-relaxed mb-8"
             dangerouslySetInnerHTML={{ __html: message }}
           />
-        </div>
-        <DialogFooter>
+
+          {/* Button */}
           <Button
-            type="button"
             onClick={handleConfirm}
-            className={`${getButtonColor()} w-full sm:w-auto`}
+            className={`w-full h-11 rounded-xl font-bold text-sm transition-all ${config.button}`}
           >
             Entendido
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </div>
   );
 };

@@ -27,6 +27,8 @@ import { Badge } from "@/shared/components/badge";
 import { MessageModal } from "@/shared/components/MessageModal";
 import { TaskHistoryModal } from "@/shared/components/TaskHistoryModal";
 import { History } from "lucide-react";
+import { useToast } from '@/shared/components/toast';
+
 
 function getGreeting(name: string) {
   const hour = new Date().getHours();
@@ -95,6 +97,7 @@ export default function Today() {
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historySubtaskId, setHistorySubtaskId] = useState<string | null>(null);
   const [historyTaskTitle, setHistoryTaskTitle] = useState("");
+  const { showToast, ToastComponent } = useToast();
 
   const handleShowHistory = (subtaskId: string, title: string) => {
     setHistorySubtaskId(subtaskId);
@@ -329,9 +332,13 @@ export default function Today() {
       prev.map(item => item.id === subtaskId ? { ...item, status: newStatus } : item) as any
     );
 
+          if(newStatus === "DONE") {
+          showToast('La tarea ha sido terminada exitosamente', 'success');
+      }
     try {
       await patchSubtask(activityId, subtaskId, { status: newStatus });
       // Update the tiempo card silently in background
+
       refetchTiempo();
     } catch (err) {
       console.error(err);
@@ -650,6 +657,7 @@ export default function Today() {
 
   return (
     <div className="flex flex-col lg:flex-row gap-8 max-w-[1580px] w-full mx-auto px-4 sm:px-6 lg:px-10 pb-10 mt-6 lg:mt-10">
+      <ToastComponent /> 
       {/* LEFT SIDE: TASKS (Approx 60% of layout)*/}
       <div className="flex-1 lg:w-[65%] xl:w-[70%] flex flex-col gap-6 order-2 lg:order-1 min-w-0">
         {/* Task List Tabs */}
