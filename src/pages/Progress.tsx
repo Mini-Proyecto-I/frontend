@@ -132,7 +132,7 @@ const getDaysLeft = (dateString: string | null | undefined): number | null => {
   if (!dateString || typeof dateString !== 'string') return null;
   const date = parseISO(dateString);
   if (!isValid(date)) return null;
-  return differenceInDays(date, new Date());
+  return differenceInDays(date, new Date()) + 1;
 };
 
 const getDeadlineText = (dateString: string | null | undefined): string => {
@@ -409,10 +409,10 @@ export default function ProgressPage() {
     try {
       const updateData = { status: nextStatus };
       await updateSubtask(activityId, subtaskId, updateData);
-      
+
       if (nextStatus === STATUS.DONE) {
         showToast('La tarea ha sido terminada exitosamente', 'success');
-        }
+      }
 
       // Optimistic update for backendProgress to ensure the chart and stats update immediately
       setBackendProgress((prev: any) => {
@@ -512,6 +512,27 @@ export default function ProgressPage() {
     }
   };
 
+  const computeDayLoadForDateKey = (dateKey: string) => {
+    if (!dateKey) return { usedHours: 0, limitHours: 6, overworkHours: 0 };
+
+    let currentLoad = 0;
+    activities.forEach((activity) => {
+      activity.subtasks.forEach((st) => {
+        if (st.status !== STATUS.DONE && st.target_date === dateKey) {
+          const hrs = typeof st.estimated_hours === "string"
+            ? parseFloat(st.estimated_hours)
+            : (st.estimated_hours || 0);
+          currentLoad += hrs;
+        }
+      });
+    });
+
+    const limitHours = 6; // TODO: Get from user config if available
+    const overworkHours = Math.max(0, currentLoad - limitHours);
+
+    return { usedHours: currentLoad, limitHours, overworkHours };
+  };
+
   const openConflictModal = (st: Subtask, activity: Activity) => {
     setConflictModalTask(st);
     setConflictActivityMeta({ id: activity.id, title: activity.title, deadline: activity.deadline });
@@ -531,24 +552,27 @@ export default function ProgressPage() {
     setIsReducing(true);
     setReduceError("");
     try {
+      // Usar endpoint tolerante a conflictos para evitar el error 400
       const res = await putSubtaskWithConflictTolerance(conflictModalTask.id, {
         estimated_hours: hrs
       });
-      const resolved = !res.is_conflicted;
+
+      // Actualizar estado local usando el hook useProgressData con la opción tolerant
       await updateSubtask(conflictActivityMeta.id, conflictModalTask.id, {
         estimated_hours: hrs,
         is_conflicted: res.is_conflicted
-      });
+      }, { tolerant: true });
 
+      const resolved = !res.is_conflicted;
       setConflictModalTask(null);
       setIsConflictModalOpen(false);
       setConflictOutcomeSource("reduce");
       setConflictOutcome({
         resolved,
-        dateKey: res.target_date || res.target_date || new Date().toISOString().slice(0, 10),
-        availableHours: res.available_hours || 0,
-        overworkHours: res.overwork_hours || 0,
-        limitHours: res.limit_hours || 6,
+        dateKey: res.target_date || conflictModalTask.target_date || new Date().toISOString().slice(0, 10),
+        availableHours: res.daily_load?.current_hours ? Math.max(0, res.daily_load.limit - res.daily_load.current_hours) : (res.available_hours || 0),
+        overworkHours: res.daily_load?.has_conflict ? res.daily_load.exceeded_by : (res.overwork_hours || 0),
+        limitHours: res.daily_load?.limit || res.limit_hours || 6,
       });
     } catch (err: any) {
       setReduceError(err?.response?.data?.detail || "Error al actualizar las horas.");
@@ -1288,15 +1312,16 @@ export default function ProgressPage() {
           </div>
         </div>
       )}
-
-      {/* Conflict Resolution Modals */}
       <ResolveConflictModal
         isOpen={isConflictModalOpen}
         onClose={() => {
           setIsConflictModalOpen(false);
           setConflictModalTask(null);
+          setReduceHours("");
+          setReduceError("");
         }}
         selectedConflict={conflictModalTask}
+        {...computeDayLoadForDateKey(conflictModalTask?.target_date || "")}
         dateFormatted={conflictModalTask?.target_date ? getFormattedDate(conflictModalTask.target_date) : ""}
         dayLabel={conflictModalTask?.target_date ? getRelativeDateLabel(conflictModalTask.target_date) : ""}
         reduceHours={reduceHours}

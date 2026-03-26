@@ -1,7 +1,7 @@
 // @/features/progress/hooks/useProgressData.ts
 import { useState, useEffect, useCallback } from 'react';
 import { getActivities, getCompletionPercent as getCompletionPercentApi } from '@/api/services/activity';
-import { getSubtasksForActivity, patchSubtask, postponeSubtask as apiPostponeSubtask } from '@/api/services/subtask';
+import { getSubtasksForActivity, patchSubtask, postponeSubtask as apiPostponeSubtask, putSubtaskWithConflictTolerance } from '@/api/services/subtask';
 import { useToast } from '@/shared/components/toast';
 import { queryCache } from '@/lib/queryCache';
 
@@ -114,7 +114,7 @@ export function useProgressData() {
    * the cache so the next navigation still sees the fresh data.
    */
   const updateSubtask = useCallback(
-    async (activityId: number, subtaskId: number, updates: Partial<Subtask>) => {
+    async (activityId: number, subtaskId: number, updates: Partial<Subtask>, options?: { tolerant?: boolean }) => {
       // Optimistic local state update
       setActivities((prev: Activity[]) => {
         const updated = prev.map((activity: Activity) => {
@@ -150,7 +150,12 @@ export function useProgressData() {
       });
 
       try {
-        await patchSubtask(activityId, subtaskId, updates);
+        let responseData;
+        if (options?.tolerant) {
+          responseData = await putSubtaskWithConflictTolerance(subtaskId, updates);
+        } else {
+          responseData = await patchSubtask(activityId, subtaskId, updates);
+        }
 
         if (updates.status === 'DONE') {
           showToast('Tarea completada exitosamente', 'success');
@@ -159,6 +164,7 @@ export function useProgressData() {
         } else {
           showToast('Cambios guardados correctamente', 'success');
         }
+        return responseData;
       } catch (err) {
         // On error: invalidate cache and re-fetch to get authoritative state
         queryCache.invalidate('activities');
