@@ -409,6 +409,10 @@ export default function ProgressPage() {
     try {
       const updateData = { status: nextStatus };
       await updateSubtask(activityId, subtaskId, updateData);
+      
+      if (nextStatus === STATUS.DONE) {
+        showToast('La tarea ha sido terminada exitosamente', 'success');
+        }
 
       // Optimistic update for backendProgress to ensure the chart and stats update immediately
       setBackendProgress((prev: any) => {
