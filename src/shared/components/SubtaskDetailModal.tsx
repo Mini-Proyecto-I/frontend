@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { parseISO, isSameDay } from "date-fns";
-import { Calendar, Clock, History } from "lucide-react";
+import { Calendar, Clock, History, Pencil, AlertCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ export interface SubtaskDetailModalProps {
   onOpenChange: (open: boolean) => void;
   subtask: any;
   getFormattedDate?: (date: string) => string;
+  onEdit?: (subtask: any) => void;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -31,6 +32,7 @@ export function SubtaskDetailModal({
   onOpenChange,
   subtask,
   getFormattedDate = (d) => d,
+  onEdit,
 }: SubtaskDetailModalProps) {
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historySubtaskId, setHistorySubtaskId] = useState<string | null>(null);
@@ -122,17 +124,50 @@ export function SubtaskDetailModal({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => handleShowHistory(subtask.id, subtask.title || subtask.name)}
-            className="left-4 p-2 rounded-xl text-slate-500 hover:text-blue-400 bg-slate-800/20 hover:bg-blue-500/10 transition-all group cursor-pointer border border-transparent hover:border-blue-500/20"
-            title="Ver historial de la tarea"
-          >
-            <div className="flex items-center gap-2">
-              <History className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-              <span className="text-sm font-semibold">Ver historial</span>
+          {(subtask.posponed_note || subtask.execution_note || subtask.note) && (
+            <div className="p-4 rounded-2xl bg-purple-500/5 border border-purple-500/10 group hover:border-purple-500/30 transition-all shadow-sm">
+              <label className="text-[10px] font-black text-purple-400 uppercase tracking-[0.2em] flex items-center gap-2 mb-2">
+                <AlertCircle className="w-3.5 h-3.5" />
+                {subtask.status === "POSTPONED" ? "Motivo de la posposición" : "Nota / Observación"}
+              </label>
+              <div className="relative pl-3 border-l border-purple-500/20">
+                <p className="text-[13px] text-slate-300 italic leading-relaxed">
+                  "{subtask.posponed_note || subtask.execution_note || subtask.note}"
+                </p>
+              </div>
             </div>
-          </button>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => handleShowHistory(subtask.id, subtask.title || subtask.name)}
+              className="p-2 px-4 rounded-xl text-slate-400 hover:text-blue-400 bg-slate-800/20 hover:bg-blue-500/10 transition-all group cursor-pointer border border-slate-800/60 hover:border-blue-500/20 shadow-sm"
+              title="Ver historial de la tarea"
+            >
+              <div className="flex items-center gap-2">
+                <History className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                <span className="text-sm font-semibold">Ver historial</span>
+              </div>
+            </button>
+
+            {onEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenChange(false);
+                  onEdit(subtask);
+                }}
+                className="p-2 px-4 rounded-xl text-slate-400 hover:text-emerald-400 bg-slate-800/20 hover:bg-emerald-500/10 transition-all group cursor-pointer border border-slate-800/60 hover:border-emerald-500/20 shadow-sm"
+                title="Editar tarea"
+              >
+                <div className="flex items-center gap-2">
+                  <Pencil className="w-4 h-4 group-hover:-rotate-12 transition-transform" />
+                  <span className="text-sm font-semibold">Editar</span>
+                </div>
+              </button>
+            )}
+          </div>
 
           <TaskHistoryModal
             open={isHistoryModalOpen}

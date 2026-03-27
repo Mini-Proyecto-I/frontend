@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, BookOpen, Calendar, Clock, AlertCircle } from "lucide-react";
 import EditActivityDialog from "./EditActivityDialog";
 import DeleteConfirmationDialog from "./DeleteConfirmationDialog";
 import DeletingDialog from "./DeletingDialog";
@@ -105,6 +105,18 @@ export default function ActivityDetailHeader({
     }
   };
 
+  const formatSimpleDate = (dateStr?: string) => {
+    if (!dateStr) return "";
+    try {
+      // Usar T12:00:00 para evitar desajustes de zona horaria al parsear YYYY-MM-DD
+      const date = new Date(dateStr.includes("T") ? dateStr : `${dateStr}T12:00:00`);
+      const months = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+      return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+    } catch {
+      return dateStr;
+    }
+  };
+
   return (
     <>
       <ToastComponent />
@@ -142,11 +154,47 @@ export default function ActivityDetailHeader({
         </div>
 
         {/* Title and Description */}
-        <div className="space-y-3">
+        <div className="space-y-4">
           <h1 className="text-3xl md:text-5xl font-extrabold text-[#1E293B] dark:text-white tracking-tight">
             {title}
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 max-w-2xl text-lg font-medium leading-relaxed">
+
+          <div className="flex flex-wrap gap-y-3 gap-x-6 py-1">
+            {courseName && (
+              <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">
+                  <BookOpen className="w-4 h-4 text-primary" />
+                </div>
+                <span className="text-sm font-bold tracking-tight">{courseName}</span>
+              </div>
+            )}
+
+            {eventDate && (
+              <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">
+                  <Calendar className="w-4 h-4 text-emerald-500" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-0.5">Fecha Actividad</span>
+                  <span className="text-sm font-bold tracking-tight">
+                    {formatSimpleDate(eventDate)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+              <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">
+                <Clock className="w-4 h-4 text-amber-500" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-0.5">Fecha Límite</span>
+                <span className="text-sm font-bold tracking-tight">{formatSimpleDate(deadlineDate)}</span>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-slate-500 dark:text-slate-400 max-w-3xl text-lg font-medium leading-relaxed pt-2">
             {description}
           </p>
         </div>

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { format, parseISO, isValid, differenceInDays, startOfDay, isSameDay, isSameWeek, isSameMonth, startOfWeek, addWeeks, addDays, startOfMonth, endOfMonth, isFriday } from 'date-fns';
+import { format, parseISO, isValid, differenceInDays, startOfDay, isSameDay, isSameWeek, isSameMonth, startOfWeek, addWeeks, addDays, startOfMonth, endOfMonth, isFriday, differenceInCalendarDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
   CheckCircle2,
@@ -26,6 +26,9 @@ import {
   Trash2,
   HelpCircle,
   Info,
+  ChevronRight,
+  ArrowUpRight,
+  ExternalLink
 } from 'lucide-react';
 import { AlertCircle } from 'lucide-react';
 import { Check } from 'lucide-react';
@@ -132,7 +135,9 @@ const getDaysLeft = (dateString: string | null | undefined): number | null => {
   if (!dateString || typeof dateString !== 'string') return null;
   const date = parseISO(dateString);
   if (!isValid(date)) return null;
-  return differenceInDays(date, new Date());
+  const today = startOfDay(new Date());
+  const target = startOfDay(date);
+  return differenceInCalendarDays(target, today);
 };
 
 const getDeadlineText = (dateString: string | null | undefined): string => {
@@ -148,7 +153,9 @@ const getDeadlineText = (dateString: string | null | undefined): string => {
 const getDeadlineColor = (dateString: string | null | undefined, progress: number): string => {
   const days = getDaysLeft(dateString);
   if (days === null) return 'text-slate-400';
-  if (days < 0 || (days <= 3 && progress < 50)) return 'text-red-500';
+  if (days < 0) return 'text-red-500';
+  if (days === 0) return 'text-red-400';
+  if (days <= 3 && progress < 50) return 'text-amber-400';
   if (days <= 5) return 'text-blue-400';
   return 'text-slate-400';
 };
@@ -271,6 +278,12 @@ export default function ProgressPage() {
   const [deletingTask, setDeletingTask] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const [openSection, setOpenSection] = useState<string | null>("upcoming");
+
+  const toggleSection = (section: string) => {
+    setOpenSection(openSection === section ? null : section);
+  };
+
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -306,6 +319,26 @@ export default function ProgressPage() {
 
     fetchStats();
   }, [timeFilter, getGlobalProgress]);
+
+  const getSubtaskStatus = (st: any) => {
+    if (st.status === STATUS.DONE) {
+      return { label: 'Completado', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' };
+    }
+
+    const today = startOfDay(new Date());
+    const targetDate = st.target_date ? startOfDay(parseISO(st.target_date)) : null;
+
+    if (targetDate) {
+      if (isSameDay(targetDate, today)) {
+        return { label: 'Hoy', color: 'bg-emerald-400/20 text-emerald-400 border-emerald-400/30' };
+      }
+      if (targetDate < today) {
+        return { label: 'Vencido', color: 'bg-red-500/20 text-red-400 border-red-500/30' };
+      }
+    }
+
+    return { label: 'Pendiente', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' };
+  };
 
   const filteredActivities = useMemo(() => {
     return activities.map((activity: Activity) => {
@@ -349,7 +382,7 @@ export default function ProgressPage() {
       // only show activities that have matching subtasks.
       const hasMatches = activity.matchingSubtasks.length > 0;
 
-      return courseMatch && (searchTerm || timeFilter !== "all" || statusFilter !== "all" ? hasMatches : true);
+      return courseMatch && (searchTerm || timeFilter !== "all" ? hasMatches : true);
     });
   }, [activities, courseFilter, statusFilter, searchTerm, timeFilter]);
 
@@ -409,10 +442,10 @@ export default function ProgressPage() {
     try {
       const updateData = { status: nextStatus };
       await updateSubtask(activityId, subtaskId, updateData);
-      
+
       if (nextStatus === STATUS.DONE) {
         showToast('La tarea ha sido terminada exitosamente', 'success');
-        }
+      }
 
       // Optimistic update for backendProgress to ensure the chart and stats update immediately
       setBackendProgress((prev: any) => {
@@ -512,6 +545,27 @@ export default function ProgressPage() {
     }
   };
 
+  const computeDayLoadForDateKey = (dateKey: string) => {
+    if (!dateKey) return { usedHours: 0, limitHours: 6, overworkHours: 0 };
+
+    let currentLoad = 0;
+    activities.forEach((activity) => {
+      activity.subtasks.forEach((st) => {
+        if (st.status !== STATUS.DONE && st.target_date === dateKey) {
+          const hrs = typeof st.estimated_hours === "string"
+            ? parseFloat(st.estimated_hours)
+            : (st.estimated_hours || 0);
+          currentLoad += hrs;
+        }
+      });
+    });
+
+    const limitHours = 6; // TODO: Get from user config if available
+    const overworkHours = Math.max(0, currentLoad - limitHours);
+
+    return { usedHours: currentLoad, limitHours, overworkHours };
+  };
+
   const openConflictModal = (st: Subtask, activity: Activity) => {
     setConflictModalTask(st);
     setConflictActivityMeta({ id: activity.id, title: activity.title, deadline: activity.deadline });
@@ -531,24 +585,27 @@ export default function ProgressPage() {
     setIsReducing(true);
     setReduceError("");
     try {
+      // Usar endpoint tolerante a conflictos para evitar el error 400
       const res = await putSubtaskWithConflictTolerance(conflictModalTask.id, {
         estimated_hours: hrs
       });
-      const resolved = !res.is_conflicted;
+
+      // Actualizar estado local usando el hook useProgressData con la opción tolerant
       await updateSubtask(conflictActivityMeta.id, conflictModalTask.id, {
         estimated_hours: hrs,
         is_conflicted: res.is_conflicted
-      });
+      }, { tolerant: true });
 
+      const resolved = !res.is_conflicted;
       setConflictModalTask(null);
       setIsConflictModalOpen(false);
       setConflictOutcomeSource("reduce");
       setConflictOutcome({
         resolved,
-        dateKey: res.target_date || res.target_date || new Date().toISOString().slice(0, 10),
-        availableHours: res.available_hours || 0,
-        overworkHours: res.overwork_hours || 0,
-        limitHours: res.limit_hours || 6,
+        dateKey: res.target_date || conflictModalTask.target_date || new Date().toISOString().slice(0, 10),
+        availableHours: res.daily_load?.current_hours ? Math.max(0, res.daily_load.limit - res.daily_load.current_hours) : (res.available_hours || 0),
+        overworkHours: res.daily_load?.has_conflict ? res.daily_load.exceeded_by : (res.overwork_hours || 0),
+        limitHours: res.daily_load?.limit || res.limit_hours || 6,
       });
     } catch (err: any) {
       setReduceError(err?.response?.data?.detail || "Error al actualizar las horas.");
@@ -847,19 +904,6 @@ export default function ProgressPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge
-                        variant={isBehind ? 'destructive' : 'secondary'}
-                        className={cn(
-                          "text-xs font-semibold",
-                          isBehind
-                            ? 'bg-red-500/20 text-red-400 border-red-500/30'
-                            : pct === 100
-                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                              : 'bg-blue-500/20 text-blue-400 border-blue-500/30'
-                        )}
-                      >
-                        {isBehind ? 'Vencido' : pct === 100 ? 'Completado' : 'Pendiente'}
-                      </Badge>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -915,13 +959,16 @@ export default function ProgressPage() {
                             )}
                           >
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3">
-                              <div className="flex items-center gap-3 mb-3 sm:mb-0">
+                              <div className="flex flex-wrap items-center gap-2 mb-3 sm:mb-0">
+                                <Badge className={cn("text-[10px] font-bold uppercase tracking-widest px-2", getSubtaskStatus(st).color)}>
+                                  {getSubtaskStatus(st).label}
+                                </Badge>
 
                                 <span className={cn(
                                   "text-sm font-medium transition-colors cursor-pointer hover:text-blue-400 transition-colors",
                                   st.status === STATUS.DONE ? "text-slate-500 line-through" : "text-slate-200 group-hover:text-blue-400"
                                 )}
-                                  onClick={() => setDetailTask(st)}>
+                                  onClick={() => setDetailTask({ ...st, activity })}>
                                   {st.name || st.title || ""}
                                 </span>
                                 {st.estimated_hours && (
@@ -1062,98 +1109,210 @@ export default function ProgressPage() {
             </div>
           </div>
 
-          {/* Upcoming Deadlines */}
-          {upcomingDeadlines.length > 0 && (
-            <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-blue-500" />
-                Próximamente
-              </h3>
-              <div className="relative pl-4 border-l-2 border-slate-700 space-y-6">
-                {upcomingDeadlines.map((item: Activity) => {
-                  const days = getDaysLeft(item.deadline);
-                  const isUrgent = days !== null && days <= 2;
-                  return (
-                    <div key={item.id} className="relative">
-                      <div className={cn(
-                        "absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-[#111827]",
-                        isUrgent ? 'bg-red-500' : 'bg-slate-600'
-                      )} />
-                      <p className={cn("text-xs font-bold mb-1", isUrgent ? 'text-red-400' : 'text-blue-400')}>
-                        {getDeadlineText(item.deadline).toUpperCase()}
-                      </p>
-                      <p className="text-sm text-slate-300">{item.title}</p>
+          {/* Accordion Sections Container */}
+          <div className="space-y-4">
+            {/* Upcoming Deadlines */}
+            <div className={cn(
+              "bg-[#111827] border border-slate-800/60 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl",
+              openSection === "upcoming" ? "ring-1 ring-blue-500/30" : ""
+            )}>
+              <button
+                onClick={() => toggleSection("upcoming")}
+                className="w-full flex items-center justify-between p-5 text-left hover:bg-slate-800/30 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500">
+                    <Calendar className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">Próximamente</h3>
+                    <p className="text-[10px] text-slate-500 font-medium">{upcomingDeadlines.length} actividades cercanas</p>
+                  </div>
+                </div>
+                {openSection === "upcoming" ? <ChevronDown className="h-5 w-5 text-slate-500" /> : <ChevronRight className="h-5 w-5 text-slate-500" />}
+              </button>
+
+              <div className={cn(
+                "overflow-hidden transition-all duration-300",
+                openSection === "upcoming" ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0 px-5"
+              )}>
+                <div className="p-5 pt-0">
+                  {upcomingDeadlines.length > 0 ? (
+                    <div className="relative pl-4 border-l-2 border-slate-700 space-y-5 py-2">
+                      {upcomingDeadlines.map((item: Activity) => {
+                        const days = getDaysLeft(item.deadline);
+                        const isUrgent = days !== null && days <= 2;
+                        return (
+                          <div key={item.id} className="relative group cursor-pointer" onClick={() => navigate(`/actividad/${item.id}`)}>
+                            <div className={cn(
+                              "absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-[#111827] group-hover:scale-125 transition-transform",
+                              isUrgent ? 'bg-red-500' : 'bg-slate-600'
+                            )} />
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <p className={cn("text-[10px] font-black mb-1 uppercase tracking-tighter", isUrgent ? 'text-red-400' : 'text-blue-400')}>
+                                  {getDeadlineText(item.deadline)}
+                                </p>
+                                <p className="text-sm text-slate-200 font-medium leading-tight group-hover:text-blue-400 transition-colors">{item.title}</p>
+                              </div>
+                              <ArrowUpRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all" />
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-
-                  );
-                })}
-
+                  ) : (
+                    <div className="text-center py-6">
+                      <p className="text-sm text-slate-500 italic">No hay entregas próximas registradas.</p>
+                    </div>
+                  )}
+                  <Button
+                    variant="ghost"
+                    className="w-full mt-4 h-10 border border-slate-800 text-slate-400 hover:text-white text-xs gap-2 rounded-xl"
+                    onClick={() => navigate('/calendario')}
+                  >
+                    <CalendarDays className="w-4 h-4" />
+                    Ver plan de estudio completo
+                  </Button>
+                </div>
               </div>
-
             </div>
-          )}
-          {/* Postponed Tasks */}
-          {(() => {
-            const postponed = activities.flatMap((a: Activity) =>
-              a.subtasks
-                .filter((s: Subtask) => s.status === STATUS.POSTPONED)
-                .map((s: Subtask) => ({ ...s, course: getCourseName(a.course) }))
-            );
-            if (postponed.length === 0) return null;
-            return (
-              <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-yellow-500" />
-                  Pospuestas
-                </h3>
-                <div className="space-y-3">
-                  {postponed.slice(0, 4).map((t) => (
-                    <div key={t.id} className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-md bg-yellow-500/10 text-yellow-400 text-[10px] font-black uppercase">
-                          Pospuesto
-                        </span>
-                        <p className="text-sm font-semibold text-slate-200 truncate">{t.name || t.title || ""}</p>
+
+            {/* Postponed Tasks */}
+            {(() => {
+              const postponed = activities.flatMap((a: Activity) =>
+                a.subtasks
+                  .filter((s: Subtask) => s.status === STATUS.POSTPONED)
+                  .map((s: Subtask) => ({ ...s, course: getCourseName(a.course), activityId: a.id }))
+              );
+              return (
+                <div className={cn(
+                  "bg-[#111827] border border-slate-800/60 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl",
+                  openSection === "postponed" ? "ring-1 ring-yellow-500/30" : ""
+                )}>
+                  <button
+                    onClick={() => toggleSection("postponed")}
+                    className="w-full flex items-center justify-between p-5 text-left hover:bg-slate-800/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-yellow-500/10 text-yellow-500">
+                        <Clock className="h-5 w-5" />
                       </div>
-                      <p className="text-xs text-slate-500 pl-0.5">{t.course}</p>
-                      {t.note && (
-                        <p className="text-xs text-slate-500 italic pl-0.5">"{t.note}"</p>
+                      <div>
+                        <h3 className="text-sm font-bold text-white uppercase tracking-wider">Tareas Pospuestas</h3>
+                        <p className="text-[10px] text-slate-500 font-medium">{postponed.length} tareas pendientes</p>
+                      </div>
+                    </div>
+                    {openSection === "postponed" ? <ChevronDown className="h-5 w-5 text-slate-500" /> : <ChevronRight className="h-5 w-5 text-slate-500" />}
+                  </button>
+
+                  <div className={cn(
+                    "overflow-hidden transition-all duration-300",
+                    openSection === "postponed" ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+                  )}>
+                    <div className="p-5 pt-0 space-y-4">
+                      {postponed.length > 0 ? (
+                        <div className="space-y-4">
+                          {postponed.slice(0, 5).map((t) => (
+                            <div key={t.id} className="p-3 bg-slate-900/50 border border-slate-800 rounded-2xl group hover:border-yellow-500/30 transition-all">
+                              <div className="flex items-start justify-between gap-2 mb-1.5">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
+                                  <p className="text-sm font-bold text-slate-100 truncate max-w-[140px]">{t.name || t.title}</p>
+                                </div>
+                                <button
+                                  onClick={() => navigate(`/actividad/${t.activityId}`)}
+                                  className="text-[10px] text-blue-400 hover:text-blue-300 font-bold"
+                                >
+                                  REPLANIFICAR
+                                </button>
+                              </div>
+                              <p className="text-[10px] text-slate-500 font-medium uppercase mb-2">{t.course}</p>
+                              {t.note && (
+                                <div className="p-2 bg-black/20 rounded-lg">
+                                  <p className="text-[11px] text-slate-400 italic">Razón: {t.note}</p>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          {postponed.length > 5 && (
+                            <p className="text-center text-[11px] text-slate-500">y {postponed.length - 5} tareas más...</p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 text-slate-500 italic text-sm">
+                          ¡No tienes tareas pospuestas!
+                        </div>
                       )}
                     </div>
-                  ))}
+                  </div>
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
 
-          {/* History */}
-          {(() => {
-            const history = activities.flatMap((a: Activity) =>
-              a.subtasks
-                .filter((s: Subtask) => s.status === STATUS.DONE)
-                .map((s: Subtask) => ({ ...s, course: getCourseName(a.course) }))
-            ).slice(0, 6);
-            if (history.length === 0) return null;
-            return (
-              <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20">
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-slate-400" />
-                  Historial
-                </h3>
-                <div className="space-y-3">
-                  {history.map((t) => (
-                    <div key={t.id} className="flex items-start gap-2 text-slate-400">
-                      <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-slate-600" />
+            {/* History */}
+            {(() => {
+              const history = activities.flatMap((a: Activity) =>
+                a.subtasks
+                  .filter((s: Subtask) => s.status === STATUS.DONE)
+                  .map((s: Subtask) => ({ ...s, course: getCourseName(a.course) }))
+              );
+              return (
+                <div className={cn(
+                  "bg-[#111827] border border-slate-800/60 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl",
+                  openSection === "history" ? "ring-1 ring-emerald-500/30" : ""
+                )}>
+                  <button
+                    onClick={() => toggleSection("history")}
+                    className="w-full flex items-center justify-between p-5 text-left hover:bg-slate-800/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
+                        <CheckCircle2 className="h-5 w-5" />
+                      </div>
                       <div>
-                        <p className="text-xs text-slate-300 truncate">{t.name || t.title || ""}</p>
-                        <p className="text-[10px] text-slate-500">{t.course}</p>
+                        <h3 className="text-sm font-bold text-white uppercase tracking-wider">Completado recientemente</h3>
+                        <p className="text-[10px] text-slate-500 font-medium">{history.length} tareas logradas</p>
                       </div>
                     </div>
-                  ))}
+                    {openSection === "history" ? <ChevronDown className="h-5 w-5 text-slate-500" /> : <ChevronRight className="h-5 w-5 text-slate-500" />}
+                  </button>
+
+                  <div className={cn(
+                    "overflow-hidden transition-all duration-300",
+                    openSection === "history" ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0 px-5"
+                  )}>
+                    <div className="p-5 pt-0">
+                      {history.length > 0 ? (
+                        <div className="space-y-3">
+                          {history.slice(0, 6).map((t) => (
+                            <div key={t.id} className="flex items-center gap-3 group">
+                              <div className="h-7 w-7 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0 group-hover:bg-emerald-500/20 transition-colors">
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-[13px] text-slate-300 truncate font-medium">{t.name || t.title}</p>
+                                <p className="text-[10px] text-slate-500 truncate">{t.course}</p>
+                              </div>
+                            </div>
+                          ))}
+                          {history.length > 6 && (
+                            <p className="text-center text-[11px] text-slate-500 pt-2 border-t border-slate-800/50">
+                              + {history.length - 6} tareas más en el historial
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 text-slate-500 italic text-sm">
+                          Completa tareas para ver tu historial aquí.
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
+          </div>
 
         </aside>
       </div>
@@ -1288,15 +1447,16 @@ export default function ProgressPage() {
           </div>
         </div>
       )}
-
-      {/* Conflict Resolution Modals */}
       <ResolveConflictModal
         isOpen={isConflictModalOpen}
         onClose={() => {
           setIsConflictModalOpen(false);
           setConflictModalTask(null);
+          setReduceHours("");
+          setReduceError("");
         }}
         selectedConflict={conflictModalTask}
+        {...computeDayLoadForDateKey(conflictModalTask?.target_date || "")}
         dateFormatted={conflictModalTask?.target_date ? getFormattedDate(conflictModalTask.target_date) : ""}
         dayLabel={conflictModalTask?.target_date ? getRelativeDateLabel(conflictModalTask.target_date) : ""}
         reduceHours={reduceHours}
@@ -1327,6 +1487,10 @@ export default function ProgressPage() {
         onOpenChange={(open) => { if (!open) setDetailTask(null); }}
         subtask={detailTask}
         getFormattedDate={getFormattedDate}
+        onEdit={(st: any) => {
+          setEditingTask({ ...st, title: st.name || st.title });
+          setIsEditModalOpen(true);
+        }}
       />
       {/* Floating help button */}
       <button

@@ -6,11 +6,10 @@ import { es } from "date-fns/locale";
 import { ResolveConflictModal } from "@/shared/components/ResolveConflictModal";
 import { ConflictOutcomeModal } from "@/shared/components/ConflictOutcomeModal";
 import PostponeSubtaskModal from "@/shared/components/PostponeSubtaskModal";
-import { postponeSubtask, updateSubtask, getSubtasksForActivity, patchSubtask } from "@/api/services/subtask";
+import { postponeSubtask, updateSubtask, getSubtasksForActivity, patchSubtask, putSubtaskWithConflictTolerance, getSubtaskCalendar } from "@/api/services/subtask";
 import { queryCache } from "@/lib/queryCache";
 import { cn } from "@/shared/utils/utils";
 import ActivityDetailHeader from "./ActivityDetailHeader";
-import ActivityProgressCard from "./ActivityProgressCard";
 import StudyPlanSection from "./StudyPlanSection";
 import { getActivity } from "@/api/services/activity";
 import { useToast } from "@/shared/components/toast";
@@ -48,6 +47,7 @@ interface BackendSubtask {
   estimated_hours?: number;
   status?: "PENDING" | "DONE" | "POSTPONED" | "WAITING";
   execution_note?: string;
+  posponed_note?: string;
   is_conflicted?: boolean;
 }
 
@@ -72,6 +72,7 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
   const [reduceHours, setReduceHours] = useState("");
   const [isReducing, setIsReducing] = useState(false);
   const [reduceError, setReduceError] = useState("");
+  const [dayLoad, setDayLoad] = useState({ usedHours: 0, limitHours: 6, overworkHours: 0 });
 
   const navigate = useNavigate();
   const { showToast, ToastComponent } = useToast();
@@ -280,65 +281,13 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
     return type ? typeMap[type] || type : "Actividad";
   };
 
-  // Calcular progreso basado en subtareas completadas
   const calculateProgress = (): number => {
-    if (subtasks.length === 0) return 0;
+    if (!subtasks || subtasks.length === 0) return 0;
     const completed = subtasks.filter((s) => s.status === "DONE").length;
     return Math.round((completed / subtasks.length) * 100);
   };
 
-  // Calcular tiempo restante
-  const calculateTimeLeft = (): string => {
-    if (!activity?.deadline) return "Sin fecha";
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const deadline = new Date(activity.deadline);
-    deadline.setHours(0, 0, 0, 0);
-    const diffTime = deadline.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    if (diffDays < 0) return "Vencido";
-    if (diffDays === 0) return "Hoy";
-    if (diffDays === 1) return "1 día";
-    return `${diffDays} días`;
-  };
-
-  // Calcular esfuerzo total
-  const calculateTotalEffort = (): string => {
-    const totalHours = subtasks.reduce((sum, s) => {
-      const hours = s.estimated_hours || 0;
-      // Asegurar que hours sea un número válido
-      const numHours = typeof hours === 'number' ? hours : parseFloat(String(hours)) || 0;
-      return sum + numHours;
-    }, 0);
-
-    if (totalHours === 0) return "0h";
-
-    // Formatear las horas: si es un número entero, mostrar sin decimales; si tiene decimales, mostrar hasta 1 decimal
-    const formattedHours = totalHours % 1 === 0
-      ? totalHours.toString()
-      : totalHours.toFixed(1);
-
-    return `${formattedHours}h`;
-  };
-
-  // Determinar estado
-  const getStatus = (): string => {
-    if (subtasks.length > 0 && calculateProgress() === 100) return "Finalizado";
-
-    if (!activity?.deadline) return "Sin fecha";
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const deadline = new Date(activity.deadline);
-    deadline.setHours(0, 0, 0, 0);
-    const diffTime = deadline.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) return "Vencido";
-    if (diffDays <= 3) return "Urgente";
-    if (subtasks.length > 0 && calculateProgress() > 0) return "En progreso";
-    return "Pendiente";
-  };
 
   if (loading) {
     return (
@@ -395,7 +344,7 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
         completed: subtask.status === "DONE",
         isActive: subtask.status === "PENDING" && !isToday,
         todayBadge: isToday,
-        execution_note: subtask.execution_note,
+        execution_note: subtask.posponed_note || subtask.execution_note,
         isConflicted: !!subtask.is_conflicted,
         status: subtask.status || "PENDING",
       };
@@ -451,12 +400,33 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
     setConflictModalTask(null);
   };
 
+  const fetchDailyLoadForTask = async (task: any) => {
+    if (!task || !task.target_date) return;
+    try {
+      const data = await getSubtaskCalendar(task.id, task.target_date);
+      const day = data.calendar.find((d: any) => d.date === task.target_date);
+      if (day) {
+        // En el backend, current_load excluye la tarea actual.
+        // Sumamos las horas actuales de la tarea para tener el total usado del día.
+        const currentTaskHrs = parseFloat(String(task.estimated_hours || 0));
+        const totalUsed = day.current_load + currentTaskHrs;
+        setDayLoad({
+          usedHours: totalUsed,
+          limitHours: day.limit,
+          overworkHours: Math.max(0, totalUsed - day.limit)
+        });
+      }
+    } catch (err) {
+      console.error("Error fetching day load:", err);
+    }
+  };
+
   const handleReduceConflictHours = async () => {
     if (!conflictModalTask || !reduceHours) return;
 
     const val = parseFloat(reduceHours);
-    if (isNaN(val) || val <= 0) {
-      setReduceError("Ingresa un número válido de horas.");
+    if (isNaN(val) || val < 0.5) {
+      setReduceError("Ingresa un número válido (mínimo 0.5)");
       return;
     }
 
@@ -464,17 +434,18 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
     setReduceError("");
 
     try {
-      const result = await updateSubtask(activity?.id || "", conflictModalTask.id, {
+      // Usar endpoint tolerante a conflictos (PUT /api/subtareas/<id>/)
+      const result = await putSubtaskWithConflictTolerance(conflictModalTask.id, {
         estimated_hours: val,
       });
 
-      // The backend returns { resolved, date_key, available_hours, overwork_hours, limit_hours }
+      // El backend devuelve metadatos en result.daily_load
       setConflictOutcome({
-        resolved: result.resolved,
-        dateKey: result.date_key,
-        availableHours: result.available_hours || 0,
-        overworkHours: result.overwork_hours || 0,
-        limitHours: result.limit_hours || 6,
+        resolved: !result.is_conflicted,
+        dateKey: result.target_date || conflictModalTask.target_date,
+        availableHours: result.daily_load?.current_hours ? Math.max(0, result.daily_load.limit - result.daily_load.current_hours) : (result.available_hours || 0),
+        overworkHours: result.daily_load?.has_conflict ? result.daily_load.exceeded_by : (result.overwork_hours || 0),
+        limitHours: result.daily_load?.limit || result.limit_hours || 6,
       });
 
       setConflictOutcomeSource("reduce");
@@ -515,12 +486,24 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
               onActivityUpdated={fetchActivityData}
             />
 
-            <ActivityProgressCard
-              progressPercent={calculateProgress()}
-              timeLeft={calculateTimeLeft()}
-              totalEffort={calculateTotalEffort()}
-              status={getStatus()}
-            />
+            {/* Progress Bar */}
+            <div className="space-y-3 bg-[#111827] border border-slate-700/50 p-6 rounded-3xl shadow-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Progreso de la actividad</span>
+                <span className="text-xl font-black text-white">{calculateProgress()}%</span>
+              </div>
+              <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700/30">
+                <div 
+                  className="h-full bg-gradient-to-r from-blue-600 to-emerald-500 transition-all duration-700 ease-out shadow-[0_0_15px_rgba(37,99,235,0.4)]"
+                  style={{ width: `${calculateProgress()}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <span>0% Iniciando</span>
+                <span>{subtasks.filter(s => s.status === "DONE").length} de {subtasks.length} tareas completadas</span>
+                <span>100% Meta</span>
+              </div>
+            </div>
 
             <StudyPlanSection
               subtasks={formattedSubtasks}
@@ -530,7 +513,10 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
               deadlineDate={activity.deadline}
               onOpenResolveConflict={(st: any) => {
                 setConflictModalTask(st);
+                setReduceHours(st.estimated_hours ? String(st.estimated_hours) : "");
+                setReduceError("");
                 setIsConflictModalOpen(true);
+                fetchDailyLoadForTask(st);
               }}
               onOpenPostpone={(st: any) => {
                 setPostponingTask(st);
@@ -552,6 +538,9 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
             setReduceError("");
           }}
           selectedConflict={conflictModalTask}
+          usedHours={dayLoad.usedHours}
+          limitHours={dayLoad.limitHours}
+          overworkHours={dayLoad.overworkHours}
           dateFormatted={conflictModalTask?.target_date ? getFormattedDate(conflictModalTask.target_date) : ""}
           dayLabel={conflictModalTask?.target_date ? getRelativeDateLabel(conflictModalTask.target_date) : ""}
           reduceHours={reduceHours}
