@@ -281,6 +281,12 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
     return type ? typeMap[type] || type : "Actividad";
   };
 
+  const calculateProgress = (): number => {
+    if (!subtasks || subtasks.length === 0) return 0;
+    const completed = subtasks.filter((s) => s.status === "DONE").length;
+    return Math.round((completed / subtasks.length) * 100);
+  };
+
 
 
   if (loading) {
@@ -480,7 +486,24 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
               onActivityUpdated={fetchActivityData}
             />
 
-
+            {/* Progress Bar */}
+            <div className="space-y-3 bg-[#111827] border border-slate-700/50 p-6 rounded-3xl shadow-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Progreso de la actividad</span>
+                <span className="text-xl font-black text-white">{calculateProgress()}%</span>
+              </div>
+              <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700/30">
+                <div 
+                  className="h-full bg-gradient-to-r from-blue-600 to-emerald-500 transition-all duration-700 ease-out shadow-[0_0_15px_rgba(37,99,235,0.4)]"
+                  style={{ width: `${calculateProgress()}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                <span>0% Iniciando</span>
+                <span>{subtasks.filter(s => s.status === "DONE").length} de {subtasks.length} tareas completadas</span>
+                <span>100% Meta</span>
+              </div>
+            </div>
 
             <StudyPlanSection
               subtasks={formattedSubtasks}
