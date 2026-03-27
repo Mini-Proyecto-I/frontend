@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { parseISO, startOfDay, differenceInDays, format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, Info, CheckCircle2, Calendar, Pencil, Check, ChevronUp, ChevronDown, HelpCircle, CalendarRange, Trash2 } from "lucide-react";
+import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, Info, CheckCircle2, Eye, Calendar, Pencil, Check, ChevronUp, ChevronDown, HelpCircle, CalendarRange, Trash2 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import { useAuth } from "@/app/authContext";
@@ -332,9 +332,9 @@ export default function Today() {
       prev.map(item => item.id === subtaskId ? { ...item, status: newStatus } : item) as any
     );
 
-          if(newStatus === "DONE") {
-          showToast('La tarea ha sido terminada exitosamente', 'success');
-      }
+    if (newStatus === "DONE") {
+      showToast('La tarea ha sido terminada exitosamente', 'success');
+    }
     try {
       await patchSubtask(activityId, subtaskId, { status: newStatus });
       // Update the tiempo card silently in background
@@ -657,7 +657,7 @@ export default function Today() {
 
   return (
     <div className="flex flex-col lg:flex-row gap-8 max-w-[1580px] w-full mx-auto px-4 sm:px-6 lg:px-10 pb-10 mt-6 lg:mt-10">
-      <ToastComponent /> 
+      <ToastComponent />
       {/* LEFT SIDE: TASKS (Approx 60% of layout)*/}
       <div className="flex-1 lg:w-[65%] xl:w-[70%] flex flex-col gap-6 order-2 lg:order-1 min-w-0">
         {/* Task List Tabs */}
@@ -1564,6 +1564,10 @@ export default function Today() {
         onOpenChange={(open: boolean) => { if (!open) setDetailTask(null); }}
         subtask={detailTask}
         getFormattedDate={getFormattedDate}
+        onEdit={(st: any) => {
+          setEditingTask(st);
+          setIsEditModalOpen(true);
+        }}
       />
 
       {/* History Task Modal */}
@@ -1864,25 +1868,23 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
 
           <button
             type="button"
-            onClick={onEdit}
+            onClick={() => onTitleClick ? onTitleClick() : null}
             className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer"
           >
-            <Pencil className="w-4 h-4" />
-            Editar
+            <Eye className="w-4 h-4" />
+            Ver detalle
           </button>
         </div>
 
         <div className="flex items-center gap-3 ml-auto">
           {isPostponed ? (
-            <button
-              type="button"
-              onClick={() => onShowHistory?.(item.id, title)}
-              className="inline-flex items-center gap-2 text-xs font-semibold text-purple-200 bg-[#8B5CF6]/15 hover:bg-[#8B5CF6]/25 border border-[#8B5CF6]/30 px-3 py-2 rounded-lg transition-all active:scale-95 cursor-pointer group"
+            <Badge
+              className="inline-flex items-center gap-2 text-xs font-semibold text-purple-200 bg-[#8B5CF6]/15 border border-[#8B5CF6]/30 px-3 py-2 rounded-lg transition-all active:scale-95 group"
               title="Ver notas de posposición"
             >
               <Clock className="w-4 h-4 text-[#A78BFA] group-hover:animate-pulse" />
               Pospuesta
-            </button>
+            </Badge>
           ) : (
             onPostpone && (
               <button
