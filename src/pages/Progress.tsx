@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { format, parseISO, isValid, differenceInDays, startOfDay, isSameDay, isSameWeek, isSameMonth, startOfWeek, addWeeks, addDays, startOfMonth, endOfMonth, isFriday } from 'date-fns';
+import { format, parseISO, isValid, differenceInDays, startOfDay, isSameDay, isSameWeek, isSameMonth, startOfWeek, addWeeks, addDays, startOfMonth, endOfMonth, isFriday, differenceInCalendarDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
   CheckCircle2,
@@ -135,7 +135,9 @@ const getDaysLeft = (dateString: string | null | undefined): number | null => {
   if (!dateString || typeof dateString !== 'string') return null;
   const date = parseISO(dateString);
   if (!isValid(date)) return null;
-  return differenceInDays(date, new Date()) + 1;
+  const today = startOfDay(new Date());
+  const target = startOfDay(date);
+  return differenceInCalendarDays(target, today);
 };
 
 const getDeadlineText = (dateString: string | null | undefined): string => {
@@ -151,7 +153,9 @@ const getDeadlineText = (dateString: string | null | undefined): string => {
 const getDeadlineColor = (dateString: string | null | undefined, progress: number): string => {
   const days = getDaysLeft(dateString);
   if (days === null) return 'text-slate-400';
-  if (days < 0 || (days <= 3 && progress < 50)) return 'text-red-500';
+  if (days < 0) return 'text-red-500';
+  if (days === 0) return 'text-red-400';
+  if (days <= 3 && progress < 50) return 'text-amber-400';
   if (days <= 5) return 'text-blue-400';
   return 'text-slate-400';
 };
@@ -378,7 +382,7 @@ export default function ProgressPage() {
       // only show activities that have matching subtasks.
       const hasMatches = activity.matchingSubtasks.length > 0;
 
-      return courseMatch && (searchTerm || timeFilter !== "all" || statusFilter !== "all" ? hasMatches : true);
+      return courseMatch && (searchTerm || timeFilter !== "all" ? hasMatches : true);
     });
   }, [activities, courseFilter, statusFilter, searchTerm, timeFilter]);
 
@@ -964,7 +968,7 @@ export default function ProgressPage() {
                                   "text-sm font-medium transition-colors cursor-pointer hover:text-blue-400 transition-colors",
                                   st.status === STATUS.DONE ? "text-slate-500 line-through" : "text-slate-200 group-hover:text-blue-400"
                                 )}
-                                  onClick={() => setDetailTask(st)}>
+                                  onClick={() => setDetailTask({ ...st, activity })}>
                                   {st.name || st.title || ""}
                                 </span>
                                 {st.estimated_hours && (
@@ -1483,6 +1487,10 @@ export default function ProgressPage() {
         onOpenChange={(open) => { if (!open) setDetailTask(null); }}
         subtask={detailTask}
         getFormattedDate={getFormattedDate}
+        onEdit={(st: any) => {
+          setEditingTask({ ...st, title: st.name || st.title });
+          setIsEditModalOpen(true);
+        }}
       />
       {/* Floating help button */}
       <button

@@ -10,7 +10,6 @@ import { postponeSubtask, updateSubtask, getSubtasksForActivity, patchSubtask, p
 import { queryCache } from "@/lib/queryCache";
 import { cn } from "@/shared/utils/utils";
 import ActivityDetailHeader from "./ActivityDetailHeader";
-import ActivityProgressCard from "./ActivityProgressCard";
 import StudyPlanSection from "./StudyPlanSection";
 import { getActivity } from "@/api/services/activity";
 import { useToast } from "@/shared/components/toast";
@@ -48,6 +47,7 @@ interface BackendSubtask {
   estimated_hours?: number;
   status?: "PENDING" | "DONE" | "POSTPONED" | "WAITING";
   execution_note?: string;
+  posponed_note?: string;
   is_conflicted?: boolean;
 }
 
@@ -281,65 +281,7 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
     return type ? typeMap[type] || type : "Actividad";
   };
 
-  // Calcular progreso basado en subtareas completadas
-  const calculateProgress = (): number => {
-    if (subtasks.length === 0) return 0;
-    const completed = subtasks.filter((s) => s.status === "DONE").length;
-    return Math.round((completed / subtasks.length) * 100);
-  };
 
-  // Calcular tiempo restante
-  const calculateTimeLeft = (): string => {
-    if (!activity?.deadline) return "Sin fecha";
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const deadline = new Date(activity.deadline);
-    deadline.setHours(0, 0, 0, 0);
-    const diffTime = deadline.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) return "Vencido";
-    if (diffDays === 0) return "Hoy";
-    if (diffDays === 1) return "1 día";
-    return `${diffDays} días`;
-  };
-
-  // Calcular esfuerzo total
-  const calculateTotalEffort = (): string => {
-    const totalHours = subtasks.reduce((sum, s) => {
-      const hours = s.estimated_hours || 0;
-      // Asegurar que hours sea un número válido
-      const numHours = typeof hours === 'number' ? hours : parseFloat(String(hours)) || 0;
-      return sum + numHours;
-    }, 0);
-
-    if (totalHours === 0) return "0h";
-
-    // Formatear las horas: si es un número entero, mostrar sin decimales; si tiene decimales, mostrar hasta 1 decimal
-    const formattedHours = totalHours % 1 === 0
-      ? totalHours.toString()
-      : totalHours.toFixed(1);
-
-    return `${formattedHours}h`;
-  };
-
-  // Determinar estado
-  const getStatus = (): string => {
-    if (subtasks.length > 0 && calculateProgress() === 100) return "Finalizado";
-
-    if (!activity?.deadline) return "Sin fecha";
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const deadline = new Date(activity.deadline);
-    deadline.setHours(0, 0, 0, 0);
-    const diffTime = deadline.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) return "Vencido";
-    if (diffDays <= 3) return "Urgente";
-    if (subtasks.length > 0 && calculateProgress() > 0) return "En progreso";
-    return "Pendiente";
-  };
 
   if (loading) {
     return (
@@ -396,7 +338,7 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
         completed: subtask.status === "DONE",
         isActive: subtask.status === "PENDING" && !isToday,
         todayBadge: isToday,
-        execution_note: subtask.execution_note,
+        execution_note: subtask.posponed_note || subtask.execution_note,
         isConflicted: !!subtask.is_conflicted,
         status: subtask.status || "PENDING",
       };
@@ -538,12 +480,7 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
               onActivityUpdated={fetchActivityData}
             />
 
-            <ActivityProgressCard
-              progressPercent={calculateProgress()}
-              timeLeft={calculateTimeLeft()}
-              totalEffort={calculateTotalEffort()}
-              status={getStatus()}
-            />
+
 
             <StudyPlanSection
               subtasks={formattedSubtasks}

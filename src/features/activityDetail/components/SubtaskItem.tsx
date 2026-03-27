@@ -489,11 +489,16 @@ export default function SubtaskItem({
         open={showDetailsDialog}
         onOpenChange={(open: boolean) => setShowDetailsDialog(open)}
         subtask={{
+          id, // Importante para el historial
           title,
           target_date: dateOriginal || date.split(" ")[0],
           estimated_hours: hours.replace("h", ""),
           status: isChecked ? "DONE" : "PENDING",
           execution_note: note,
+        }}
+        onEdit={() => {
+          setShowDetailsDialog(false);
+          setShowEditDialog(true);
         }}
       />
 

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { parseISO, isSameDay } from "date-fns";
-import { Calendar, Clock, History, Pencil } from "lucide-react";
+import { Calendar, Clock, History, Pencil, AlertCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -123,6 +123,20 @@ export function SubtaskDetailModal({
               </Badge>
             </div>
           </div>
+
+          {(subtask.posponed_note || subtask.execution_note || subtask.note) && (
+            <div className="p-4 rounded-2xl bg-purple-500/5 border border-purple-500/10 group hover:border-purple-500/30 transition-all shadow-sm">
+              <label className="text-[10px] font-black text-purple-400 uppercase tracking-[0.2em] flex items-center gap-2 mb-2">
+                <AlertCircle className="w-3.5 h-3.5" />
+                {subtask.status === "POSTPONED" ? "Motivo de la posposición" : "Nota / Observación"}
+              </label>
+              <div className="relative pl-3 border-l border-purple-500/20">
+                <p className="text-[13px] text-slate-300 italic leading-relaxed">
+                  "{subtask.posponed_note || subtask.execution_note || subtask.note}"
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-3">
             <button

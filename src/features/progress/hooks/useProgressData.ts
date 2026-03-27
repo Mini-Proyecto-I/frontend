@@ -22,6 +22,7 @@ export interface Subtask {
   status: 'PENDING' | 'DONE' | 'POSTPONED' | 'WAITING';
   estimated_hours?: number;
   note?: string;
+  posponed_note?: string;
   is_conflicted?: boolean;
   target_date?: string;
 }
