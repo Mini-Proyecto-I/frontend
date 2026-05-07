@@ -780,7 +780,7 @@ export default function Calendar() {
                     </div>
                 </div>
                 <p className="text-xs text-slate-400 font-medium max-w-2xl">
-                    En tu calendario puedes rerogramar tus tareas clickeando sobre ellas y luego clickeando sobre "mover aquí" en algún día antes de la fecha límite de la actividad y después de "hoy". Si un día queda sobrecargado, verás una guía para resolverlo moviendo tareas o reduciendo horas. Puedes moverte entre semanas con las flechas o el botón «Seleccionar semana»
+                    En tu calendario puedes reprogramar tus tareas clickeando sobre ellas y luego clickeando sobre "mover aquí" en algún día antes de la fecha límite de la actividad y después de "hoy". Si un día queda sobrecargado, verás una guía para resolverlo moviendo tareas o reduciendo horas. Puedes moverte entre semanas con las flechas o el botón «Seleccionar semana»
                 </p>
             </div>
 
