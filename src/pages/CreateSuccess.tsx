@@ -13,6 +13,8 @@ export default function CreateSuccess() {
   const state = (location.state ?? {}) as CreateSuccessState;
 
   const title = state.title ?? "Actividad";
+  
+  
 
   return (
     <div className="min-h-screen bg-[#111827] flex items-center justify-center px-6">
@@ -41,7 +43,7 @@ export default function CreateSuccess() {
           )}
           <button
             type="button"
-            onClick={() => navigate("/hoy")}
+            onClick={() => navigate("/hoy", { state: { firstActivity: true } })}
             className="px-6 py-3 rounded-xl bg-blue-600 text-white text-sm font-bold shadow-lg shadow-blue-600/20 hover:bg-blue-700 hover:shadow-xl transition-all w-full sm:w-auto"
           >
             Ir a mi panel de Hoy
@@ -51,4 +53,3 @@ export default function CreateSuccess() {
     </div>
   );
 }
-

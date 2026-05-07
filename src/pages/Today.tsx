@@ -80,6 +80,7 @@ export default function Today() {
   const [postponeSuccessOpen, setPostponeSuccessOpen] = useState(false);
   const [postponeSuccessMessage, setPostponeSuccessMessage] = useState("");
   const [welcomeStep, setWelcomeStep] = useState(1);
+  const [showTutorialModal, setShowTutorialModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [limitHours, setLimitHours] = useState(() => {
     const saved = window.localStorage.getItem("studyLimitHours");
@@ -180,18 +181,17 @@ export default function Today() {
     }
   };
 
+    // Modal de bienvenida (límite diario) — solo usuarios recién registrados
   useEffect(() => {
-    // Verificar si el welcome está en progreso (persiste ante recargas)
-    const isFirstTime = window.localStorage.getItem("welcomeInProgress") === "true";
-    if (location.state?.justRegistered || isFirstTime) {
-      setShowWelcomeModal(true);
-      window.localStorage.setItem("welcomeInProgress", "true");
-      // Limpiar state al montarse el componente para evitar que aparezca de nuevo por state, 
-      // pero mantenemos el flag de localStorage hasta que termine.
-      if (location.state?.justRegistered) {
-        navigate("/hoy", { replace: true, state: {} });
+      const isFirstTime = window.localStorage.getItem("welcomeInProgress") === "true";
+      if (location.state?.justRegistered || isFirstTime) {
+          setWelcomeStep(2);
+          setShowWelcomeModal(true);
+          window.localStorage.setItem("welcomeInProgress", "true");
+          if (location.state?.justRegistered) {
+              navigate("/hoy", { replace: true, state: {} });
+          }
       }
-    }
   }, [location.state, navigate]);
 
   // Sincronizar el límite diario con la configuración del backend al montar
@@ -242,6 +242,15 @@ export default function Today() {
     tiempoData,
     refetchTiempo
   } = useHoy(filters);
+
+    // Modal tutorial — solo al llegar desde la primera actividad creada
+  useEffect(() => {
+      const shouldShow = window.localStorage.getItem("showTodayTutorial") === "true";
+      if (shouldShow && !loading) {
+          window.localStorage.removeItem("showTodayTutorial");
+          setShowTutorialModal(true);
+      }
+  }, [loading]);
 
   // Cargar límite desde el backend al montar el componente
   useEffect(() => {
@@ -621,7 +630,7 @@ export default function Today() {
 
   const pendingTodayCount = filteredParaHoy.filter((t: any) => t.status !== "DONE").length;
 
-  if (!loading && !hasActiveFilters && vencidas.length === 0 && para_hoy.length === 0 && proximas.length === 0 && !showWelcomeModal) {
+  if (!loading && !hasActiveFilters && vencidas.length === 0 && para_hoy.length === 0 && proximas.length === 0 && !showWelcomeModal && !showTutorialModal) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-120px)] w-full px-4 text-center animate-in fade-in zoom-in-[0.98] duration-700">
         <div className="relative mb-14">
@@ -1086,153 +1095,129 @@ export default function Today() {
         </div>
       </div>
 
-      {/* Welcome Modal */}
-      {showWelcomeModal && (
+      {/* Tutorial Modal — primera vez en /hoy tras crear actividad */}
+      {showTutorialModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-[#111827] border border-slate-800 rounded-3xl p-8 flex flex-col items-center text-center shadow-2xl max-w-[520px] w-full mx-4 relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
-
-            {welcomeStep === 1 ? (
-              <>
-                <div className="w-12 h-12 bg-blue-500/20 border border-blue-500/30 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/10">
-                  <Info className="w-6 h-6 text-blue-400" />
+            <div className="w-12 h-12 bg-blue-500/20 border border-blue-500/30 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/10">
+              <Info className="w-6 h-6 text-blue-400" />
+            </div>
+            <h3 className="text-2xl font-extrabold text-white mb-4 tracking-tight">
+              Vista <span className="text-blue-400">Hoy</span>: orden de prioridad
+            </h3>
+            <p className="text-slate-400 text-sm mb-6 px-2">
+              Esta pantalla sigue una regla clara para que sepas qué atender primero:
+            </p>
+            <div className="flex flex-col gap-5 text-left w-full mb-8 pl-8 pr-4">
+              <div className="flex items-start gap-4">
+                <div className="bg-emerald-400/10 p-2.5 rounded-xl border border-emerald-400/20 mt-0.5">
+                  <CalendarDays className="w-5 h-5 text-emerald-400 shrink-0" />
                 </div>
-
-                <h3 className="text-2xl font-extrabold text-white mb-4 tracking-tight">
-                  Vista <span className="text-blue-400">Hoy</span>: orden de prioridad
-                </h3>
-                <p className="text-slate-400 text-sm mb-6 px-2">
-                  Esta pantalla sigue una regla clara para que sepas qué atender primero:
-                </p>
-
-                <div className="flex flex-col gap-5 text-left w-full mb-8 pl-8 pr-4">
-                  <div className="flex items-start gap-4">
-                    <div className="bg-emerald-400/10 p-2.5 rounded-xl border border-emerald-400/20 mt-0.5">
-                      <CalendarDays className="w-5 h-5 text-emerald-400 shrink-0" />
-                    </div>
-                    <div>
-                      <p className="text-emerald-400 text-[15px] font-bold leading-snug mb-1">
-                        1. Tareas de hoy (prioridad)
-                      </p>
-                      <p className="text-slate-400 text-[13px] leading-relaxed">
-                        Lo primero que verás son las tareas del día. Son tu prioridad: complétalas primero. Se muestran ordenadas de menor a mayor tiempo estimado.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-4">
-                    <div className="bg-orange-500/10 p-2.5 rounded-xl border border-orange-500/20 mt-0.5">
-                      <Clock className="w-5 h-5 text-orange-500 shrink-0" />
-                    </div>
-                    <div>
-                      <p className="text-orange-500 text-[15px] font-bold leading-snug mb-1">
-                        2. Límite de horas
-                      </p>
-                      <p className="text-slate-400 text-[13px] leading-relaxed">
-                        En segundo lugar, revisa tu tiempo de estudio diario. No te pases del límite que definiste; si te pasas, la barra te avisará.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-start gap-4">
-                    <div className="bg-blue-500/10 p-2.5 rounded-xl border border-blue-500/20 mt-0.5">
-                      <CalendarClock className="w-5 h-5 text-blue-400 shrink-0" />
-                    </div>
-                    <div>
-                      <p className="text-blue-400 text-[15px] font-bold leading-snug mb-1">
-                        3. Vencidas y próximas
-                      </p>
-                      <p className="text-slate-400 text-[13px] leading-relaxed">
-                        Por último, usa las pestañas para ver lo atrasado (vencidas) y lo que viene (próximas), y así tener el panorama completo.
-                      </p>
-                    </div>
-                  </div>
+                <div>
+                  <p className="text-emerald-400 text-[15px] font-bold leading-snug mb-1">1. Tareas de hoy (prioridad)</p>
+                  <p className="text-slate-400 text-[13px] leading-relaxed">
+                    Lo primero que verás son las tareas del día. Son tu prioridad: complétalas primero. Se muestran ordenadas de menor a mayor tiempo estimado.
+                  </p>
                 </div>
-
-                <p className="text-slate-400 text-[13px] font-medium mt-2 mb-8 px-4">
-                  Puedes filtrar por nombre, curso y estado cuando lo necesites.
-                </p>
-
-                <Button
-                  onClick={() => setWelcomeStep(2)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-10 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all w-full sm:w-auto"
-                >
-                  Continuar
-                </Button>
-              </>
-            ) : (
-              <>
-                <div className="w-14 h-14 bg-blue-500/20 border border-blue-500/30 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-500/10">
-                  <Clock className="w-7 h-7 text-blue-400" />
+              </div>
+              <div className="flex items-start gap-4">
+                <div className="bg-orange-500/10 p-2.5 rounded-xl border border-orange-500/20 mt-0.5">
+                  <Clock className="w-5 h-5 text-orange-500 shrink-0" />
                 </div>
-
-                <h3 className="text-2xl font-extrabold text-white mb-4 tracking-tight">
-                  Límite de <span className="text-blue-400">estudio</span>
-                </h3>
-                <p className="text-slate-400 text-[15px] mb-8 px-4 leading-relaxed">
-                  ¿Cuántas horas quieres dedicar al estudio cada día? Te avisaremos si tus tareas superan este límite.
-                </p>
-
-                <div className="mb-10 w-full px-6">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-3">
-                    Horas diarias sugeridas
-                  </label>
-                  <div className="relative group">
-                    <Input
-                      type="number"
-                      step="0.5"
-                      min="0.5"
-                      max="24"
-                      value={welcomeLimit}
-                      onChange={(e) => setWelcomeLimit(e.target.value)}
-                      className="w-full h-16 text-center bg-slate-900/50 border-slate-700/50 focus-visible:ring-blue-500 text-white font-black text-3xl rounded-2xl transition-all group-hover:bg-slate-900"
-                    />
-                    <div className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-lg pointer-events-none">
-                      Horas
-                    </div>
-                  </div>
+                <div>
+                  <p className="text-orange-500 text-[15px] font-bold leading-snug mb-1">2. Límite de horas</p>
+                  <p className="text-slate-400 text-[13px] leading-relaxed">
+                    Revisa tu tiempo de estudio diario. No te pases del límite que definiste; si te pasas, la barra te avisará.
+                  </p>
                 </div>
-
-                <div className="flex flex-col sm:flex-row gap-3 w-full justify-center">
-                  <Button
-                    variant="outline"
-                    onClick={() => setWelcomeStep(1)}
-                    className="h-11 px-8 rounded-xl border-slate-700 text-slate-400 hover:bg-slate-800"
-                  >
-                    Atrás
-                  </Button>
-                  <Button
-                    onClick={async () => {
-                      let val = parseFloat(welcomeLimit);
-                      if (isNaN(val)) val = 6;
-                      if (val < 0.5) val = 0.5;
-                      if (val > 24) val = 24;
-
-                      setLimitHours(val);
-                      const normalized = val.toString();
-                      setTempLimit(normalized);
-                      window.localStorage.setItem("studyLimitHours", normalized);
-
-                      // Persistir también en el backend como configuración del usuario
-                      try {
-                        await updateConfig(val);
-                      } catch (error) {
-                        console.error("Error updating user config from welcome modal:", error);
-                      }
-
-                      window.localStorage.removeItem("welcomeInProgress");
-                      setShowWelcomeModal(false);
-                    }}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-10 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all"
-                  >
-                    Comenzar ahora
-                  </Button>
+              </div>
+              <div className="flex items-start gap-4">
+                <div className="bg-blue-500/10 p-2.5 rounded-xl border border-blue-500/20 mt-0.5">
+                  <CalendarClock className="w-5 h-5 text-blue-400 shrink-0" />
                 </div>
-              </>
-            )}
+                <div>
+                  <p className="text-blue-400 text-[15px] font-bold leading-snug mb-1">3. Vencidas y próximas</p>
+                  <p className="text-slate-400 text-[13px] leading-relaxed">
+                    Usa las pestañas para ver lo atrasado (vencidas) y lo que viene (próximas), y así tener el panorama completo.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <p className="text-slate-400 text-[13px] font-medium mb-8 px-4">
+              Puedes filtrar por nombre, curso y estado cuando lo necesites.
+            </p>
+            <Button
+              onClick={() => setShowTutorialModal(false)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-10 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all w-full sm:w-auto"
+            >
+              Continuar
+            </Button>
           </div>
         </div>
       )}
+
+        {/* Welcome Modal — límite diario para usuarios recién registrados */}
+        {showWelcomeModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="bg-[#111827] border border-slate-800 rounded-3xl p-8 flex flex-col items-center text-center shadow-2xl max-w-[520px] w-full mx-4 relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
+              <div className="w-14 h-14 bg-blue-500/20 border border-blue-500/30 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-500/10">
+                <Clock className="w-7 h-7 text-blue-400" />
+              </div>
+              <h3 className="text-2xl font-extrabold text-white mb-3 tracking-tight">
+                Bienvenido a <span className="text-blue-400">StudyFlow</span> 🎓
+              </h3>
+              <p className="text-slate-400 text-[15px] mb-8 px-4 leading-relaxed">
+                Tu asistente para organizar tareas, cumplir entregas a tiempo y estudiar sin agotarte. Para arrancar bien, dinos cuántas horas al día puedes dedicarle al estudio — así te avisamos si te estás sobrecargando.
+              </p>
+              <div className="mb-10 w-full px-6">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-3">
+                  Límite de horas diarias
+                </label>
+                <div className="relative group">
+                  <Input
+                    type="number"
+                    step="0.5"
+                    min="0.5"
+                    max="24"
+                    value={welcomeLimit}
+                    onChange={(e) => setWelcomeLimit(e.target.value)}
+                    className="w-full h-16 text-center bg-slate-900/50 border-slate-700/50 focus-visible:ring-blue-500 text-white font-black text-3xl rounded-2xl transition-all group-hover:bg-slate-900"
+                  />
+                  <div className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-lg pointer-events-none">
+                    Horas
+                  </div>
+                </div>
+              </div>
+              <Button
+                onClick={async () => {
+                  let val = parseFloat(welcomeLimit);
+                  if (isNaN(val)) val = 6;
+                  if (val < 0.5) val = 0.5;
+                  if (val > 24) val = 24;
+
+                  setLimitHours(val);
+                  setTempLimit(val.toString());
+                  window.localStorage.setItem("studyLimitHours", val.toString());
+
+                  try {
+                    await updateConfig(val);
+                  } catch (error) {
+                    console.error("Error updating user config from welcome modal:", error);
+                  }
+
+                  window.localStorage.setItem("showTodayTutorial", "true");
+                  window.localStorage.removeItem("welcomeInProgress");
+                  setShowWelcomeModal(false);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-10 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all w-full"
+              >
+                Comenzar ahora →
+              </Button>
+            </div>
+          </div>
+        )}
 
       {/* Modal de Ayuda */}
       {showHelpModal && (
@@ -1853,13 +1838,16 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
         </div>
       </div>
 
-      <div className="pt-3 border-t border-slate-700/20 flex flex-wrap items-center justify-between gap-3">
+
+        {!isDone && 
+        (<div className="pt-3 border-t border-slate-700/20 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           {isConflicted && onViewConflict && (
             <button
               type="button"
-              onClick={onViewConflict}
-              className="inline-flex items-center gap-2 text-xs font-semibold text-[#F59E0B]/90 hover:text-[#F59E0B] bg-[#F59E0B]/20 hover:bg-[#F59E0B]/30 px-3 py-2 rounded-lg border border-[#F59E0B]/40 transition-colors cursor-pointer"
+              onClick={!isDone ? onViewConflict : undefined}
+              disabled={isDone}
+              className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors cursor-pointer ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-[#F59E0B]/90 hover:text-[#F59E0B] bg-[#F59E0B]/20 hover:bg-[#F59E0B]/30 border-[#F59E0B]/40'}`}
             >
               <AlertCircle className="w-4 h-4" />
               Ver conflicto
@@ -1868,8 +1856,9 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
 
           <button
             type="button"
-            onClick={() => onTitleClick ? onTitleClick() : null}
-            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer"
+            onClick={!isDone ? () => onTitleClick?.() : undefined}
+            disabled={isDone}
+            className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 border-slate-700/50 cursor-pointer'}`}
           >
             <Eye className="w-4 h-4" />
             Ver detalle
@@ -1880,7 +1869,6 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
           {isPostponed ? (
             <Badge
               className="inline-flex items-center gap-2 text-xs font-semibold text-purple-200 bg-[#8B5CF6]/15 border border-[#8B5CF6]/30 px-3 py-2 rounded-lg transition-all active:scale-95 group"
-              title="Ver notas de posposición"
             >
               <Clock className="w-4 h-4 text-[#A78BFA] group-hover:animate-pulse" />
               Pospuesta
@@ -1889,8 +1877,9 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
             onPostpone && (
               <button
                 type="button"
-                onClick={onPostpone}
-                className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer"
+                onClick={!isDone ? onPostpone : undefined}
+                disabled={isDone}
+                className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 border-slate-700/50 cursor-pointer'}`}
               >
                 <Clock className="w-4 h-4" />
                 Posponer
@@ -1900,15 +1889,16 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
 
           <button
             type="button"
-            onClick={handleReprogram}
-            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-blue-600/15 hover:bg-blue-600/25 px-3 py-2 rounded-lg border border-blue-500/30 transition-colors cursor-pointer"
+            onClick={!isDone ? handleReprogram : undefined}
+            disabled={isDone}
+            className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-blue-600/15 hover:bg-blue-600/25 border-blue-500/30 cursor-pointer'}`}
           >
             <CalendarRange className="w-4 h-4" />
             Reprogramar
           </button>
         </div>
       </div>
+        )}
     </div>
   );
 }
-
