@@ -28,7 +28,8 @@ import {
   Info,
   ChevronRight,
   ArrowUpRight,
-  ExternalLink
+  ExternalLink,
+  Plus
 } from 'lucide-react';
 import { AlertCircle } from 'lucide-react';
 import { Check } from 'lucide-react';
@@ -47,6 +48,7 @@ import EditSubtaskModal from '@/shared/components/EditSubtaskModal';
 import PostponeSubtaskModal from '@/shared/components/PostponeSubtaskModal';
 import { SubtaskDetailModal } from '@/shared/components/SubtaskDetailModal';
 import { MessageModal } from "@/shared/components/MessageModal";
+import AddSubtaskDialog from "@/features/activityDetail/components/AddSubtaskDialog";
 import {
   Select,
   SelectContent,
@@ -243,6 +245,8 @@ export default function ProgressPage() {
   const [isStatsLoading, setIsStatsLoading] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showCircleHelp, setShowCircleHelp] = useState(false);
+  const [isAddSubtaskOpen, setIsAddSubtaskOpen] = useState(false);
+  const [activeActivityForSubtask, setActiveActivityForSubtask] = useState<Activity | null>(null);
 
   const hasActiveFilters =
     courseFilter !== "all" || statusFilter !== "all" || searchTerm !== "" || timeFilter !== "all";
@@ -1019,30 +1023,30 @@ export default function ProgressPage() {
                                     </Button>
                                   ) : null
                                 ) : (
-                                <Button
-                                  size="sm"
-                                  disabled={isProcessing}
-                                  className={cn(
-                                    "h-8 text-xs transition-all disabled:opacity-50",
-                                    st.status === STATUS.DONE
-                                      ? "bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white"
-                                      : "bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white"
-                                  )}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleCompleteTask(activity.id, st.id);
-                                  }}
-                                >
-                                  {isProcessing ? (
-                                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                                  ) : st.status === STATUS.DONE ? (
-                                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  ) : (
-                                    <Circle className="h-3 w-3 mr-1" />
-                                  )}
-                                  <span>{st.status === STATUS.DONE ? 'Completada' : 'Hecho'}</span>
-                                </Button>
-                              )}
+                                  <Button
+                                    size="sm"
+                                    disabled={isProcessing}
+                                    className={cn(
+                                      "h-8 text-xs transition-all disabled:opacity-50",
+                                      st.status === STATUS.DONE
+                                        ? "bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white"
+                                        : "bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white"
+                                    )}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCompleteTask(activity.id, st.id);
+                                    }}
+                                  >
+                                    {isProcessing ? (
+                                      <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                                    ) : st.status === STATUS.DONE ? (
+                                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                                    ) : (
+                                      <Circle className="h-3 w-3 mr-1" />
+                                    )}
+                                    <span>{st.status === STATUS.DONE ? 'Completada' : 'Hecho'}</span>
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1059,8 +1063,24 @@ export default function ProgressPage() {
                   )}
 
                   {isOpen && total === 0 && (
-                    <div className="text-sm text-slate-400 text-center py-4">
-                      Aún no hay subtareas. ¡Crea algunas tareas para comenzar!
+                    <div className="flex flex-col items-center justify-center py-10 px-6 border-2 border-dashed border-slate-800 rounded-2xl bg-slate-900/20 group/empty">
+                      <div className="w-12 h-12 rounded-full bg-slate-800/50 flex items-center justify-center mb-4 group-hover/empty:scale-110 transition-all duration-300">
+                        <Plus className="h-6 w-6 text-slate-500 group-hover/empty:text-blue-400" />
+                      </div>
+                      <p className="text-sm text-slate-400 text-center mb-6 max-w-[250px] leading-relaxed">
+                        Esta actividad aún no tiene tareas planificadas.
+                      </p>
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveActivityForSubtask(activity);
+                          setIsAddSubtaskOpen(true);
+                        }}
+                        className="bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/30 hover:border-blue-500 font-bold transition-all px-6"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Añadir primera subtarea
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -1082,7 +1102,7 @@ export default function ProgressPage() {
                 className="text-slate-500 hover:text-blue-400 transition-colors p-1"
                 title="¿Cómo se calcula este progreso?"
               >
-                <HelpCircle className="w-4 h-4" />
+                <HelpCircle className="w-8 h-8" />
               </button>
             </div>
             <div className="flex items-center justify-center mb-6">
@@ -1585,6 +1605,18 @@ export default function ProgressPage() {
             </Button>
           </div>
         </div>
+      )}
+
+      {activeActivityForSubtask && (
+        <AddSubtaskDialog
+          open={isAddSubtaskOpen}
+          onOpenChange={setIsAddSubtaskOpen}
+          activityId={activeActivityForSubtask.id.toString()}
+          deadlineDate={activeActivityForSubtask.deadline ?? undefined}
+          onSubtaskCreated={() => {
+            refresh();
+          }}
+        />
       )}
     </div>
   );
