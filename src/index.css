@@ -48,6 +48,19 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    /* Reducción global del 30% en las dimensiones (Zoom 70%) */
+    zoom: 0.70;
+    /* Escalar el texto un 10% adicional (aumentar tamaño base) */
+    font-size: 110%;
+  }
+
+  /* Fallback para Firefox (que no soporta la propiedad zoom) */
+  @-moz-document url-prefix() {
+    html {
+      /* En Firefox, combinamos la reducción de dimensiones con el aumento de texto */
+      /* 70% * 110% = 77% aprox */
+      font-size: 77%;
+    }
   }
 
   * {
@@ -128,17 +141,20 @@
 
   /* Estilos para select - evitar que se vea gris al seleccionar */
   select {
-    color: rgb(226 232 240) !important; /* text-slate-200 */
+    color: rgb(226 232 240) !important;
+    /* text-slate-200 */
   }
 
   select option {
     background-color: #1F2937 !important;
-    color: rgb(226 232 240) !important; /* text-slate-200 */
+    color: rgb(226 232 240) !important;
+    /* text-slate-200 */
   }
 
   select option:checked {
     background-color: #1F2937 !important;
-    color: rgb(226 232 240) !important; /* text-slate-200 */
+    color: rgb(226 232 240) !important;
+    /* text-slate-200 */
   }
 
   select option:hover {
@@ -154,21 +170,29 @@
 
 /* Scrollbar gris reutilizable (una sola barra) */
 .scrollbar-gray {
-  scrollbar-width: thin; /* Firefox */
-  scrollbar-color: rgba(148, 163, 184, 0.55) transparent; /* thumb / track */
+  scrollbar-width: thin;
+  /* Firefox */
+  scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
+  /* thumb / track */
 }
+
 .scrollbar-gray::-webkit-scrollbar {
   width: 8px;
 }
+
 .scrollbar-gray::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .scrollbar-gray::-webkit-scrollbar-thumb {
-  background-color: rgba(148, 163, 184, 0.45); /* slate-400 */
+  background-color: rgba(148, 163, 184, 0.45);
+  /* slate-400 */
   border-radius: 9999px;
-  border: 2px solid transparent; /* para que se vea como una barra fina */
+  border: 2px solid transparent;
+  /* para que se vea como una barra fina */
   background-clip: content-box;
 }
+
 .scrollbar-gray::-webkit-scrollbar-thumb:hover {
   background-color: rgba(148, 163, 184, 0.65);
 }

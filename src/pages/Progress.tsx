@@ -766,7 +766,7 @@ export default function ProgressPage() {
             <SelectTrigger className="bg-transparent border-none p-0 h-auto gap-1 text-slate-200 focus:ring-0">
               <SelectValue placeholder="Periodo" />
             </SelectTrigger>
-            <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl">
+            <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl [&_[role=option]]:rounded-lg [&_[role=option]]:cursor-pointer [&_[role=option]]:transition-colors [&_[role=option][data-highlighted]]:bg-blue-600/20 [&_[role=option][data-highlighted]]:text-blue-400 [&_[role=option][data-state=checked]]:text-blue-400">
               <SelectItem value="all">Todo el tiempo</SelectItem>
               <SelectItem value="today">Hoy</SelectItem>
               <SelectItem value="week">Esta semana</SelectItem>
@@ -883,12 +883,18 @@ export default function ProgressPage() {
                         <CourseIcon className={cn("h-6 w-6", courseColorClasses[courseColor]?.split(' ')[1] || 'text-cyan-500')} />
                       </div>
                       <div>
-                        <Link
-                          to={`/actividad/${activity.id}`}
-                          className="text-xl font-semibold text-white hover:text-blue-400 transition-colors"
-                        >
-                          {activity.title}
-                        </Link>
+                        <div className="flex items-center gap-3">
+                          <Link
+                            to={`/actividad/${activity.id}`}
+                            className="text-xl font-bold text-white hover:text-blue-400 transition-all flex items-center gap-2 group/link"
+                          >
+                            {activity.title}
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 text-[10px] font-black uppercase tracking-wider opacity-0 group-hover/link:opacity-100 transition-all transform translate-x-[-10px] group-hover/link:translate-x-0">
+                              <span>Ver detalles</span>
+                              <ExternalLink className="h-3 w-3" />
+                            </div>
+                          </Link>
+                        </div>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="outline" className="text-[10px] font-bold bg-slate-800/50 text-slate-400 border-slate-700 uppercase tracking-tighter">
                             {courseName}
@@ -948,13 +954,14 @@ export default function ProgressPage() {
                         return (
                           <div
                             key={st.id}
+                            onClick={() => setDetailTask({ ...st, activity })}
                             className={cn(
-                              "group p-4 rounded-xl border transition-all duration-200 bg-[#1F2937]/30",
+                              "group p-4 rounded-xl border transition-all duration-200 bg-[#1F2937]/30 cursor-pointer",
                               isConflicted
                                 ? "border-amber-400 animate-pulse shadow-[0_0_15px_rgba(251,191,36,0.3)] bg-amber-400/5"
                                 : isPostponed
                                   ? "border-[#8B5CF6]/30 bg-[#8B5CF6]/20"
-                                  : "border-slate-700/50 hover:border-blue-500/30 bg-slate-800/20",
+                                  : "border-slate-700/50 hover:border-blue-500/50 hover:bg-slate-800/40 bg-slate-800/20",
                               isProcessing && "opacity-50 pointer-events-none"
                             )}
                           >
@@ -965,10 +972,9 @@ export default function ProgressPage() {
                                 </Badge>
 
                                 <span className={cn(
-                                  "text-sm font-medium transition-colors cursor-pointer hover:text-blue-400 transition-colors",
+                                  "text-sm font-bold transition-colors",
                                   st.status === STATUS.DONE ? "text-slate-500 line-through" : "text-slate-200 group-hover:text-blue-400"
-                                )}
-                                  onClick={() => setDetailTask({ ...st, activity })}>
+                                )}>
                                   {st.name || st.title || ""}
                                 </span>
                                 {st.estimated_hours && (
@@ -986,7 +992,10 @@ export default function ProgressPage() {
                                     size="sm"
                                     variant="outline"
                                     className="h-8 text-[11px] font-semibold bg-amber-400/20 text-amber-400 hover:text-amber-300 border-amber-400/40 hover:bg-amber-400/30"
-                                    onClick={() => openConflictModal(st, activity)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openConflictModal(st, activity);
+                                    }}
                                   >
                                     <AlertCircle className="h-3 w-3 mr-1" />
                                     Solucionar
@@ -1010,28 +1019,6 @@ export default function ProgressPage() {
                                     </Button>
                                   ) : null
                                 ) : (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={isProcessing}
-                                    className="h-8 text-xs bg-transparent hover:bg-slate-600/30 border-slate-700 text-slate-300 disabled:opacity-50"
-                                    onClick={() => openPostponeModal(st, activity.id)}
-                                  >
-                                    Posponer
-                                  </Button>
-                                )}
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={isProcessing}
-                                  className="h-8 w-8 p-0 text-slate-400 hover:text-blue-400 border-slate-700"
-                                  onClick={() => {
-                                    setEditingTask({ ...st, title: st.name || st.title, activity });
-                                    setIsEditModalOpen(true);
-                                  }}
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
                                 <Button
                                   size="sm"
                                   disabled={isProcessing}
@@ -1041,7 +1028,10 @@ export default function ProgressPage() {
                                       ? "bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white"
                                       : "bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white"
                                   )}
-                                  onClick={() => handleCompleteTask(activity.id, st.id)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCompleteTask(activity.id, st.id);
+                                  }}
                                 >
                                   {isProcessing ? (
                                     <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
@@ -1052,6 +1042,7 @@ export default function ProgressPage() {
                                   )}
                                   <span>{st.status === STATUS.DONE ? 'Completada' : 'Hecho'}</span>
                                 </Button>
+                              )}
                               </div>
                             </div>
                           </div>
@@ -1084,7 +1075,7 @@ export default function ProgressPage() {
           <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-white">
-                Progreso de {timeFilter === "today" ? "hoy" : timeFilter === "week" ? "esta semana" : "este mes"}
+                Progreso {timeFilter === "all" ? "de todo el tiempo" : `de ${timeFilter === "today" ? "hoy" : timeFilter === "week" ? "esta semana" : "este mes"}`}
               </h3>
               <button
                 onClick={() => setShowCircleHelp(true)}

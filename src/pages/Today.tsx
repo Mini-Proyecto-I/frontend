@@ -746,8 +746,8 @@ export default function Today() {
                     ))}
                     {filteredVencidas.length === 0 && (
                       <div className="flex flex-col items-center justify-center py-12 px-4 text-center mt-4">
-                        <CheckCircle2 className="w-14 h-14 text-slate-600/50 mb-4" strokeWidth={1.5} />
-                        <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[200px]">
+                        <CheckCircle2 className="w-20 h-20 text-slate-600/50 mb-6" strokeWidth={1.5} />
+                        <p className="text-slate-400 text-lg font-medium leading-relaxed max-w-[300px]">
                           {search || filters.course || (filters.status && filters.status !== 'PENDING')
                             ? "No hay tareas atrasadas que coincidan con los filtros aplicados."
                             : "No tienes tareas atrasadas. ¡Buen trabajo!"}
@@ -786,8 +786,8 @@ export default function Today() {
                     ))}
                     {filteredParaHoy.length === 0 && (
                       <div className="flex flex-col items-center justify-center py-12 px-4 text-center mt-4">
-                        <CheckCircle2 className="w-16 h-16 text-slate-600/50 mb-4" strokeWidth={1.5} />
-                        <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[260px] mb-6 shadow-sm">
+                        <CheckCircle2 className="w-20 h-20 text-slate-600/50 mb-6" strokeWidth={1.5} />
+                        <p className="text-slate-400 text-lg font-medium leading-relaxed max-w-[300px] mb-8">
                           {filters.status === 'DONE'
                             ? "No tienes tareas completadas para hoy. Revisa en Pendientes"
                             : search || filters.course || (filters.status && filters.status !== 'PENDING')
@@ -797,7 +797,7 @@ export default function Today() {
                         {!(search || filters.course || (filters.status && filters.status !== 'PENDING')) && (
                           <Button
                             onClick={() => navigate('/crear')}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl px-5 py-2.5 transition-colors shadow-lg shadow-blue-600/20"
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl px-7 py-3 text-lg transition-colors shadow-lg shadow-blue-600/20"
                           >
                             + Nueva actividad
                           </Button>
@@ -836,8 +836,8 @@ export default function Today() {
                     ))}
                     {filteredProximas.length === 0 && (
                       <div className="flex flex-col items-center justify-center py-12 px-4 text-center mt-4">
-                        <Calendar className="w-14 h-14 text-slate-600/50 mb-4" strokeWidth={1.5} />
-                        <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[200px]">
+                        <Calendar className="w-20 h-20 text-slate-600/50 mb-6" strokeWidth={1.5} />
+                        <p className="text-slate-400 text-lg font-medium leading-relaxed max-w-[300px]">
                           {search || filters.course || (filters.status && filters.status !== 'PENDING')
                             ? "No hay tareas próximas que coincidan con los filtros aplicados."
                             : "No hay tareas próximas. Todo está al día."}
@@ -1295,10 +1295,10 @@ export default function Today() {
       {/* Botón flotante de ayuda */}
       <button
         onClick={() => setShowHelpModal(true)}
-        className="fixed bottom-6 left-6 z-40 w-12 h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 flex items-center justify-center"
+        className="fixed bottom-6 left-6 z-40 w-16 h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 flex items-center justify-center"
         aria-label="Mostrar ayuda"
       >
-        <HelpCircle className="w-6 h-6" />
+        <HelpCircle className="w-8 h-8" />
       </button>
 
       <ResolveConflictModal
@@ -1568,6 +1568,31 @@ export default function Today() {
           setEditingTask(st);
           setIsEditModalOpen(true);
         }}
+        onReprogram={(st: any) => {
+          const targetDate = st.target_date;
+          const estimatedHours = parseFloat(String(st.estimated_hours || 0)) || 0;
+          navigate("/calendario", {
+            state: {
+              focusDate: targetDate,
+              reprogramSubtask: {
+                id: st.id,
+                activityId: st.activity?.id,
+                title: st.title,
+                deadline: st.activity?.deadline,
+                dateKey: targetDate,
+                durationNum: estimatedHours,
+              },
+            },
+          });
+        }}
+        onPostpone={(st: any) => {
+          setPostponingTask(st);
+          setIsPostponeModalOpen(true);
+        }}
+        onDelete={(st: any) => {
+          setDeletingTask(st);
+          setIsDeleteModalOpen(true);
+        }}
       />
 
       {/* History Task Modal */}
@@ -1690,7 +1715,7 @@ function ScrollableTaskSection({ children }: { children: React.ReactNode }) {
             maxHeight: '740px',
           }}
         >
-          <div ref={contentRef} className="flex flex-col gap-4 pt-4 min-h-full">
+          <div ref={contentRef} className="flex flex-col gap-4 pt-4 px-2 pb-6 min-h-full">
             {hasChildren ? children : null}
           </div>
         </div>
@@ -1780,8 +1805,9 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
 
   return (
     <div
+      onClick={() => onTitleClick?.()}
       className={`relative flex flex-col gap-4 border ${isConflicted ? 'border-[#F59E0B] animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.5)]' : colors.border
-        } ${colors.bg} rounded-3xl p-4 w-full transition-all duration-300 ${colors.hover} shadow-lg ${isDone ? 'opacity-50 grayscale' : ''
+        } ${colors.bg} rounded-3xl p-5 w-full transition-all duration-300 ${colors.hover} shadow-lg ${isDone ? 'opacity-50 grayscale' : 'hover:-translate-y-1 hover:shadow-xl cursor-pointer active:scale-[0.99]'
         }`}
     >
       {badge && (
@@ -1798,8 +1824,11 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
       {/* History Button - Top Right */}
       <button
         type="button"
-        onClick={() => onShowHistory?.(item.id, title)}
-        className="absolute top-4 right-4 p-2 rounded-xl text-slate-500 hover:text-blue-400 bg-slate-800/20 hover:bg-blue-500/10 transition-all group cursor-pointer border border-transparent hover:border-blue-500/20"
+        onClick={(e) => {
+          e.stopPropagation();
+          onShowHistory?.(item.id, title);
+        }}
+        className="absolute top-4 right-4 p-2 rounded-xl text-slate-500 hover:text-blue-400 bg-slate-800/20 hover:bg-blue-500/10 transition-all group cursor-pointer z-10 border border-transparent hover:border-blue-500/20"
         title="Ver historial de la tarea"
       >
         <History className="w-5 h-5 group-hover:rotate-12 transition-transform" />
@@ -1807,8 +1836,11 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
 
       <div className="flex items-start gap-8">
         <button
-          onClick={onToggle}
-          className={`flex-shrink-0 mt-1 w-7 h-7 border-2 rounded-lg cursor-pointer ${colors.checkbox} flex items-center justify-center transition-colors shadow-inner`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle();
+          }}
+          className={`flex-shrink-0 mt-2 w-7 h-7 border-2 rounded-lg cursor-pointer ${colors.checkbox} flex items-center justify-center transition-colors shadow-inner z-10`}
           aria-label={isDone ? "Marcar como pendiente" : "Marcar como completada"}
         >
           {isDone && (
@@ -1827,16 +1859,21 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
         </button>
 
         <div className="flex-1 min-w-0">
-          <p className={`font-black text-[10px] tracking-[0.15em] uppercase truncate ${colors.text} flex items-center gap-2`}>
-            <span className="opacity-60">{courseName}</span>
-            <span className="opacity-30">•</span>
-            <Link to={`/actividad/${item.activity.id}`} className="hover:underline transition-all hover:opacity-100">
+          <div className="mb-2 flex items-center gap-2">
+            <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-slate-800/50 text-slate-400 border border-slate-700/50`}>
+              {courseName}
+            </span>
+            <Link 
+              to={`/actividad/${item.activity.id}`} 
+              onClick={(e) => e.stopPropagation()}
+              className={`text-sm font-black uppercase tracking-tight hover:underline transition-all ${colors.text} z-10`}
+            >
               {item.activity?.title || "Actividad"}
             </Link>
-          </p>
+          </div>
+          
           <h4
-            onClick={onTitleClick}
-            className={`mt-1 w-fit text-lg font-bold ${isDone ? 'text-slate-400 line-through' : 'text-slate-100'} leading-tight tracking-tight pr-2 ${onTitleClick ? 'cursor-pointer hover:text-blue-400 transition-colors' : ''}`}
+            className={`w-fit text-xl font-bold ${isDone ? 'text-slate-400 line-through opacity-70' : 'text-slate-100'} leading-tight tracking-tight pr-2 transition-colors`}
           >
             {title}
           </h4>
@@ -1858,22 +1895,16 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
           {isConflicted && onViewConflict && (
             <button
               type="button"
-              onClick={onViewConflict}
-              className="inline-flex items-center gap-2 text-xs font-semibold text-[#F59E0B]/90 hover:text-[#F59E0B] bg-[#F59E0B]/20 hover:bg-[#F59E0B]/30 px-3 py-2 rounded-lg border border-[#F59E0B]/40 transition-colors cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewConflict();
+              }}
+              className="inline-flex items-center gap-2 text-xs font-semibold text-[#F59E0B]/90 hover:text-[#F59E0B] bg-[#F59E0B]/20 hover:bg-[#F59E0B]/30 px-3 py-2 rounded-lg border border-[#F59E0B]/40 transition-colors cursor-pointer z-10"
             >
               <AlertCircle className="w-4 h-4" />
               Ver conflicto
             </button>
           )}
-
-          <button
-            type="button"
-            onClick={() => onTitleClick ? onTitleClick() : null}
-            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer"
-          >
-            <Eye className="w-4 h-4" />
-            Ver detalle
-          </button>
         </div>
 
         <div className="flex items-center gap-3 ml-auto">
@@ -1889,8 +1920,11 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
             onPostpone && (
               <button
                 type="button"
-                onClick={onPostpone}
-                className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPostpone();
+                }}
+                className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 px-3 py-2 rounded-lg border border-slate-700/50 transition-colors cursor-pointer z-10"
               >
                 <Clock className="w-4 h-4" />
                 Posponer
@@ -1900,8 +1934,11 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
 
           <button
             type="button"
-            onClick={handleReprogram}
-            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-blue-600/15 hover:bg-blue-600/25 px-3 py-2 rounded-lg border border-blue-500/30 transition-colors cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleReprogram();
+            }}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-200 hover:text-white bg-blue-600/15 hover:bg-blue-600/25 px-3 py-2 rounded-lg border border-blue-500/30 transition-colors cursor-pointer z-10"
           >
             <CalendarRange className="w-4 h-4" />
             Reprogramar

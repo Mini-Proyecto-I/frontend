@@ -464,7 +464,7 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
   return (
     <>
       <ToastComponent />
-      <div className="bg-[#f8fafc] dark:bg-[#0A0F1C] text-slate-800 dark:text-slate-200 font-display min-h-screen overflow-y-auto">
+      <div className="bg-[#0A0F1C] text-slate-200 font-display min-h-screen overflow-y-auto">
         <div className="p-6 md:p-10 lg:p-12">
           <div className="max-w-[1000px] mx-auto flex flex-col space-y-8">
             <ActivityDetailHeader
