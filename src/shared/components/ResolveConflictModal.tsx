@@ -3,6 +3,7 @@ import { AlertCircle, X, ChevronDown, Clock } from "lucide-react";
 import { Input } from "@/shared/components/input";
 import { Button } from "@/shared/components/button";
 import InfoTooltip from "@/features/create/components/InfoTooltip";
+import { useEffect, useRef } from "react";
 
 export interface ResolveConflictModalProps {
   isOpen: boolean;
@@ -55,9 +56,23 @@ export function ResolveConflictModal({
 }: ResolveConflictModalProps) {
   if (!isOpen || !selectedConflict) return null;
 
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+  if (isOpen && modalRef.current) {
+    modalRef.current.focus();
+  }
+}, [isOpen]);
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-      <div className="w-full max-w-[560px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
+      <div 
+      ref={modalRef}
+      tabIndex={-1}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Resolución de conflicto"
+      className="w-full max-w-[560px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
         <div className="p-6 sm:p-7 relative">
           <button
             type="button"

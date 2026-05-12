@@ -132,7 +132,16 @@
       filter: invert(48%) sepia(98%) saturate(2476%) hue-rotate(207deg) brightness(100%) contrast(93%);
     }
   }
-
+  /* Accesibilidad - foco visible con teclado */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 3px solid #2563EB;
+    outline-offset: 2px;
+  }
+  
   /* Estilos adicionales para inputs de fecha con valor (fondo blanco) */
   input[type="date"]:not([value=""])::-webkit-calendar-picker-indicator {
     /* Cuando tiene valor y fondo blanco, usar azul más oscuro */
