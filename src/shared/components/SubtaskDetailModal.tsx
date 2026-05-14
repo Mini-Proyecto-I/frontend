@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { parseISO, isSameDay } from "date-fns";
-import { Calendar, Clock, History, Pencil, AlertCircle } from "lucide-react";
+import { Calendar, Clock, History, Pencil, AlertCircle, CalendarRange, Trash2, ExternalLink } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -9,8 +10,10 @@ import {
   DialogTitle,
 } from "@/shared/components/dialog";
 import { Badge } from "@/shared/components/badge";
+import { Button } from "@/shared/components/button";
 import { cn } from "@/shared/utils/utils";
 import { TaskHistoryModal } from "./TaskHistoryModal";
+import { Separator } from "@/shared/components/separator";
 
 export interface SubtaskDetailModalProps {
   open: boolean;
@@ -18,6 +21,9 @@ export interface SubtaskDetailModalProps {
   subtask: any;
   getFormattedDate?: (date: string) => string;
   onEdit?: (subtask: any) => void;
+  onReprogram?: (subtask: any) => void;
+  onPostpone?: (subtask: any) => void;
+  onDelete?: (subtask: any) => void;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -33,7 +39,11 @@ export function SubtaskDetailModal({
   subtask,
   getFormattedDate = (d) => d,
   onEdit,
+  onReprogram,
+  onPostpone,
+  onDelete,
 }: SubtaskDetailModalProps) {
+  const navigate = useNavigate();
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historySubtaskId, setHistorySubtaskId] = useState<string | null>(null);
   const [historyTaskTitle, setHistoryTaskTitle] = useState("");
@@ -138,35 +148,105 @@ export function SubtaskDetailModal({
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => handleShowHistory(subtask.id, subtask.title || subtask.name)}
-              className="p-2 px-4 rounded-xl text-slate-400 hover:text-blue-400 bg-slate-800/20 hover:bg-blue-500/10 transition-all group cursor-pointer border border-slate-800/60 hover:border-blue-500/20 shadow-sm"
-              title="Ver historial de la tarea"
-            >
-              <div className="flex items-center gap-2">
-                <History className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-                <span className="text-sm font-semibold">Ver historial</span>
-              </div>
-            </button>
+          <Separator className="bg-slate-800/60" />
 
-            {onEdit && (
-              <button
-                type="button"
+          {/* Activity Info */}
+          <div className="bg-blue-500/5 border border-blue-500/10 rounded-2xl p-4 group hover:border-blue-500/30 transition-all cursor-pointer"
+            onClick={() => {
+              if (subtask.activity?.id) {
+                onOpenChange(false);
+                navigate(`/actividad/${subtask.activity.id}`);
+              }
+            }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] block mb-1">
+                  Actividad principal
+                </label>
+                <p className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors">
+                  {subtask.activity?.title || "Actividad"}
+                </p>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  {subtask.activity?.course?.name || "Sin curso asignado"}
+                </p>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-all">
+                <ExternalLink className="w-4 h-4 text-blue-400" />
+              </div>
+            </div>
+          </div>
+
+          <Separator className="bg-slate-800/60" />
+
+          {/* Centralized Actions */}
+          <div>
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-4">
+              Acciones de tarea
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => {
                   onOpenChange(false);
-                  onEdit(subtask);
+                  onEdit?.(subtask);
                 }}
-                className="p-2 px-4 rounded-xl text-slate-400 hover:text-emerald-400 bg-slate-800/20 hover:bg-emerald-500/10 transition-all group cursor-pointer border border-slate-800/60 hover:border-emerald-500/20 shadow-sm"
-                title="Editar tarea"
+                className="h-11 rounded-xl border-slate-800 bg-slate-800/20 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/30 transition-all flex items-center justify-center gap-2 group"
               >
-                <div className="flex items-center gap-2">
-                  <Pencil className="w-4 h-4 group-hover:-rotate-12 transition-transform" />
-                  <span className="text-sm font-semibold">Editar</span>
-                </div>
-              </button>
-            )}
+                <Pencil className="w-4 h-4 group-hover:-rotate-12 transition-transform" />
+                <span className="font-bold">Editar</span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onOpenChange(false);
+                  onReprogram?.(subtask);
+                }}
+                className="h-11 rounded-xl border-slate-800 bg-slate-800/20 hover:bg-blue-500/10 hover:text-blue-400 hover:border-blue-500/30 transition-all flex items-center justify-center gap-2 group"
+              >
+                <CalendarRange className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                <span className="font-bold">Reprogramar</span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onOpenChange(false);
+                  onPostpone?.(subtask);
+                }}
+                className="h-11 rounded-xl border-slate-800 bg-slate-800/20 hover:bg-purple-500/10 hover:text-purple-400 hover:border-purple-500/30 transition-all flex items-center justify-center gap-2 group"
+                disabled={subtask.status === "DONE"}
+              >
+                <Clock className="w-4 h-4 group-hover:animate-pulse transition-transform" />
+                <span className="font-bold">Posponer</span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onOpenChange(false);
+                  onDelete?.(subtask);
+                }}
+                className="h-11 rounded-xl border-slate-800 bg-slate-800/20 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-all flex items-center justify-center gap-2 group"
+              >
+                <Trash2 className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                <span className="font-bold">Eliminar</span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleShowHistory(subtask.id, subtask.title || subtask.name)}
+                className="h-11 rounded-xl border-slate-800 bg-slate-800/20 hover:bg-blue-500/10 hover:text-blue-400 hover:border-blue-500/30 transition-all flex items-center justify-center gap-2 col-span-2 group"
+              >
+                <History className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                <span className="font-bold">Ver historial completo</span>
+              </Button>
+            </div>
           </div>
 
           <TaskHistoryModal

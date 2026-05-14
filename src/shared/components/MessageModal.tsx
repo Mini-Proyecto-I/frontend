@@ -1,5 +1,6 @@
 import { CheckCircle2, XCircle, AlertCircle, X } from "lucide-react";
 import { Button } from "@/shared/components/button";
+import { useEffect, useRef } from "react";
 
 interface MessageModalProps {
   open: boolean;
@@ -43,9 +44,23 @@ export const MessageModal = ({
     },
   }[type];
 
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+  if (open && modalRef.current) {
+    modalRef.current.focus();
+  }
+}, [open]);
+
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-      <div className="w-full max-w-[480px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div
+       ref={modalRef}
+       tabIndex={-1}
+       role="dialog"
+       aria-modal="true"
+       aria-label="FeedBack"
+       className="w-full max-w-[480px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="p-6 sm:p-8 relative">
           {/* Close button */}
           <button

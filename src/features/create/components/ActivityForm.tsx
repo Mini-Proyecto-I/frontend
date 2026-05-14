@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useNavigate, useBlocker } from "react-router-dom";
 import { AlertTriangle, Calendar, CheckCircle2, ClipboardList, Save } from "lucide-react";
 import InfoTooltip from "@/features/create/components/InfoTooltip";
 import { getCourses, createCourse } from "@/api/services/course";
-import { createActivity, getActivities, patchActivity } from "@/api/services/activity";
+import { createActivity, getActivities, patchActivity, deleteActivity } from "@/api/services/activity";
 import { createSubtask, putSubtaskWithConflictTolerance } from "@/api/services/subtask";
 import {
     Dialog,
@@ -74,6 +74,13 @@ const ActivityForm = () => {
     // Estados para controlar los pasos del formulario
     const [currentStep, setCurrentStep] = useState<1 | 2>(1); // 1: actividad, 2: subtareas
     const [createdActivityId, setCreatedActivityId] = useState<number | null>(null);
+    const [isFinished, setIsFinished] = useState(false);
+
+    /** Siempre valores actuales para cleanup al desmontar (evita closure obsoleta al cambiar isFinished). */
+    const createdActivityIdRef = useRef<number | null>(null);
+    const isFinishedRef = useRef(false);
+    createdActivityIdRef.current = createdActivityId;
+    isFinishedRef.current = isFinished;
 
     // Estados para cursos
     const [courses, setCourses] = useState<Course[]>([]);
@@ -82,6 +89,7 @@ const ActivityForm = () => {
     const [newCourseName, setNewCourseName] = useState("");
     const [creatingCourse, setCreatingCourse] = useState(false);
     const [courseError, setCourseError] = useState<string>("");
+    const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
     const [showSuccessModal, setShowSuccessModal] = useState(false);
 
@@ -104,6 +112,14 @@ const ActivityForm = () => {
     // ──────────── CONFLICTOS INTELIGENTES ────────────
     // Datos del backend para detección de conflictos client-side
     const { vencidas, para_hoy, proximas, loading: loadingHoy, refetch: refetchHoy } = useHoy({ days_ahead: 60 });
+
+    /** Al montar /crear: si no había ninguna subtarea en el plan, la próxima actividad completada es la "primera". */
+    const studyWasEmptyOnMountRef = useRef<boolean | null>(null);
+    useEffect(() => {
+        if (loadingHoy || studyWasEmptyOnMountRef.current !== null) return;
+        const n = vencidas.length + para_hoy.length + proximas.length;
+        studyWasEmptyOnMountRef.current = n === 0;
+    }, [loadingHoy, vencidas, para_hoy, proximas]);
 
     // Límite diario de estudio
     const [studyLimitHours, setStudyLimitHours] = useState(() => {
@@ -172,6 +188,63 @@ const ActivityForm = () => {
     useEffect(() => {
         loadCourses();
     }, []);
+
+    // ──────────── LIMPIEZA DE ACTIVIDAD ABANDONADA ────────────
+    // Solo al desmontar de verdad /crear: si quedó actividad sin flujo terminado, la borramos.
+    // Importante: no depender de [isFinished] aquí — al pasar a isFinished=true el cleanup anterior
+    // ejecutaba con isFinished aún false y borraba la actividad recién guardada con subtareas.
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            const id = createdActivityIdRef.current;
+            const finished = isFinishedRef.current;
+            if (id != null && !finished) {
+                const token = window.localStorage.getItem("accessToken");
+                let base = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+                base = String(base).replace(/\/$/, "");
+                if (!base.endsWith("/api")) base = `${base}/api`;
+                const url = `${base}/activity/${id}/`;
+                fetch(url, {
+                    method: "DELETE",
+                    keepalive: true,
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                }).catch(() => {});
+                e.preventDefault();
+                e.returnValue = "";
+            }
+        };
+
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        return () => {
+            window.removeEventListener("beforeunload", handleBeforeUnload);
+            const id = createdActivityIdRef.current;
+            const finished = isFinishedRef.current;
+            if (id != null && !finished) {
+                deleteActivity(id).catch((err) => console.error("Error al borrar actividad abandonada:", err));
+            }
+        };
+    }, []);
+
+    // ──────────── BLOQUEO DE NAVEGACIÓN INTERNA ────────────
+    // Bloqueamos la navegación si se creó la actividad pero no hay subtareas
+    const blocker = useBlocker(
+        ({ currentLocation, nextLocation }) =>
+            createdActivityId !== null && 
+            !isFinished && 
+            subtareas.length === 0 && 
+            currentLocation.pathname !== nextLocation.pathname &&
+            !showCancelConfirm // Permitimos la navegación si el usuario está en el flujo de confirmación de cancelación
+    );
+
+    // Si la navegación está bloqueada, mostramos un aviso
+    useEffect(() => {
+        if (blocker.state === "blocked") {
+            setModalType("error");
+            setModalTitle("Acción restringida");
+            setModalMessage("No puedes salir de esta vista hasta que crees al menos una subtarea para la actividad.");
+            setModalOpen(true);
+            blocker.reset(); // Reseteamos para que el usuario pueda intentarlo de nuevo tras añadir la subtarea
+        }
+    }, [blocker]);
 
     const loadCourses = async () => {
         try {
@@ -614,6 +687,8 @@ const ActivityForm = () => {
 
         const navigateToCreateSuccess = () => {
             if (!createdActivityId) return;
+            isFinishedRef.current = true;
+            setIsFinished(true); // Marcamos como finalizado para evitar el borrado en el cleanup
             setModalType("success");
             setModalTitle("¡Actividad creada exitosamente!");
             setModalMessage(`Ya hemos preparado <strong class="text-white">"${titulo}"</strong> en tu calendario y subtareas.`);
@@ -762,9 +837,12 @@ const ActivityForm = () => {
             return;
         }
 
-        // Si no hay subtareas, ir directamente a la página de éxito
+        // Restringir: Debe haber al menos una subtarea
         if (subtareas.length === 0) {
-            navigateToCreateSuccess();
+            setModalType("error");
+            setModalTitle("Se requiere al menos una subtarea");
+            setModalMessage("Para organizar tu actividad, es necesario que crees al menos una subtarea antes de finalizar.");
+            setModalOpen(true);
             return;
         }
 
@@ -822,7 +900,12 @@ const ActivityForm = () => {
                 title={modalTitle}
                 message={modalMessage}
                 onConfirm={modalType === "success" && modalTitle.includes("exitosamente")
-        ? () => navigate("/hoy")
+        ? () =>
+              navigate("/hoy", {
+                  state: {
+                      firstActivity: studyWasEmptyOnMountRef.current === true,
+                  },
+              })
         : undefined
     }
             />
@@ -918,6 +1001,53 @@ const ActivityForm = () => {
                             Solucionar ahora
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+                <DialogContent className="sm:max-w-[480px] bg-[#111827] border-slate-800/60 rounded-3xl p-0 overflow-hidden shadow-2xl">
+                    <div className="p-6 sm:p-8">
+                        <div className="flex flex-col items-center text-center gap-4">
+                            <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shadow-inner mb-2">
+                                <AlertTriangle className="w-8 h-8 text-red-500" />
+                            </div>
+                            <DialogTitle className="text-2xl font-extrabold text-white tracking-tight">
+                                ¿Cancelar creación?
+                            </DialogTitle>
+                            <DialogDescription className="text-slate-400 text-base leading-relaxed">
+                                Si cancelas ahora, la actividad <span className="font-bold text-white">"{titulo || "Nueva actividad"}"</span> será eliminada y perderás el progreso. ¿Estás seguro?
+                            </DialogDescription>
+                        </div>
+
+                        <div className="mt-8 flex gap-3">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setShowCancelConfirm(false)}
+                                className="h-12 flex-1 rounded-xl border-slate-700 bg-slate-800/50 hover:bg-slate-700/60 text-slate-200 font-bold"
+                            >
+                                No, continuar
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={async () => {
+                                    if (createdActivityId) {
+                                        try {
+                                            await deleteActivity(createdActivityId);
+                                        } catch (err) {
+                                            console.error("Error al borrar actividad al cancelar:", err);
+                                        }
+                                    }
+                                    isFinishedRef.current = true;
+                                    setIsFinished(true); // Evitamos que el cleanup al desmontar intente borrar de nuevo
+                                    setShowCancelConfirm(false);
+                                    navigate("/hoy");
+                                }}
+                                className="h-12 flex-1 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold shadow-lg shadow-red-600/20"
+                            >
+                                Sí, cancelar
+                            </Button>
+                        </div>
+                    </div>
                 </DialogContent>
             </Dialog>
             {(isSavingActivity || isSavingSubtasks) && (
@@ -1357,11 +1487,16 @@ const ActivityForm = () => {
                     <div className="flex items-center justify-end gap-3 pb-8 mt-6">
                         <button
                             type="button"
-                            onClick={() => {
+                            onClick={async () => {
                                 if (currentStep === 2) {
                                     setCurrentStep(1);
                                 } else {
-                                    navigate("/hoy");
+                                    // Si hay una actividad creada, pedimos confirmación antes de borrar y salir
+                                    if (createdActivityId && !isFinished) {
+                                        setShowCancelConfirm(true);
+                                    } else {
+                                        navigate("/hoy");
+                                    }
                                 }
                             }}
                             className="px-6 py-2.5 rounded-xl bg-[#1F2937]/50 border border-slate-700/50 text-slate-400 text-sm font-bold hover:bg-slate-800/50 hover:text-slate-300 transition-colors"

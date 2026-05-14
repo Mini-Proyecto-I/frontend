@@ -13,6 +13,8 @@ type AuthContextValue = {
   isAuthenticated: boolean;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  /** Guarda access/refresh en localStorage y actualiza el estado (p. ej. tras registro con tokens). */
+  applyTokens: (access: string, refresh: string) => void;
   logout: () => void;
 };
 
@@ -78,12 +80,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const handleLogin = async (email: string, password: string) => {
     const data = await apiLogin(email, password);
     const { access, refresh } = data;
+    applyTokensInternal(access, refresh);
+  };
 
+  const applyTokensInternal = (access: string, refresh: string) => {
     window.localStorage.setItem(ACCESS_TOKEN_KEY, access);
     window.localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
-
     setAccessToken(access);
-
     const payload = decodeJwtPayload(access);
     if (payload?.email && payload?.name) {
       setUser({ email: payload.email, name: payload.name });
@@ -107,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!accessToken,
     loading,
     login: handleLogin,
+    applyTokens: applyTokensInternal,
     logout: handleLogout,
   };
 

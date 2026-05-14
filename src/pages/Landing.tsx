@@ -178,6 +178,7 @@ export default function Landing() {
                                 </div>
                                 <p className="text-sm text-slate-400">Crea tu cuenta con nosotros</p>
                                 <Button
+                                    tabIndex={0}
                                     onClick={() => navigate('/registro')}
                                     className="w-full bg-white hover:bg-slate-100 text-[#0F172A] font-bold h-12 rounded-xl border-none"
                                 >

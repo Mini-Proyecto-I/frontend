@@ -5,6 +5,8 @@ type CreateSuccessState = {
   activityId?: string;
   title?: string;
   courseId?: string | null;
+  /** true si al crear esta actividad el usuario no tenía ninguna tarea en el plan */
+  isFirstActivity?: boolean;
 };
 
 export default function CreateSuccess() {
@@ -43,7 +45,11 @@ export default function CreateSuccess() {
           )}
           <button
             type="button"
-            onClick={() => navigate("/hoy", { state: { firstActivity: true } })}
+            onClick={() =>
+              navigate("/hoy", {
+                state: { firstActivity: state.isFirstActivity === true },
+              })
+            }
             className="px-6 py-3 rounded-xl bg-blue-600 text-white text-sm font-bold shadow-lg shadow-blue-600/20 hover:bg-blue-700 hover:shadow-xl transition-all w-full sm:w-auto"
           >
             Ir a mi panel de Hoy

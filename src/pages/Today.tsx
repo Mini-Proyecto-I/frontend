@@ -181,17 +181,17 @@ export default function Today() {
     }
   };
 
-    // Modal de bienvenida (límite diario) — solo usuarios recién registrados
+  // Modal de bienvenida (límite diario) — solo usuarios recién registrados
   useEffect(() => {
-      const isFirstTime = window.localStorage.getItem("welcomeInProgress") === "true";
-      if (location.state?.justRegistered || isFirstTime) {
-          setWelcomeStep(2);
-          setShowWelcomeModal(true);
-          window.localStorage.setItem("welcomeInProgress", "true");
-          if (location.state?.justRegistered) {
-              navigate("/hoy", { replace: true, state: {} });
-          }
+    const isFirstTime = window.localStorage.getItem("welcomeInProgress") === "true";
+    if (location.state?.justRegistered || isFirstTime) {
+      setWelcomeStep(2);
+      setShowWelcomeModal(true);
+      window.localStorage.setItem("welcomeInProgress", "true");
+      if (location.state?.justRegistered) {
+        navigate("/hoy", { replace: true, state: {} });
       }
+    }
   }, [location.state, navigate]);
 
   // Sincronizar el límite diario con la configuración del backend al montar
@@ -243,14 +243,13 @@ export default function Today() {
     refetchTiempo
   } = useHoy(filters);
 
-    // Modal tutorial — solo al llegar desde la primera actividad creada
+  // Modal tutorial — solo al volver de crear la primera actividad (state explícito, no localStorage)
   useEffect(() => {
-      const shouldShow = window.localStorage.getItem("showTodayTutorial") === "true";
-      if (shouldShow && !loading) {
-          window.localStorage.removeItem("showTodayTutorial");
-          setShowTutorialModal(true);
-      }
-  }, [loading]);
+    const show = (location.state as { firstActivity?: boolean } | null)?.firstActivity === true;
+    if (!show) return;
+    setShowTutorialModal(true);
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state, location.pathname, navigate]);
 
   // Cargar límite desde el backend al montar el componente
   useEffect(() => {
@@ -654,8 +653,9 @@ export default function Today() {
         </p>
 
         <button
+          type="button"
           onClick={() => navigate('/crear')}
-          className="group relative flex items-center gap-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl px-10 py-5 text-lg transition-all hover:-translate-y-1 shadow-[0_0_40px_-10px_rgba(37,99,235,0.4)] hover:shadow-[0_0_60px_-15px_rgba(37,99,235,0.6)]"
+          className="cursor-pointer group relative flex items-center gap-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl px-10 py-5 text-lg transition-all hover:-translate-y-1 shadow-[0_0_40px_-10px_rgba(37,99,235,0.4)] hover:shadow-[0_0_60px_-15px_rgba(37,99,235,0.6)]"
         >
           <span className="text-2xl font-light leading-none mb-0.5">+</span>
           Crear mi primera actividad
@@ -755,8 +755,8 @@ export default function Today() {
                     ))}
                     {filteredVencidas.length === 0 && (
                       <div className="flex flex-col items-center justify-center py-12 px-4 text-center mt-4">
-                        <CheckCircle2 className="w-14 h-14 text-slate-600/50 mb-4" strokeWidth={1.5} />
-                        <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[200px]">
+                        <CheckCircle2 className="w-20 h-20 text-slate-600/50 mb-6" strokeWidth={1.5} />
+                        <p className="text-slate-400 text-lg font-medium leading-relaxed max-w-[300px]">
                           {search || filters.course || (filters.status && filters.status !== 'PENDING')
                             ? "No hay tareas atrasadas que coincidan con los filtros aplicados."
                             : "No tienes tareas atrasadas. ¡Buen trabajo!"}
@@ -795,8 +795,8 @@ export default function Today() {
                     ))}
                     {filteredParaHoy.length === 0 && (
                       <div className="flex flex-col items-center justify-center py-12 px-4 text-center mt-4">
-                        <CheckCircle2 className="w-16 h-16 text-slate-600/50 mb-4" strokeWidth={1.5} />
-                        <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[260px] mb-6 shadow-sm">
+                        <CheckCircle2 className="w-20 h-20 text-slate-600/50 mb-6" strokeWidth={1.5} />
+                        <p className="text-slate-400 text-lg font-medium leading-relaxed max-w-[300px] mb-8">
                           {filters.status === 'DONE'
                             ? "No tienes tareas completadas para hoy. Revisa en Pendientes"
                             : search || filters.course || (filters.status && filters.status !== 'PENDING')
@@ -806,7 +806,7 @@ export default function Today() {
                         {!(search || filters.course || (filters.status && filters.status !== 'PENDING')) && (
                           <Button
                             onClick={() => navigate('/crear')}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl px-5 py-2.5 transition-colors shadow-lg shadow-blue-600/20"
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl px-7 py-3 text-lg transition-colors shadow-lg shadow-blue-600/20"
                           >
                             + Nueva actividad
                           </Button>
@@ -845,8 +845,8 @@ export default function Today() {
                     ))}
                     {filteredProximas.length === 0 && (
                       <div className="flex flex-col items-center justify-center py-12 px-4 text-center mt-4">
-                        <Calendar className="w-14 h-14 text-slate-600/50 mb-4" strokeWidth={1.5} />
-                        <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[200px]">
+                        <Calendar className="w-20 h-20 text-slate-600/50 mb-6" strokeWidth={1.5} />
+                        <p className="text-slate-400 text-lg font-medium leading-relaxed max-w-[300px]">
                           {search || filters.course || (filters.status && filters.status !== 'PENDING')
                             ? "No hay tareas próximas que coincidan con los filtros aplicados."
                             : "No hay tareas próximas. Todo está al día."}
@@ -1157,67 +1157,66 @@ export default function Today() {
         </div>
       )}
 
-        {/* Welcome Modal — límite diario para usuarios recién registrados */}
-        {showWelcomeModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div className="bg-[#111827] border border-slate-800 rounded-3xl p-8 flex flex-col items-center text-center shadow-2xl max-w-[520px] w-full mx-4 relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
-              <div className="w-14 h-14 bg-blue-500/20 border border-blue-500/30 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-500/10">
-                <Clock className="w-7 h-7 text-blue-400" />
-              </div>
-              <h3 className="text-2xl font-extrabold text-white mb-3 tracking-tight">
-                Bienvenido a <span className="text-blue-400">StudyFlow</span> 🎓
-              </h3>
-              <p className="text-slate-400 text-[15px] mb-8 px-4 leading-relaxed">
-                Tu asistente para organizar tareas, cumplir entregas a tiempo y estudiar sin agotarte. Para arrancar bien, dinos cuántas horas al día puedes dedicarle al estudio — así te avisamos si te estás sobrecargando.
-              </p>
-              <div className="mb-10 w-full px-6">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-3">
-                  Límite de horas diarias
-                </label>
-                <div className="relative group">
-                  <Input
-                    type="number"
-                    step="0.5"
-                    min="0.5"
-                    max="24"
-                    value={welcomeLimit}
-                    onChange={(e) => setWelcomeLimit(e.target.value)}
-                    className="w-full h-16 text-center bg-slate-900/50 border-slate-700/50 focus-visible:ring-blue-500 text-white font-black text-3xl rounded-2xl transition-all group-hover:bg-slate-900"
-                  />
-                  <div className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-lg pointer-events-none">
-                    Horas
-                  </div>
+      {/* Welcome Modal — límite diario para usuarios recién registrados */}
+      {showWelcomeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#111827] border border-slate-800 rounded-3xl p-8 flex flex-col items-center text-center shadow-2xl max-w-[520px] w-full mx-4 relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
+            <div className="w-14 h-14 bg-blue-500/20 border border-blue-500/30 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-500/10">
+              <Clock className="w-7 h-7 text-blue-400" />
+            </div>
+            <h3 className="text-2xl font-extrabold text-white mb-3 tracking-tight">
+              Bienvenido a <span className="text-blue-400">StudyFlow</span> 🎓
+            </h3>
+            <p className="text-slate-400 text-[15px] mb-8 px-4 leading-relaxed">
+              Tu asistente para organizar tareas, cumplir entregas a tiempo y estudiar sin agotarte. Para arrancar bien, dinos cuántas horas al día puedes dedicarle al estudio — así te avisamos si te estás sobrecargando.
+            </p>
+            <div className="mb-10 w-full px-6">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-3">
+                Límite de horas diarias
+              </label>
+              <div className="relative group">
+                <Input
+                  type="number"
+                  step="0.5"
+                  min="0.5"
+                  max="24"
+                  value={welcomeLimit}
+                  onChange={(e) => setWelcomeLimit(e.target.value)}
+                  className="w-full h-16 text-center bg-slate-900/50 border-slate-700/50 focus-visible:ring-blue-500 text-white font-black text-3xl rounded-2xl transition-all group-hover:bg-slate-900"
+                />
+                <div className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-lg pointer-events-none">
+                  Horas
                 </div>
               </div>
-              <Button
-                onClick={async () => {
-                  let val = parseFloat(welcomeLimit);
-                  if (isNaN(val)) val = 6;
-                  if (val < 0.5) val = 0.5;
-                  if (val > 24) val = 24;
-
-                  setLimitHours(val);
-                  setTempLimit(val.toString());
-                  window.localStorage.setItem("studyLimitHours", val.toString());
-
-                  try {
-                    await updateConfig(val);
-                  } catch (error) {
-                    console.error("Error updating user config from welcome modal:", error);
-                  }
-
-                  window.localStorage.setItem("showTodayTutorial", "true");
-                  window.localStorage.removeItem("welcomeInProgress");
-                  setShowWelcomeModal(false);
-                }}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-10 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all w-full"
-              >
-                Comenzar ahora →
-              </Button>
             </div>
+            <Button
+              onClick={async () => {
+                let val = parseFloat(welcomeLimit);
+                if (isNaN(val)) val = 6;
+                if (val < 0.5) val = 0.5;
+                if (val > 24) val = 24;
+
+                setLimitHours(val);
+                setTempLimit(val.toString());
+                window.localStorage.setItem("studyLimitHours", val.toString());
+
+                try {
+                  await updateConfig(val);
+                } catch (error) {
+                  console.error("Error updating user config from welcome modal:", error);
+                }
+
+                window.localStorage.removeItem("welcomeInProgress");
+                setShowWelcomeModal(false);
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-10 h-11 rounded-xl font-bold shadow-lg shadow-blue-600/20 text-sm transition-all w-full"
+            >
+              Comenzar ahora →
+            </Button>
           </div>
-        )}
+        </div>
+      )}
 
       {/* Modal de Ayuda */}
       {showHelpModal && (
@@ -1280,10 +1279,10 @@ export default function Today() {
       {/* Botón flotante de ayuda */}
       <button
         onClick={() => setShowHelpModal(true)}
-        className="fixed bottom-6 left-6 z-40 w-12 h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 flex items-center justify-center"
+        className="fixed bottom-6 left-6 z-40 w-16 h-16 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 flex items-center justify-center"
         aria-label="Mostrar ayuda"
       >
-        <HelpCircle className="w-6 h-6" />
+        <HelpCircle className="w-8 h-8" />
       </button>
 
       <ResolveConflictModal
@@ -1553,6 +1552,31 @@ export default function Today() {
           setEditingTask(st);
           setIsEditModalOpen(true);
         }}
+        onReprogram={(st: any) => {
+          const targetDate = st.target_date;
+          const estimatedHours = parseFloat(String(st.estimated_hours || 0)) || 0;
+          navigate("/calendario", {
+            state: {
+              focusDate: targetDate,
+              reprogramSubtask: {
+                id: st.id,
+                activityId: st.activity?.id,
+                title: st.title,
+                deadline: st.activity?.deadline,
+                dateKey: targetDate,
+                durationNum: estimatedHours,
+              },
+            },
+          });
+        }}
+        onPostpone={(st: any) => {
+          setPostponingTask(st);
+          setIsPostponeModalOpen(true);
+        }}
+        onDelete={(st: any) => {
+          setDeletingTask(st);
+          setIsDeleteModalOpen(true);
+        }}
       />
 
       {/* History Task Modal */}
@@ -1675,7 +1699,7 @@ function ScrollableTaskSection({ children }: { children: React.ReactNode }) {
             maxHeight: '740px',
           }}
         >
-          <div ref={contentRef} className="flex flex-col gap-4 pt-4 min-h-full">
+          <div ref={contentRef} className="flex flex-col gap-4 pt-4 px-2 pb-6 min-h-full">
             {hasChildren ? children : null}
           </div>
         </div>
@@ -1765,8 +1789,9 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
 
   return (
     <div
+      onClick={() => onTitleClick?.()}
       className={`relative flex flex-col gap-4 border ${isConflicted ? 'border-[#F59E0B] animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.5)]' : colors.border
-        } ${colors.bg} rounded-3xl p-4 w-full transition-all duration-300 ${colors.hover} shadow-lg ${isDone ? 'opacity-50 grayscale' : ''
+        } ${colors.bg} rounded-3xl p-5 w-full transition-all duration-300 ${colors.hover} shadow-lg ${isDone ? 'opacity-50 grayscale' : 'hover:-translate-y-1 hover:shadow-xl cursor-pointer active:scale-[0.99]'
         }`}
     >
       {badge && (
@@ -1783,8 +1808,11 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
       {/* History Button - Top Right */}
       <button
         type="button"
-        onClick={() => onShowHistory?.(item.id, title)}
-        className="absolute top-4 right-4 p-2 rounded-xl text-slate-500 hover:text-blue-400 bg-slate-800/20 hover:bg-blue-500/10 transition-all group cursor-pointer border border-transparent hover:border-blue-500/20"
+        onClick={(e) => {
+          e.stopPropagation();
+          onShowHistory?.(item.id, title);
+        }}
+        className="absolute top-4 right-4 p-2 rounded-xl text-slate-500 hover:text-blue-400 bg-slate-800/20 hover:bg-blue-500/10 transition-all group cursor-pointer z-10 border border-transparent hover:border-blue-500/20"
         title="Ver historial de la tarea"
       >
         <History className="w-5 h-5 group-hover:rotate-12 transition-transform" />
@@ -1792,8 +1820,11 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
 
       <div className="flex items-start gap-8">
         <button
-          onClick={onToggle}
-          className={`flex-shrink-0 mt-1 w-7 h-7 border-2 rounded-lg cursor-pointer ${colors.checkbox} flex items-center justify-center transition-colors shadow-inner`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle();
+          }}
+          className={`flex-shrink-0 mt-2 w-7 h-7 border-2 rounded-lg cursor-pointer ${colors.checkbox} flex items-center justify-center transition-colors shadow-inner z-10`}
           aria-label={isDone ? "Marcar como pendiente" : "Marcar como completada"}
         >
           {isDone && (
@@ -1812,16 +1843,21 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
         </button>
 
         <div className="flex-1 min-w-0">
-          <p className={`font-black text-[10px] tracking-[0.15em] uppercase truncate ${colors.text} flex items-center gap-2`}>
-            <span className="opacity-60">{courseName}</span>
-            <span className="opacity-30">•</span>
-            <Link to={`/actividad/${item.activity.id}`} className="hover:underline transition-all hover:opacity-100">
+          <div className="mb-2 flex items-center gap-2">
+            <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-slate-800/50 text-slate-400 border border-slate-700/50`}>
+              {courseName}
+            </span>
+            <Link
+              to={`/actividad/${item.activity.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className={`text-sm font-black uppercase tracking-tight hover:underline transition-all ${colors.text} z-10`}
+            >
               {item.activity?.title || "Actividad"}
             </Link>
-          </p>
+          </div>
+
           <h4
-            onClick={onTitleClick}
-            className={`mt-1 w-fit text-lg font-bold ${isDone ? 'text-slate-400 line-through' : 'text-slate-100'} leading-tight tracking-tight pr-2 ${onTitleClick ? 'cursor-pointer hover:text-blue-400 transition-colors' : ''}`}
+            className={`w-fit text-xl font-bold ${isDone ? 'text-slate-400 line-through opacity-70' : 'text-slate-100'} leading-tight tracking-tight pr-2 transition-colors`}
           >
             {title}
           </h4>
@@ -1839,65 +1875,65 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
       </div>
 
 
-        {!isDone && 
+      {!isDone &&
         (<div className="pt-3 border-t border-slate-700/20 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          {isConflicted && onViewConflict && (
-            <button
-              type="button"
-              onClick={!isDone ? onViewConflict : undefined}
-              disabled={isDone}
-              className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors cursor-pointer ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-[#F59E0B]/90 hover:text-[#F59E0B] bg-[#F59E0B]/20 hover:bg-[#F59E0B]/30 border-[#F59E0B]/40'}`}
-            >
-              <AlertCircle className="w-4 h-4" />
-              Ver conflicto
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={!isDone ? () => onTitleClick?.() : undefined}
-            disabled={isDone}
-            className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 border-slate-700/50 cursor-pointer'}`}
-          >
-            <Eye className="w-4 h-4" />
-            Ver detalle
-          </button>
-        </div>
-
-        <div className="flex items-center gap-3 ml-auto">
-          {isPostponed ? (
-            <Badge
-              className="inline-flex items-center gap-2 text-xs font-semibold text-purple-200 bg-[#8B5CF6]/15 border border-[#8B5CF6]/30 px-3 py-2 rounded-lg transition-all active:scale-95 group"
-            >
-              <Clock className="w-4 h-4 text-[#A78BFA] group-hover:animate-pulse" />
-              Pospuesta
-            </Badge>
-          ) : (
-            onPostpone && (
+          <div className="flex items-center gap-3">
+            {isConflicted && onViewConflict && (
               <button
                 type="button"
-                onClick={!isDone ? onPostpone : undefined}
+                onClick={!isDone ? onViewConflict : undefined}
                 disabled={isDone}
-                className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 border-slate-700/50 cursor-pointer'}`}
+                className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors cursor-pointer ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-[#F59E0B]/90 hover:text-[#F59E0B] bg-[#F59E0B]/20 hover:bg-[#F59E0B]/30 border-[#F59E0B]/40'}`}
               >
-                <Clock className="w-4 h-4" />
-                Posponer
+                <AlertCircle className="w-4 h-4" />
+                Ver conflicto
               </button>
-            )
-          )}
+            )}
 
-          <button
-            type="button"
-            onClick={!isDone ? handleReprogram : undefined}
-            disabled={isDone}
-            className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-blue-600/15 hover:bg-blue-600/25 border-blue-500/30 cursor-pointer'}`}
-          >
-            <CalendarRange className="w-4 h-4" />
-            Reprogramar
-          </button>
+            <button
+              type="button"
+              onClick={!isDone ? () => onTitleClick?.() : undefined}
+              disabled={isDone}
+              className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 border-slate-700/50 cursor-pointer'}`}
+            >
+              <Eye className="w-4 h-4" />
+              Ver detalle
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3 ml-auto">
+            {isPostponed ? (
+              <Badge
+                className="inline-flex items-center gap-2 text-xs font-semibold text-purple-200 bg-[#8B5CF6]/15 border border-[#8B5CF6]/30 px-3 py-2 rounded-lg transition-all active:scale-95 group"
+              >
+                <Clock className="w-4 h-4 text-[#A78BFA] group-hover:animate-pulse" />
+                Pospuesta
+              </Badge>
+            ) : (
+              onPostpone && (
+                <button
+                  type="button"
+                  onClick={!isDone ? onPostpone : undefined}
+                  disabled={isDone}
+                  className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 border-slate-700/50 cursor-pointer'}`}
+                >
+                  <Clock className="w-4 h-4" />
+                  Posponer
+                </button>
+              )
+            )}
+
+            <button
+              type="button"
+              onClick={!isDone ? handleReprogram : undefined}
+              disabled={isDone}
+              className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-blue-600/15 hover:bg-blue-600/25 border-blue-500/30 cursor-pointer'}`}
+            >
+              <CalendarRange className="w-4 h-4" />
+              Reprogramar
+            </button>
+          </div>
         </div>
-      </div>
         )}
     </div>
   );

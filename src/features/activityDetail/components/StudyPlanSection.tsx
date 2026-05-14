@@ -115,13 +115,24 @@ export default function StudyPlanSection({
         </div>
       </div>
 
+      <button
+        type="button"
+        onClick={() => setShowAddDialog(true)}
+        className="cursor-pointer w-full py-6 rounded-2xl border-2 border-dashed border-slate-800 hover:border-blue-500 bg-[#111827]/40 hover:bg-blue-500/5 text-slate-400 hover:text-blue-400 transition-all flex flex-col items-center justify-center gap-3 font-black uppercase tracking-widest text-xs group"
+      >
+        <div className="p-3 rounded-xl bg-slate-800 group-hover:bg-blue-500/20 transition-colors">
+          <Plus className="size-6" />
+        </div>
+        <span>Añadir nueva subtarea al plan</span>
+      </button>
+
       {filteredSubtasks.length === 0 ? (
-        <div className="text-center py-12 px-4">
-          <p className="text-slate-600 dark:text-slate-400 mb-2">
+        <div className="text-center py-12 px-4 bg-[#111827]/20 rounded-3xl border border-slate-800/50">
+          <p className="text-slate-500 mb-2">
             No hay subtareas registradas para esta actividad.
           </p>
-          <p className="text-sm text-slate-500 dark:text-slate-500">
-            Puedes crear una oprimiendo el botón <span className="font-semibold text-blue-500 dark:text-blue-400">"Añadir Subtarea"</span> que se encuentra más abajo.
+          <p className="text-xs font-bold text-slate-600 uppercase tracking-widest">
+            Comienza añadiendo una arriba
           </p>
         </div>
       ) : (
@@ -148,15 +159,6 @@ export default function StudyPlanSection({
           />
         ))
       )}
-
-      <button
-        type="button"
-        onClick={() => setShowAddDialog(true)}
-        className="cursor-pointer w-full py-3.5 rounded-xl border-2 border-dashed border-slate-700 hover:border-blue-500 bg-transparent hover:bg-slate-800/30 text-slate-300 hover:text-blue-400 transition-all flex items-center justify-center gap-2.5 font-semibold"
-      >
-        <Plus className="size-5" />
-        <span>Añadir otra subtarea</span>
-      </button>
 
       <AddSubtaskDialog
         open={showAddDialog}

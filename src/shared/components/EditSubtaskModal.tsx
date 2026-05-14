@@ -49,9 +49,23 @@ export default function EditSubtaskModal({
 
   if (!open) return null;
 
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+  if (open && modalRef.current) {
+    modalRef.current.focus();
+  }
+}, [open]);
+
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-      <div className="w-full max-w-[560px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
+      <div
+       ref={modalRef}
+       tabIndex={-1}
+       role="dialog"
+       aria-modal="true"
+       aria-label="Editar Subtarea"
+       className="w-full max-w-[560px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
         <div className="p-6 sm:p-7 relative">
           <button
             type="button"

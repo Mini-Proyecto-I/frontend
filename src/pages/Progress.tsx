@@ -28,7 +28,8 @@ import {
   Info,
   ChevronRight,
   ArrowUpRight,
-  ExternalLink
+  ExternalLink,
+  Plus
 } from 'lucide-react';
 import { AlertCircle } from 'lucide-react';
 import { Check } from 'lucide-react';
@@ -47,6 +48,7 @@ import EditSubtaskModal from '@/shared/components/EditSubtaskModal';
 import PostponeSubtaskModal from '@/shared/components/PostponeSubtaskModal';
 import { SubtaskDetailModal } from '@/shared/components/SubtaskDetailModal';
 import { MessageModal } from "@/shared/components/MessageModal";
+import AddSubtaskDialog from "@/features/activityDetail/components/AddSubtaskDialog";
 import {
   Select,
   SelectContent,
@@ -243,6 +245,8 @@ export default function ProgressPage() {
   const [isStatsLoading, setIsStatsLoading] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showCircleHelp, setShowCircleHelp] = useState(false);
+  const [isAddSubtaskOpen, setIsAddSubtaskOpen] = useState(false);
+  const [activeActivityForSubtask, setActiveActivityForSubtask] = useState<Activity | null>(null);
 
   const hasActiveFilters =
     courseFilter !== "all" || statusFilter !== "all" || searchTerm !== "" || timeFilter !== "all";
@@ -684,12 +688,14 @@ export default function ProgressPage() {
         <p className="text-lg md:text-xl text-slate-400 max-w-2xl mb-12 leading-relaxed font-medium px-4">
           Aún no tienes actividades registradas. Este es el momento perfecto para organizar tu progreso académico.
         </p>
-        <Button asChild className="bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl px-10 py-5 text-lg transition-all hover:-translate-y-1 shadow-[0_0_40px_-10px_rgba(37,99,235,0.4)] hover:shadow-[0_0_60px_-15px_rgba(37,99,235,0.6)]">
-          <Link to="/crear">
-            <span className="text-2xl font-light leading-none mb-0.5 mr-2">+</span>
-            Crear mi primera actividad
-          </Link>
-        </Button>
+        <button
+          type="button"
+          onClick={() => navigate("/crear")}
+          className="cursor-pointer group relative flex items-center gap-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl px-10 py-5 text-lg transition-all hover:-translate-y-1 shadow-[0_0_40px_-10px_rgba(37,99,235,0.4)] hover:shadow-[0_0_60px_-15px_rgba(37,99,235,0.6)]"
+        >
+          <span className="text-2xl font-light leading-none mb-0.5">+</span>
+          Crear mi primera actividad
+        </button>
       </div>
     );
   }
@@ -766,7 +772,7 @@ export default function ProgressPage() {
             <SelectTrigger className="bg-transparent border-none p-0 h-auto gap-1 text-slate-200 focus:ring-0">
               <SelectValue placeholder="Periodo" />
             </SelectTrigger>
-            <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl">
+            <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl [&_[role=option]]:rounded-lg [&_[role=option]]:cursor-pointer [&_[role=option]]:transition-colors [&_[role=option][data-highlighted]]:bg-blue-600/20 [&_[role=option][data-highlighted]]:text-blue-400 [&_[role=option][data-state=checked]]:text-blue-400">
               <SelectItem value="all">Todo el tiempo</SelectItem>
               <SelectItem value="today">Hoy</SelectItem>
               <SelectItem value="week">Esta semana</SelectItem>
@@ -795,31 +801,7 @@ export default function ProgressPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Activities */}
         <div className="lg:col-span-2 space-y-6">
-          {isFirstTime ? (
-            <div className="flex flex-col items-center justify-center py-20 w-full px-4 text-center animate-in fade-in zoom-in-[0.98] duration-700">
-              <div className="relative mb-14">
-                <div className="absolute inset-0 bg-blue-500/20 blur-[70px] rounded-full transform scale-150"></div>
-                <div className="relative w-48 h-48 bg-[#111827] border border-slate-800/80 rounded-[3rem] shadow-2xl shadow-black/40 flex items-center justify-center rotate-3 transform hover:rotate-6 transition-all duration-500 z-10">
-                  <BarChart3 className="w-24 h-24 text-blue-500 drop-shadow-2xl" strokeWidth={1.5} />
-                  <div className="absolute -bottom-6 -right-6 w-20 h-20 bg-blue-600 rounded-[1.2rem] shadow-xl shadow-blue-600/30 flex items-center justify-center -rotate-12 transform hover:rotate-0 hover:scale-110 transition-all duration-300 border-[6px] border-[#111827]">
-                    <Check className="w-10 h-10 text-white" strokeWidth={3} />
-                  </div>
-                </div>
-              </div>
-              <h2 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-slate-500 mb-6 tracking-tight drop-shadow-sm">
-                Un lienzo en blanco
-              </h2>
-              <p className="text-lg md:text-xl text-slate-400 max-w-2xl mb-12 leading-relaxed font-medium px-4">
-                Aún no tienes actividades registradas. Este es el momento perfecto para organizar tu progreso académico.
-              </p>
-              <Button asChild className="bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl px-10 py-5 text-lg transition-all hover:-translate-y-1 shadow-[0_0_40px_-10px_rgba(37,99,235,0.4)] hover:shadow-[0_0_60px_-15px_rgba(37,99,235,0.6)]">
-                <Link to="/crear">
-                  <span className="text-2xl font-light leading-none mb-0.5 mr-2">+</span>
-                  Crear mi primera actividad
-                </Link>
-              </Button>
-            </div>
-          ) : isEmptyFiltered ? (
+          {isEmptyFiltered ? (
             <div className="bg-[#111827] border border-slate-800/60 rounded-3xl shadow-xl shadow-black/20 flex flex-col items-center justify-center py-20 text-center px-8">
               <div className="w-14 h-14 rounded-2xl bg-slate-800/60 border border-slate-700/50 flex items-center justify-center mb-5">
                 <Search className="h-6 w-6 text-slate-500" />
@@ -883,12 +865,18 @@ export default function ProgressPage() {
                         <CourseIcon className={cn("h-6 w-6", courseColorClasses[courseColor]?.split(' ')[1] || 'text-cyan-500')} />
                       </div>
                       <div>
-                        <Link
-                          to={`/actividad/${activity.id}`}
-                          className="text-xl font-semibold text-white hover:text-blue-400 transition-colors"
-                        >
-                          {activity.title}
-                        </Link>
+                        <div className="flex items-center gap-3">
+                          <Link
+                            to={`/actividad/${activity.id}`}
+                            className="text-xl font-bold text-white hover:text-blue-400 transition-all flex items-center gap-2 group/link"
+                          >
+                            {activity.title}
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 text-[10px] font-black uppercase tracking-wider opacity-0 group-hover/link:opacity-100 transition-all transform translate-x-[-10px] group-hover/link:translate-x-0">
+                              <span>Ver detalles</span>
+                              <ExternalLink className="h-3 w-3" />
+                            </div>
+                          </Link>
+                        </div>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="outline" className="text-[10px] font-bold bg-slate-800/50 text-slate-400 border-slate-700 uppercase tracking-tighter">
                             {courseName}
@@ -948,13 +936,14 @@ export default function ProgressPage() {
                         return (
                           <div
                             key={st.id}
+                            onClick={() => setDetailTask({ ...st, activity })}
                             className={cn(
-                              "group p-4 rounded-xl border transition-all duration-200 bg-[#1F2937]/30",
+                              "group p-4 rounded-xl border transition-all duration-200 bg-[#1F2937]/30 cursor-pointer",
                               isConflicted
                                 ? "border-amber-400 animate-pulse shadow-[0_0_15px_rgba(251,191,36,0.3)] bg-amber-400/5"
                                 : isPostponed
                                   ? "border-[#8B5CF6]/30 bg-[#8B5CF6]/20"
-                                  : "border-slate-700/50 hover:border-blue-500/30 bg-slate-800/20",
+                                  : "border-slate-700/50 hover:border-blue-500/50 hover:bg-slate-800/40 bg-slate-800/20",
                               isProcessing && "opacity-50 pointer-events-none"
                             )}
                           >
@@ -965,10 +954,9 @@ export default function ProgressPage() {
                                 </Badge>
 
                                 <span className={cn(
-                                  "text-sm font-medium transition-colors cursor-pointer hover:text-blue-400 transition-colors",
+                                  "text-sm font-bold transition-colors",
                                   st.status === STATUS.DONE ? "text-slate-500 line-through" : "text-slate-200 group-hover:text-blue-400"
-                                )}
-                                  onClick={() => setDetailTask({ ...st, activity })}>
+                                )}>
                                   {st.name || st.title || ""}
                                 </span>
                                 {st.estimated_hours && (
@@ -986,7 +974,10 @@ export default function ProgressPage() {
                                     size="sm"
                                     variant="outline"
                                     className="h-8 text-[11px] font-semibold bg-amber-400/20 text-amber-400 hover:text-amber-300 border-amber-400/40 hover:bg-amber-400/30"
-                                    onClick={() => openConflictModal(st, activity)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openConflictModal(st, activity);
+                                    }}
                                   >
                                     <AlertCircle className="h-3 w-3 mr-1" />
                                     Solucionar
@@ -1011,47 +1002,29 @@ export default function ProgressPage() {
                                   ) : null
                                 ) : (
                                   <Button
-                                    variant="outline"
                                     size="sm"
                                     disabled={isProcessing}
-                                    className="h-8 text-xs bg-transparent hover:bg-slate-600/30 border-slate-700 text-slate-300 disabled:opacity-50"
-                                    onClick={() => openPostponeModal(st, activity.id)}
+                                    className={cn(
+                                      "h-8 text-xs transition-all disabled:opacity-50",
+                                      st.status === STATUS.DONE
+                                        ? "bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white"
+                                        : "bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white"
+                                    )}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCompleteTask(activity.id, st.id);
+                                    }}
                                   >
-                                    Posponer
+                                    {isProcessing ? (
+                                      <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                                    ) : st.status === STATUS.DONE ? (
+                                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                                    ) : (
+                                      <Circle className="h-3 w-3 mr-1" />
+                                    )}
+                                    <span>{st.status === STATUS.DONE ? 'Completada' : 'Hecho'}</span>
                                   </Button>
                                 )}
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={isProcessing}
-                                  className="h-8 w-8 p-0 text-slate-400 hover:text-blue-400 border-slate-700"
-                                  onClick={() => {
-                                    setEditingTask({ ...st, title: st.name || st.title, activity });
-                                    setIsEditModalOpen(true);
-                                  }}
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  disabled={isProcessing}
-                                  className={cn(
-                                    "h-8 text-xs transition-all disabled:opacity-50",
-                                    st.status === STATUS.DONE
-                                      ? "bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white"
-                                      : "bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white"
-                                  )}
-                                  onClick={() => handleCompleteTask(activity.id, st.id)}
-                                >
-                                  {isProcessing ? (
-                                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                                  ) : st.status === STATUS.DONE ? (
-                                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  ) : (
-                                    <Circle className="h-3 w-3 mr-1" />
-                                  )}
-                                  <span>{st.status === STATUS.DONE ? 'Completada' : 'Hecho'}</span>
-                                </Button>
                               </div>
                             </div>
                           </div>
@@ -1068,8 +1041,24 @@ export default function ProgressPage() {
                   )}
 
                   {isOpen && total === 0 && (
-                    <div className="text-sm text-slate-400 text-center py-4">
-                      Aún no hay subtareas. ¡Crea algunas tareas para comenzar!
+                    <div className="flex flex-col items-center justify-center py-10 px-6 border-2 border-dashed border-slate-800 rounded-2xl bg-slate-900/20 group/empty">
+                      <div className="w-12 h-12 rounded-full bg-slate-800/50 flex items-center justify-center mb-4 group-hover/empty:scale-110 transition-all duration-300">
+                        <Plus className="h-6 w-6 text-slate-500 group-hover/empty:text-blue-400" />
+                      </div>
+                      <p className="text-sm text-slate-400 text-center mb-6 max-w-[250px] leading-relaxed">
+                        Esta actividad aún no tiene tareas planificadas.
+                      </p>
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveActivityForSubtask(activity);
+                          setIsAddSubtaskOpen(true);
+                        }}
+                        className="bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/30 hover:border-blue-500 font-bold transition-all px-6"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Añadir primera subtarea
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -1084,14 +1073,14 @@ export default function ProgressPage() {
           <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 shadow-xl shadow-black/20">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-white">
-                Progreso de {timeFilter === "today" ? "hoy" : timeFilter === "week" ? "esta semana" : "este mes"}
+                Progreso {timeFilter === "all" ? "de todo el tiempo" : `de ${timeFilter === "today" ? "hoy" : timeFilter === "week" ? "esta semana" : "este mes"}`}
               </h3>
               <button
                 onClick={() => setShowCircleHelp(true)}
                 className="text-slate-500 hover:text-blue-400 transition-colors p-1"
                 title="¿Cómo se calcula este progreso?"
               >
-                <HelpCircle className="w-4 h-4" />
+                <HelpCircle className="w-8 h-8" />
               </button>
             </div>
             <div className="flex items-center justify-center mb-6">
@@ -1594,6 +1583,18 @@ export default function ProgressPage() {
             </Button>
           </div>
         </div>
+      )}
+
+      {activeActivityForSubtask && (
+        <AddSubtaskDialog
+          open={isAddSubtaskOpen}
+          onOpenChange={setIsAddSubtaskOpen}
+          activityId={activeActivityForSubtask.id.toString()}
+          deadlineDate={activeActivityForSubtask.deadline ?? undefined}
+          onSubtaskCreated={() => {
+            refresh();
+          }}
+        />
       )}
     </div>
   );

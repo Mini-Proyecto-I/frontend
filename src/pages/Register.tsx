@@ -8,6 +8,15 @@ import { register } from "@/api/services/auth";
 import { useAuth } from "@/app/authContext";
 import { useNavigate } from "react-router-dom";
 
+/** Mensajes del validador de contraseña de Django vienen en inglés; los mostramos en español. */
+function translatePasswordApiMessage(message: string): string {
+    const trimmed = message.trim();
+    if (/^this password is too common\.?$/i.test(trimmed)) {
+        return "Esta contraseña es demasiado común. Elige una más segura.";
+    }
+    return message;
+}
+
 export default function Register() {
     const [name, setName] = useState("");
     const [lastName, setLastName] = useState("");
@@ -67,7 +76,7 @@ export default function Register() {
     const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword;
     const showConfirmFeedback = confirmPasswordTouched && confirmPassword.length > 0;
 
-    const { login, isAuthenticated, loading: authLoading } = useAuth();
+    const { login, applyTokens, isAuthenticated, loading: authLoading } = useAuth();
     const navigate = useNavigate();
 
     React.useEffect(() => {
@@ -215,8 +224,13 @@ export default function Register() {
         try {
             setIsLoading(true);
             const fullName = `${name.trim()} ${lastName.trim()}`;
-            await register({ name: fullName, email, password });
-            await login(email, password);
+            const regData = await register({ name: fullName, email, password });
+            const t = regData?.tokens;
+            if (t?.access && t?.refresh) {
+                applyTokens(t.access, t.refresh);
+            } else {
+                await login(email, password);
+            }
             setShowSuccessModal(true);
         } catch (err: any) {
             const apiError = err?.response?.data;
@@ -224,7 +238,10 @@ export default function Register() {
                 if (apiError.email) {
                     setErrors((prev) => ({ ...prev, email: apiError.email[0] }));
                 } else if (apiError.password) {
-                    setErrors((prev) => ({ ...prev, password: apiError.password[0] }));
+                    setErrors((prev) => ({
+                        ...prev,
+                        password: translatePasswordApiMessage(String(apiError.password[0])),
+                    }));
                 } else {
                     setGlobalError("Ocurrió un error al registrarse. Revisa tus datos e intenta de nuevo.");
                 }

@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/shared/components/button";
+
 
 export interface ConflictOutcomeModalProps {
   isOpen: boolean;
@@ -24,9 +25,22 @@ export function ConflictOutcomeModal({
 }: ConflictOutcomeModalProps) {
   if (!isOpen || !outcome) return null;
 
+  const modalRef = useRef<HTMLDivElement>(null);
+
+      useEffect(() => {
+    if (isOpen && modalRef.current) {
+      modalRef.current.focus();
+    }
+  }, [isOpen]);
+
   return (
     <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
       <div
+        ref={modalRef}
+        tabIndex={-1}
+        role= "dialog"
+        aria-modal="true"
+        aria-label="Resultado del conflicto"
         className={`w-full max-w-[440px] bg-[#111827] rounded-3xl shadow-2xl shadow-black/60 overflow-hidden border ${
           outcome.resolved ? "border-emerald-500/30" : "border-[#F59E0B]/30"
         }`}

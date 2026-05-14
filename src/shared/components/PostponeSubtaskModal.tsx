@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Clock, Info, X } from "lucide-react";
 import { Button } from "@/shared/components/button";
 
@@ -25,9 +25,24 @@ export default function PostponeSubtaskModal({
     onClose();
   };
 
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+  if (isOpen && modalRef.current) {
+    modalRef.current.focus();
+  }
+}, [isOpen]);
+
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-      <div className="w-full max-w-lg bg-[#0B1220] border border-slate-800 rounded-3xl shadow-2xl overflow-hidden">
+    <div 
+    className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+      <div 
+    ref={modalRef}
+    tabIndex={-1}
+    role="dialog"
+    aria-modal="true"
+    aria-label="Posponer Subtarea"
+      className="w-full max-w-lg bg-[#0B1220] border border-slate-800 rounded-3xl shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="px-6 pt-6 pb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">

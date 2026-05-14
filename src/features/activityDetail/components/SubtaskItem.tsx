@@ -12,6 +12,7 @@ import EditSubtaskModal from "@/shared/components/EditSubtaskModal";
 import { patchSubtask, updateSubtask, deleteSubtask } from "@/api/services/subtask";
 import { useToast } from "@/shared/components/toast";
 import { SubtaskDetailModal } from "@/shared/components/SubtaskDetailModal";
+import { cn } from "@/shared/utils/utils";
 
 interface SubtaskItemProps {
   id: string;
@@ -155,25 +156,14 @@ export default function SubtaskItem({
     setIsDeleting(true);
 
     try {
-      // Llamar al backend para eliminar la subtarea
       await deleteSubtask(activityId, id);
-
-      // Recargar solo las subtareas (no toda la actividad)
+      showToast("Subtarea eliminada correctamente", "success");
       if (onSubtaskUpdated) {
         onSubtaskUpdated();
       }
     } catch (error: any) {
       console.error("Error al eliminar subtarea:", error);
-
-      let errorMessage = "Error al eliminar la subtarea. Intenta de nuevo.";
-
-      if (error?.response?.data?.detail) {
-        errorMessage = error.response.data.detail;
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
-
-      showToast(errorMessage, "error");
+      showToast(error?.response?.data?.detail || "Error al eliminar la subtarea.", "error");
     } finally {
       setIsDeleting(false);
     }
@@ -348,35 +338,6 @@ export default function SubtaskItem({
         onClick={handleSubtaskClick}
         className={`group cursor-pointer bg-[#111827] border border-slate-700/50 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 transition-all hover:bg-slate-800 hover:border-slate-600 relative overflow-hidden ${borderClass}`}
       >
-        <label className="checkbox-wrapper relative flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            className="peer sr-only"
-            checked={isChecked}
-            disabled={isUpdating}
-            onChange={(e) => handleCheckChange(e.target.checked)}
-          />
-          <div className={`w-6 h-6 border-2 rounded flex items-center justify-center transition-all group-hover:border-primary ${isChecked
-            ? "bg-blue-600 border-blue-600"
-            : "border-slate-400 dark:border-slate-600"
-            }`}>
-            {isChecked && (
-              <svg
-                className="w-4 h-4 text-white transition-opacity pointer-events-none"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  d="M5 13l4 4L19 7"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            )}
-          </div>
-        </label>
         <div className={`flex-1 min-w-0 ${isChecked ? "line-through text-slate-500 dark:text-slate-400" : ""} ${status === "POSTPONED" ? "opacity-80" : ""}`}>
           <div className="flex items-center gap-2 mb-2">
             <h4 className={`truncate font-bold ${isChecked ? "text-slate-500 dark:text-slate-400" : "text-slate-900 dark:text-white"}`}>
@@ -388,30 +349,52 @@ export default function SubtaskItem({
               </span>
             )}
           </div>
-          <div className={`flex flex-wrap items-center gap-3 text-sm ${isChecked ? "text-slate-400 dark:text-slate-500" : "text-slate-600 dark:text-slate-400"}`}>
-            <div className="flex items-center gap-1.5">
-              <Calendar className="size-4 text-slate-400 dark:text-slate-500" />
-              <span>{date}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Clock className="size-4 text-slate-400 dark:text-slate-500" />
-              <span>{hours}</span>
-            </div>
-            {isConflicted && (
-              <div className="flex items-center gap-1.5 text-amber-400 font-bold animate-pulse">
-                <AlertTriangle className="size-4" />
-                <span>Conflicto de horas</span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-y-3 sm:gap-4 text-xs">
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fecha planificada</span>
+              <div className="flex items-center gap-1.5 text-slate-300">
+                <Calendar className="size-3.5 text-blue-400" />
+                <span className="font-bold">{date}</span>
               </div>
-            )}
-            {status === "POSTPONED" && (
-              <div className="flex items-center gap-1.5 text-purple-400 font-bold italic">
-                <Clock className="size-4" />
-                <span>Pospuesta</span>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Dedicación</span>
+              <div className="flex items-center gap-1.5 text-slate-300">
+                <Clock className="size-3.5 text-emerald-400" />
+                <span className="font-bold">{hours}</span>
               </div>
-            )}
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Estado actual</span>
+              <div className="flex items-center gap-2">
+                {isConflicted ? (
+                  <div className="flex items-center gap-1.5 text-amber-400 font-black uppercase text-[10px] tracking-wider animate-pulse">
+                    <AlertTriangle className="size-3.5" />
+                    <span>En Conflicto</span>
+                  </div>
+                ) : isChecked ? (
+                  <div className="flex items-center gap-1.5 text-emerald-400 font-black uppercase text-[10px] tracking-wider">
+                    <CheckCircle2 className="size-3.5" />
+                    <span>Completada</span>
+                  </div>
+                ) : status === "POSTPONED" ? (
+                  <div className="flex items-center gap-1.5 text-purple-400 font-black uppercase text-[10px] tracking-wider">
+                    <Clock className="size-3.5" />
+                    <span>Pospuesta</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-blue-400 font-black uppercase text-[10px] tracking-wider">
+                    <div className="size-2 rounded-full bg-blue-500 animate-pulse" />
+                    <span>Pendiente</span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 mt-3 sm:mt-0">
+        <div className="flex flex-col sm:flex-row items-center gap-3 mt-3 sm:mt-0 ml-auto">
           {isConflicted && (
             <button
               type="button"
@@ -419,68 +402,35 @@ export default function SubtaskItem({
                 e.stopPropagation();
                 onOpenResolveConflict?.();
               }}
-              className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-all font-bold text-sm shadow-lg shadow-amber-500/20"
+              className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-all font-bold text-xs shadow-lg shadow-amber-500/20 z-10"
             >
               <AlertTriangle className="size-4" />
               Resolver conflicto
             </button>
           )}
 
-          {!isConflicted && !isChecked && status !== "POSTPONED" && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenPostpone?.();
-              }}
-              className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg transition-all font-bold text-sm"
-            >
-              <Clock className="size-4" />
-              Posponer
-            </button>
-          )}
-
-          {isChecked && note && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowDetailsDialog(true);
-              }}
-              className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-slate-400 bg-slate-500/10 hover:bg-slate-500/20 rounded-lg transition-all font-bold text-sm"
-            >
-              <FileText className="size-4" />
-              Ver nota
-            </button>
-          )}
-
           <button
             type="button"
-            onClick={handleEdit}
-            className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-yellow-600 dark:text-yellow-500 bg-yellow-100 dark:bg-yellow-500/10 hover:bg-yellow-200 dark:hover:bg-yellow-500/20 rounded-lg transition-all"
-          >
-            <Pencil className="size-4" />
-            <span className="text-sm font-bold">editar</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleDeleteClick}
-            disabled={isDeleting}
-            className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${isDeleting
-              ? "text-red-600 bg-red-100 dark:bg-red-900/30 cursor-wait"
-              : deleteArmed
-                ? "text-white bg-red-600 hover:bg-red-500"
-                : "text-red-500 bg-red-100 dark:bg-red-500/10 hover:bg-red-200 dark:hover:bg-red-500/20"
-              }`}
-          >
-            {isDeleting ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Trash2 className="size-4" />
+            disabled={isUpdating}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCheckChange(!isChecked);
+            }}
+            className={cn(
+              "cursor-pointer inline-flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all font-black uppercase tracking-widest text-[10px] border-2 z-10",
+              isChecked
+                ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/20"
+                : "bg-slate-800 border-slate-700 text-slate-400 hover:border-blue-500 hover:text-blue-400"
             )}
-            <span className="text-sm font-bold">
-              {isDeleting ? "Eliminando..." : deleteArmed ? "¿Seguro?" : "Eliminar"}
-            </span>
+          >
+            {isUpdating ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : isChecked ? (
+              <CheckCircle2 className="size-4" />
+            ) : (
+              <div className="size-4 rounded border border-current" />
+            )}
+            <span>{isChecked ? "Completada" : "Hecho"}</span>
           </button>
         </div>
       </article>
@@ -489,16 +439,40 @@ export default function SubtaskItem({
         open={showDetailsDialog}
         onOpenChange={(open: boolean) => setShowDetailsDialog(open)}
         subtask={{
-          id, // Importante para el historial
+          id,
           title,
-          target_date: dateOriginal || date.split(" ")[0],
+          target_date: dateOriginal || (date.includes(" ") ? date.split(" ")[0] : date),
           estimated_hours: hours.replace("h", ""),
-          status: isChecked ? "DONE" : "PENDING",
+          status: isChecked ? "DONE" : status === "POSTPONED" ? "POSTPONED" : "PENDING",
           execution_note: note,
+          activity: { id: activityId }
         }}
+        getFormattedDate={(d) => d}
         onEdit={() => {
-          setShowDetailsDialog(false);
           setShowEditDialog(true);
+        }}
+        onReprogram={() => {
+          const dateKey = dateOriginal || (date.includes(" ") ? date.split(" ")[0] : date);
+          const estimatedHours = parseFloat(hours.replace("h", "").trim()) || 0;
+          navigate("/calendario", {
+            state: {
+              focusDate: dateKey,
+              reprogramSubtask: {
+                id,
+                activityId,
+                title,
+                deadline: deadlineDate,
+                dateKey,
+                durationNum: estimatedHours,
+              },
+            },
+          });
+        }}
+        onPostpone={() => onOpenPostpone?.()}
+        onDelete={() => {
+          if (window.confirm("¿Estás seguro de que deseas eliminar esta subtarea?")) {
+            handleDelete();
+          }
         }}
       />
 

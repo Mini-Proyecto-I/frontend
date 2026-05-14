@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { AlertCircle, X } from "lucide-react";
 
 interface ConflictTask {
@@ -43,6 +43,9 @@ const formatearFecha = (fechaStr: string): string => {
   }
 };
 
+
+
+
 export default function ConflictModal({
   open,
   onOpenChange,
@@ -65,10 +68,23 @@ export default function ConflictModal({
 
   const isMultiple = !!multipleTasks;
   const limiteDiario = singleTask?.limiteDiario || multipleTasks?.limiteDiario || 6;
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+  if (open && modalRef.current) {
+    modalRef.current.focus();
+  }
+}, [open]);
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-      <div className="w-full max-w-[560px] bg-[#111827] border border-[#F59E0B]/30 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
+      <div 
+        ref={modalRef}
+        tabIndex={-1}
+        role= "dialog"
+        aria-modal="true"
+        aria-label="Conflicto detectado"
+        className="w-full max-w-[560px] bg-[#111827] border border-[#F59E0B]/30 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
         <div className="p-6 sm:p-7 relative">
           <button
             type="button"
