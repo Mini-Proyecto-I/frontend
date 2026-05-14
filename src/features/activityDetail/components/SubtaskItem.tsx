@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/shared/components/dialog";
 import EditSubtaskModal from "@/shared/components/EditSubtaskModal";
+import { MessageModal } from "@/shared/components/MessageModal";
 import { patchSubtask, updateSubtask, deleteSubtask } from "@/api/services/subtask";
 import { useToast } from "@/shared/components/toast";
 import { SubtaskDetailModal } from "@/shared/components/SubtaskDetailModal";
@@ -71,6 +72,7 @@ export default function SubtaskItem({
     limiteDiario: number;
   } | null>(null);
   const [isLoadingConflictData, setIsLoadingConflictData] = useState(false);
+  const [conflictBlockModalOpen, setConflictBlockModalOpen] = useState(false);
   const { showToast, ToastComponent } = useToast();
   const localChangeRef = useRef(false); // Ref para rastrear si el cambio fue iniciado localmente
   const lastLocalStateRef = useRef<boolean | null>(null); // Ref para rastrear el último estado establecido localmente
@@ -103,6 +105,11 @@ export default function SubtaskItem({
   }, []);
 
   const handleCheckChange = async (checked: boolean) => {
+    if (checked && isConflicted) {
+      setConflictBlockModalOpen(true);
+      return;
+    }
+
     // Actualización optimista: cambiar el estado visual inmediatamente
     const previousChecked = isChecked;
     localChangeRef.current = true; // Marcar que el cambio fue iniciado localmente
@@ -334,6 +341,13 @@ export default function SubtaskItem({
   return (
     <>
       <ToastComponent />
+      <MessageModal
+        open={conflictBlockModalOpen}
+        onOpenChange={setConflictBlockModalOpen}
+        type="warning"
+        title="Tarea en conflicto"
+        message="No puedes completar esta tarea mientras tenga un conflicto de horario. Resuelve el conflicto primero reduciendo las horas o moviendo la tarea a otro día."
+      />
       <article
         onClick={handleSubtaskClick}
         className={`group cursor-pointer bg-[#111827] border border-slate-700/50 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 transition-all hover:bg-slate-800 hover:border-slate-600 relative overflow-hidden ${borderClass}`}
