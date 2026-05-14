@@ -90,6 +90,7 @@ const ActivityForm = () => {
     const [creatingCourse, setCreatingCourse] = useState(false);
     const [courseError, setCourseError] = useState<string>("");
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+    const [showUnsavedSubtasksConfirm, setShowUnsavedSubtasksConfirm] = useState(false);
 
     const [showSuccessModal, setShowSuccessModal] = useState(false);
 
@@ -225,24 +226,28 @@ const ActivityForm = () => {
     }, []);
 
     // ──────────── BLOQUEO DE NAVEGACIÓN INTERNA ────────────
-    // Bloqueamos la navegación si se creó la actividad pero no hay subtareas
+    // Bloqueamos la navegación si se creó la actividad y no se ha finalizado el flujo
     const blocker = useBlocker(
         ({ currentLocation, nextLocation }) =>
             createdActivityId !== null && 
             !isFinished && 
-            subtareas.length === 0 && 
             currentLocation.pathname !== nextLocation.pathname &&
-            !showCancelConfirm // Permitimos la navegación si el usuario está en el flujo de confirmación de cancelación
+            !showCancelConfirm &&
+            !showUnsavedSubtasksConfirm
     );
 
-    // Si la navegación está bloqueada, mostramos un aviso
+    // Si la navegación está bloqueada, mostramos un aviso según el caso
     useEffect(() => {
         if (blocker.state === "blocked") {
-            setModalType("error");
-            setModalTitle("Acción restringida");
-            setModalMessage("No puedes salir de esta vista hasta que crees al menos una subtarea para la actividad.");
-            setModalOpen(true);
-            blocker.reset(); // Reseteamos para que el usuario pueda intentarlo de nuevo tras añadir la subtarea
+            if (subtareas.length === 0) {
+                setModalType("error");
+                setModalTitle("Acción restringida");
+                setModalMessage("No puedes salir de esta vista hasta que crees al menos una subtarea para la actividad.");
+                setModalOpen(true);
+                blocker.reset();
+            } else {
+                setShowUnsavedSubtasksConfirm(true);
+            }
         }
     }, [blocker]);
 
@@ -1050,6 +1055,64 @@ const ActivityForm = () => {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Diálogo de confirmación cuando hay subtareas sin guardar */}
+            <Dialog open={showUnsavedSubtasksConfirm} onOpenChange={(open) => {
+                if (!open) {
+                    setShowUnsavedSubtasksConfirm(false);
+                    blocker.reset?.();
+                }
+            }}>
+                <DialogContent className="sm:max-w-[480px] bg-[#111827] border-slate-800/60 rounded-3xl p-0 overflow-hidden shadow-2xl">
+                    <div className="p-6 sm:p-8">
+                        <div className="flex flex-col items-center text-center gap-4">
+                            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shadow-inner mb-2">
+                                <AlertTriangle className="w-8 h-8 text-amber-500" />
+                            </div>
+                            <DialogTitle className="text-2xl font-extrabold text-white tracking-tight">
+                                Subtareas sin guardar
+                            </DialogTitle>
+                            <DialogDescription className="text-slate-400 text-base leading-relaxed">
+                                Tienes <span className="font-bold text-white">{subtareas.length} subtarea{subtareas.length !== 1 ? "s" : ""}</span> creada{subtareas.length !== 1 ? "s" : ""} que aún no se han guardado. Si sales ahora, la actividad y las subtareas se perderán.
+                            </DialogDescription>
+                        </div>
+
+                        <div className="mt-8 flex gap-3">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                    setShowUnsavedSubtasksConfirm(false);
+                                    blocker.reset?.();
+                                }}
+                                className="h-12 flex-1 rounded-xl border-slate-700 bg-slate-800/50 hover:bg-slate-700/60 text-slate-200 font-bold"
+                            >
+                                Volver y guardar
+                            </Button>
+                            <Button
+                                type="button"
+                                onClick={async () => {
+                                    if (createdActivityId) {
+                                        try {
+                                            await deleteActivity(createdActivityId);
+                                        } catch (err) {
+                                            console.error("Error al borrar actividad al salir:", err);
+                                        }
+                                    }
+                                    isFinishedRef.current = true;
+                                    setIsFinished(true);
+                                    setShowUnsavedSubtasksConfirm(false);
+                                    blocker.proceed?.();
+                                }}
+                                className="h-12 flex-1 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold shadow-lg shadow-red-600/20"
+                            >
+                                Salir sin guardar
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
             {(isSavingActivity || isSavingSubtasks) && (
                 <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                     <div className="relative flex flex-col items-center gap-4">

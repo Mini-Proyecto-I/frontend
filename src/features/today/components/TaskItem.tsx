@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/shared/utils/utils";
 import { Checkbox } from "@/shared/components/checkbox";
 import { Badge } from "@/shared/components/badge";
 import { Button } from "@/shared/components/button";
+import { MessageModal } from "@/shared/components/MessageModal";
 
 interface BackendSubtask {
   id: string;
@@ -13,6 +15,7 @@ interface BackendSubtask {
   estimated_hours: string | number;
   target_date?: string;
   execution_note?: string;
+  is_conflicted?: boolean;
 }
 
 interface TaskItemProps {
@@ -23,6 +26,7 @@ interface TaskItemProps {
 
 export const TaskItem = ({ subtask, activityId, onStatusChange }: TaskItemProps) => {
   const estimatedHours = parseFloat(String(subtask.estimated_hours)) || 0;
+  const [conflictBlockModalOpen, setConflictBlockModalOpen] = useState(false);
 
   return (
     <div
@@ -35,6 +39,10 @@ export const TaskItem = ({ subtask, activityId, onStatusChange }: TaskItemProps)
         <Checkbox
           checked={subtask.status === 'DONE'}
           onCheckedChange={(checked) => {
+            if (checked && subtask.is_conflicted) {
+              setConflictBlockModalOpen(true);
+              return;
+            }
             onStatusChange(activityId, subtask.id, checked ? 'done' : 'pending');
           }}
         />
@@ -55,6 +63,13 @@ export const TaskItem = ({ subtask, activityId, onStatusChange }: TaskItemProps)
           Reprogramar
         </Button>
       </div>
+      <MessageModal
+        open={conflictBlockModalOpen}
+        onOpenChange={setConflictBlockModalOpen}
+        type="warning"
+        title="Tarea en conflicto"
+        message="No puedes completar esta tarea mientras tenga un conflicto de horario. Resuelve el conflicto primero reduciendo las horas o moviendo la tarea a otro día."
+      />
     </div>
   );
 };
