@@ -98,6 +98,7 @@ export default function Today() {
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historySubtaskId, setHistorySubtaskId] = useState<string | null>(null);
   const [historyTaskTitle, setHistoryTaskTitle] = useState("");
+  const [conflictBlockModalOpen, setConflictBlockModalOpen] = useState(false);
   const { showToast, ToastComponent } = useToast();
 
   const handleShowHistory = (subtaskId: string, title: string) => {
@@ -319,8 +320,13 @@ export default function Today() {
     }
   };
 
-  const handleToggleSubtask = async (activityId: string, subtaskId: string, currentStatus: string) => {
+  const handleToggleSubtask = async (activityId: string, subtaskId: string, currentStatus: string, isConflicted?: boolean) => {
     const newStatus = currentStatus === "DONE" ? "PENDING" : "DONE";
+
+    if (newStatus === "DONE" && isConflicted) {
+      setConflictBlockModalOpen(true);
+      return;
+    }
 
     queryCache.invalidate('activities');
     // ── Optimistic local UI update ──────────────────────────────────────────
@@ -726,7 +732,7 @@ export default function Today() {
             <p className="text-slate-400 font-medium tracking-wide">Cargando tus tareas de hoy...</p>
           </div>
         ) : (
-          <div className="flex-1 min-h-[500px]">
+          <div className="flex-1">
             {activeTab === 'vencidas' && (
               <div className="h-full animate-in fade-in zoom-in-95 duration-200">
                 {/* COLUMN 1: VENCIDAS */}
@@ -742,7 +748,7 @@ export default function Today() {
                         item={item}
                         badge={idx === 0 ? "MÁS ANTIGUA" : null}
                         theme="red"
-                        onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
+                        onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status, item.is_conflicted)}
                         onEdit={() => openEditModal(item)}
                         onPostpone={() => {
                           setPostponingTask(item);
@@ -782,7 +788,7 @@ export default function Today() {
                         item={item}
                         badge={idx === 0 ? "LA MÁS CORTA" : null}
                         theme="emerald"
-                        onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
+                        onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status, item.is_conflicted)}
                         onEdit={() => openEditModal(item)}
                         onPostpone={() => {
                           setPostponingTask(item);
@@ -832,7 +838,7 @@ export default function Today() {
                         item={item}
                         badge={idx === 0 ? "MÁS CERCANA" : null}
                         theme="blue"
-                        onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status)}
+                        onToggle={() => handleToggleSubtask(item.activity.id, item.id, item.status, item.is_conflicted)}
                         onEdit={() => openEditModal(item)}
                         onPostpone={() => {
                           setPostponingTask(item);
@@ -862,7 +868,7 @@ export default function Today() {
       </div>
 
       {/* RIGHT SIDE: INFO & FILTERS (Approx 40% of layout) */}
-      <div className="lg:w-[35%] xl:w-[30%] flex flex-col gap-6 order-1 lg:order-2">
+      <div className="lg:w-[35%] xl:w-[30%] flex flex-col gap-6 order-1 lg:order-2 lg:sticky lg:top-24 lg:self-start">
         <div className="flex flex-col gap-8 w-full">
           {/* Welcome Card */}
           <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 lg:p-8 flex items-center justify-between shadow-xl shadow-black/20 relative overflow-hidden">
@@ -1314,6 +1320,14 @@ export default function Today() {
         message={postponeSuccessMessage}
       />
 
+      <MessageModal
+        open={conflictBlockModalOpen}
+        onOpenChange={setConflictBlockModalOpen}
+        type="warning"
+        title="Tarea en conflicto"
+        message="No puedes completar esta tarea mientras tenga un conflicto de horario. Resuelve el conflicto primero reduciendo las horas o moviendo la tarea a otro día."
+      />
+
       {/* Modal resultado (solucionado vs pendiente) */}
       <ConflictOutcomeModal
         isOpen={showConflictOutcomeModal && !!conflictOutcome}
@@ -1693,10 +1707,7 @@ function ScrollableTaskSection({ children }: { children: React.ReactNode }) {
           ref={containerRef}
           className="task-scroll-container flex-1 overflow-y-auto overflow-x-hidden w-full"
           style={{
-            // Altura fija para mostrar 3 tareas completas y algo de la 4ª antes de scrollear
-            // 3 * 185px (card aprox) + 2 * 16px (gap) + ~40px margen ≈ 630px
-            minHeight: '640px',
-            maxHeight: '740px',
+            maxHeight: 'calc(100vh - 260px)',
           }}
         >
           <div ref={contentRef} className="flex flex-col gap-4 pt-4 px-2 pb-6 min-h-full">
@@ -1844,13 +1855,10 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
 
         <div className="flex-1 min-w-0">
           <div className="mb-2 flex items-center gap-2">
-            <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-slate-800/50 text-slate-400 border border-slate-700/50`}>
-              {courseName}
-            </span>
             <Link
               to={`/actividad/${item.activity.id}`}
               onClick={(e) => e.stopPropagation()}
-              className={`text-sm font-black uppercase tracking-tight hover:underline transition-all ${colors.text} z-10`}
+              className={`text-[15px] font-black uppercase tracking-tight hover:underline transition-all ${colors.text} z-10`}
             >
               {item.activity?.title || "Actividad"}
             </Link>

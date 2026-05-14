@@ -255,6 +255,7 @@ export default function ProgressPage() {
   const [processingTasks, setProcessingTasks] = useState<Set<number>>(new Set());
 
   // Conflict Modals State
+  const [conflictBlockModalOpen, setConflictBlockModalOpen] = useState(false);
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
   const [conflictModalTask, setConflictModalTask] = useState<any>(null);
   const [conflictActivityMeta, setConflictActivityMeta] = useState<any>(null);
@@ -440,6 +441,11 @@ export default function ProgressPage() {
     const subtask = activity?.subtasks.find(s => s.id === subtaskId);
     const isCurrentlyDone = subtask?.status === STATUS.DONE;
     const nextStatus = isCurrentlyDone ? STATUS.PENDING : STATUS.DONE;
+
+    if (nextStatus === STATUS.DONE && subtask?.is_conflicted) {
+      setConflictBlockModalOpen(true);
+      return;
+    }
 
     setProcessingTasks((prev) => new Set(prev).add(subtaskId));
 
@@ -720,81 +726,109 @@ export default function ProgressPage() {
       {/* FILTER BAR SECTION */}
       <div className="flex flex-wrap items-center gap-3 mb-2">
         {/* Filtro Curso */}
-        <div className="flex items-center gap-2 bg-[#1F2937]/60 border border-slate-700/50 rounded-xl px-3 py-2">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Curso:</span>
-          <Select value={courseFilter || "all"} onValueChange={(v) => setCourseFilter(v === "all" ? "all" : v)}>
-            <SelectTrigger className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl [&_[role=option]]:bg-transparent [&_[role=option]]:text-slate-200 [&_[role=option][data-highlighted]]:bg-blue-600 [&_[role=option][data-highlighted]]:text-white [&_[role=option][data-state=checked]]:bg-transparent [&_[role=option][data-state=checked]]:text-white [&_[role=option][data-state=checked][data-highlighted]]:bg-blue-600">
-              <SelectValue placeholder="Todos" />
-            </SelectTrigger>
-            <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl [&_[role=option]]:bg-transparent [&_[role=option]]:text-slate-200 [&_[role=option][data-highlighted]]:bg-blue-600 [&_[role=option][data-highlighted]]:text-white [&_[role=option][data-state=checked]]:bg-transparent [&_[role=option][data-state=checked]]:text-white [&_[role=option][data-state=checked][data-highlighted]]:bg-blue-600">
-              <SelectItem value="all" className="rounded-lg cursor-pointer text-slate-200">Todos</SelectItem>
-              {courses.map((c) => (
-                <SelectItem key={c.id} value={c.name} className="rounded-lg cursor-pointer text-slate-200">
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <Select value={courseFilter || "all"} onValueChange={(v) => setCourseFilter(v === "all" ? "all" : v)}>
+          <SelectTrigger
+            style={courseFilter !== "all" ? {
+              backgroundColor: 'white',
+              fontFamily: '"Lexend", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+            } : undefined}
+            className={`w-[180px] h-10 rounded-xl focus:ring-blue-500 shadow-inner border cursor-pointer ${courseFilter !== "all"
+              ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600"
+              : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
+            }`}
+          >
+            <SelectValue placeholder="Todos los cursos" />
+          </SelectTrigger>
+          <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl">
+            <SelectItem value="all" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Todos los cursos</SelectItem>
+            {courses.map((c) => (
+              <SelectItem key={c.id} value={c.name} className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         {/* Filtro Estado */}
-        <div className="flex items-center gap-2 bg-[#1F2937]/60 border border-slate-700/50 rounded-xl px-3 py-2">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado:</span>
-          <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" ? "all" : v)}>
-            <SelectTrigger className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl [&_[role=option]]:bg-transparent [&_[role=option]]:text-slate-200 [&_[role=option][data-highlighted]]:bg-blue-600 [&_[role=option][data-highlighted]]:text-white [&_[role=option][data-state=checked]]:bg-transparent [&_[role=option][data-state=checked]]:text-white [&_[role=option][data-state=checked][data-highlighted]]:bg-blue-600">
-              <SelectValue placeholder="Activos" />
-            </SelectTrigger>
-            <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl [&_[role=option]]:bg-transparent [&_[role=option]]:text-slate-200 [&_[role=option][data-highlighted]]:bg-blue-600 [&_[role=option][data-highlighted]]:text-white [&_[role=option][data-state=checked]]:bg-transparent [&_[role=option][data-state=checked]]:text-white [&_[role=option][data-state=checked][data-highlighted]]:bg-blue-600">
-              <SelectItem value="all" className="">Cualquier estado</SelectItem>
-              <SelectItem value="PENDING" className="rounded-lg cursor-pointer text-slate-200">Pendiente</SelectItem>
-              <SelectItem value="DONE" className="rounded-lg cursor-pointer text-slate-200">Completado</SelectItem>
-              <SelectItem value="POSTPONED" className="rounded-lg cursor-pointer text-slate-200">Pospuesto</SelectItem>
-              <SelectItem value="WAITING" className="rounded-lg cursor-pointer text-slate-200">En Espera</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" ? "all" : v)}>
+          <SelectTrigger
+            style={statusFilter !== "all" ? {
+              backgroundColor: 'white',
+              fontFamily: '"Lexend", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+            } : undefined}
+            className={`w-[180px] h-10 rounded-xl focus:ring-blue-500 shadow-inner border cursor-pointer ${statusFilter !== "all"
+              ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600"
+              : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
+            }`}
+          >
+            <SelectValue placeholder="Cualquier estado" />
+          </SelectTrigger>
+          <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl">
+            <SelectItem value="all" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Cualquier estado</SelectItem>
+            <SelectItem value="PENDING" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Pendiente</SelectItem>
+            <SelectItem value="DONE" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Completado</SelectItem>
+            <SelectItem value="POSTPONED" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Pospuesto</SelectItem>
+            <SelectItem value="WAITING" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">En Espera</SelectItem>
+          </SelectContent>
+        </Select>
 
         {/* Barra de Búsqueda */}
         <div className="relative flex-1 min-w-[240px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 transition-colors ${searchTerm ? "text-blue-600" : "text-slate-500"}`} />
           <Input
             placeholder="Buscar subtarea..."
-            className="pl-9 bg-[#1F2937]/60 border-slate-700/50 text-slate-200 rounded-xl focus-visible:ring-blue-500"
+            style={searchTerm ? {
+              backgroundColor: 'white',
+              fontFamily: '"Lexend", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+            } : undefined}
+            className={`pl-9 h-10 rounded-xl focus-visible:ring-blue-500 ${searchTerm
+              ? "border-blue-500 text-blue-600 placeholder:text-blue-400/60"
+              : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200 placeholder:text-slate-500"
+            }`}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
 
         {/* Filtro Período */}
-        <div className="flex items-center gap-2 bg-[#1F2937]/60 border border-slate-700/50 rounded-xl px-3 py-2">
-          <CalendarDays className="h-4 w-4 text-slate-500" />
-          <Select value={timeFilter} onValueChange={setTimeFilter}>
-            <SelectTrigger className="bg-transparent border-none p-0 h-auto gap-1 text-slate-200 focus:ring-0">
-              <SelectValue placeholder="Periodo" />
-            </SelectTrigger>
-            <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl [&_[role=option]]:rounded-lg [&_[role=option]]:cursor-pointer [&_[role=option]]:transition-colors [&_[role=option][data-highlighted]]:bg-blue-600/20 [&_[role=option][data-highlighted]]:text-blue-400 [&_[role=option][data-state=checked]]:text-blue-400">
-              <SelectItem value="all">Todo el tiempo</SelectItem>
-              <SelectItem value="today">Hoy</SelectItem>
-              <SelectItem value="week">Esta semana</SelectItem>
-              <SelectItem value="month">Este mes</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Botón limpiar — solo visible si hay filtros activos */}
-        {hasActiveFilters && (
-          <button
-            onClick={() => {
-              setCourseFilter("all");
-              setStatusFilter("all");
-              setSearchTerm("");
-              setTimeFilter("all");
-            }}
-            className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-red-400 transition-colors px-3 py-2 rounded-xl border border-slate-700/50 bg-[#1F2937]/60"
+        <Select value={timeFilter} onValueChange={setTimeFilter}>
+          <SelectTrigger
+            style={timeFilter !== "all" ? {
+              backgroundColor: 'white',
+              fontFamily: '"Lexend", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+            } : undefined}
+            className={`w-[170px] h-10 rounded-xl focus:ring-blue-500 shadow-inner border cursor-pointer ${timeFilter !== "all"
+              ? "border-blue-500 text-blue-600 [&_svg]:text-blue-600"
+              : "bg-[#1F2937]/50 border-slate-700/50 text-slate-200"
+            }`}
           >
-            <X className="w-3.5 h-3.5" /> Limpiar
-          </button>
-        )}
+            <CalendarDays className={`h-4 w-4 mr-1 ${timeFilter !== "all" ? "text-blue-600" : "text-slate-500"}`} />
+            <SelectValue placeholder="Todo el tiempo" />
+          </SelectTrigger>
+          <SelectContent className="bg-[#1F2937] border-slate-700 text-slate-200 rounded-xl shadow-xl">
+            <SelectItem value="all" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Todo el tiempo</SelectItem>
+            <SelectItem value="today" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Hoy</SelectItem>
+            <SelectItem value="week" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Esta semana</SelectItem>
+            <SelectItem value="month" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Este mes</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* Botón limpiar */}
+        <button
+          onClick={() => {
+            setCourseFilter("all");
+            setStatusFilter("all");
+            setSearchTerm("");
+            setTimeFilter("all");
+          }}
+          disabled={!hasActiveFilters}
+          className={`h-10 px-4 rounded-xl border text-sm font-semibold transition-all flex items-center gap-2 ${hasActiveFilters
+            ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
+            : "border-slate-700/50 bg-[#1F2937]/50 text-slate-400 cursor-not-allowed opacity-50"
+          }`}
+        >
+          <X className="w-4 h-4" /> Limpiar
+        </button>
       </div>
 
       {/* Dashboard Grid */}
@@ -1378,6 +1412,14 @@ export default function ProgressPage() {
         type="success"
         title="Pospuesta guardada"
         message={postponeSuccessMessage}
+      />
+
+      <MessageModal
+        open={conflictBlockModalOpen}
+        onOpenChange={setConflictBlockModalOpen}
+        type="warning"
+        title="Tarea en conflicto"
+        message="No puedes completar esta tarea mientras tenga un conflicto de horario. Resuelve el conflicto primero reduciendo las horas o moviendo la tarea a otro día."
       />
 
       {isDeleteModalOpen && deletingTask && (

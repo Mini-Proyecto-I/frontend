@@ -62,29 +62,21 @@ export function SubtaskDetailModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] bg-[#111827] border-slate-800">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-white text-slate-100 tracking-tight">
-            Detalles de la Tarea
-          </DialogTitle>
-          <DialogDescription className="text-sm text-slate-400 pt-2">
-            Información completa de la planificación
+          <div className="flex items-center gap-3">
+            <DialogTitle className="text-xl font-bold text-white tracking-tight">
+              {subtask.title || subtask.name}
+            </DialogTitle>
+            {isToday && (
+              <Badge className="bg-blue-600 text-white border-none text-[10px] font-black uppercase tracking-widest px-2 py-0.5">
+                HOY
+              </Badge>
+            )}
+          </div>
+          <DialogDescription className="sr-only">
+            Detalles de la subtarea
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-6 mt-4">
-          <div>
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-1">
-              Nombre de la tarea
-            </label>
-            <div className="flex items-center gap-3">
-              <p className="text-lg font-bold text-white">
-                {subtask.title || subtask.name}
-              </p>
-              {isToday && (
-                <Badge className="bg-blue-600 text-white border-none text-[10px] font-black uppercase tracking-widest px-2 py-0.5">
-                  HOY
-                </Badge>
-              )}
-            </div>
-          </div>
+        <div className="space-y-6 mt-2">
 
           <div className="grid grid-cols-2 gap-6">
             <div>

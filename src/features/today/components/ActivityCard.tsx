@@ -13,6 +13,7 @@ interface BackendSubtask {
   estimated_hours: string | number;
   target_date?: string;
   execution_note?: string;
+  is_conflicted?: boolean;
 }
 
 interface GroupedActivity {
