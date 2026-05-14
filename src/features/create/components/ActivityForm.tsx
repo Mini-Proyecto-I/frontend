@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useBlocker } from "react-router-dom";
 import { AlertTriangle, Calendar, CheckCircle2, ClipboardList, Save } from "lucide-react";
 import InfoTooltip from "@/features/create/components/InfoTooltip";
@@ -76,6 +76,12 @@ const ActivityForm = () => {
     const [createdActivityId, setCreatedActivityId] = useState<number | null>(null);
     const [isFinished, setIsFinished] = useState(false);
 
+    /** Siempre valores actuales para cleanup al desmontar (evita closure obsoleta al cambiar isFinished). */
+    const createdActivityIdRef = useRef<number | null>(null);
+    const isFinishedRef = useRef(false);
+    createdActivityIdRef.current = createdActivityId;
+    isFinishedRef.current = isFinished;
+
     // Estados para cursos
     const [courses, setCourses] = useState<Course[]>([]);
     const [loadingCourses, setLoadingCourses] = useState(true);
@@ -106,6 +112,14 @@ const ActivityForm = () => {
     // ──────────── CONFLICTOS INTELIGENTES ────────────
     // Datos del backend para detección de conflictos client-side
     const { vencidas, para_hoy, proximas, loading: loadingHoy, refetch: refetchHoy } = useHoy({ days_ahead: 60 });
+
+    /** Al montar /crear: si no había ninguna subtarea en el plan, la próxima actividad completada es la "primera". */
+    const studyWasEmptyOnMountRef = useRef<boolean | null>(null);
+    useEffect(() => {
+        if (loadingHoy || studyWasEmptyOnMountRef.current !== null) return;
+        const n = vencidas.length + para_hoy.length + proximas.length;
+        studyWasEmptyOnMountRef.current = n === 0;
+    }, [loadingHoy, vencidas, para_hoy, proximas]);
 
     // Límite diario de estudio
     const [studyLimitHours, setStudyLimitHours] = useState(() => {
@@ -176,44 +190,39 @@ const ActivityForm = () => {
     }, []);
 
     // ──────────── LIMPIEZA DE ACTIVIDAD ABANDONADA ────────────
-    // Si el usuario sale de la página o cierra el navegador sin crear subtareas, borramos la actividad
+    // Solo al desmontar de verdad /crear: si quedó actividad sin flujo terminado, la borramos.
+    // Importante: no depender de [isFinished] aquí — al pasar a isFinished=true el cleanup anterior
+    // ejecutaba con isFinished aún false y borraba la actividad recién guardada con subtareas.
     useEffect(() => {
-        const cleanup = () => {
-            if (createdActivityId && !isFinished) {
-                // Disparamos el borrado si la actividad existe pero no se terminó de configurar
-                deleteActivity(createdActivityId).catch(err => console.error("Error al borrar actividad abandonada:", err));
-            }
-        };
-
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-            if (createdActivityId && !isFinished) {
-                // Para el cierre de pestaña/navegador, usamos fetch con keepalive
-                // Necesitamos pasar el token manualmente porque fetch no usa los interceptores de axios
+            const id = createdActivityIdRef.current;
+            const finished = isFinishedRef.current;
+            if (id != null && !finished) {
                 const token = window.localStorage.getItem("accessToken");
-                const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
-                const url = `${apiUrl}/api/activity/${createdActivityId}/`;
-                
-                fetch(url, { 
-                    method: 'DELETE', 
+                let base = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+                base = String(base).replace(/\/$/, "");
+                if (!base.endsWith("/api")) base = `${base}/api`;
+                const url = `${base}/activity/${id}/`;
+                fetch(url, {
+                    method: "DELETE",
                     keepalive: true,
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
                 }).catch(() => {});
-                
-                // Mostrar advertencia estándar del navegador
                 e.preventDefault();
-                e.returnValue = '';
+                e.returnValue = "";
             }
         };
 
         window.addEventListener("beforeunload", handleBeforeUnload);
-
         return () => {
             window.removeEventListener("beforeunload", handleBeforeUnload);
-            cleanup();
+            const id = createdActivityIdRef.current;
+            const finished = isFinishedRef.current;
+            if (id != null && !finished) {
+                deleteActivity(id).catch((err) => console.error("Error al borrar actividad abandonada:", err));
+            }
         };
-    }, [createdActivityId, isFinished]);
+    }, []);
 
     // ──────────── BLOQUEO DE NAVEGACIÓN INTERNA ────────────
     // Bloqueamos la navegación si se creó la actividad pero no hay subtareas
@@ -678,6 +687,7 @@ const ActivityForm = () => {
 
         const navigateToCreateSuccess = () => {
             if (!createdActivityId) return;
+            isFinishedRef.current = true;
             setIsFinished(true); // Marcamos como finalizado para evitar el borrado en el cleanup
             setModalType("success");
             setModalTitle("¡Actividad creada exitosamente!");
@@ -890,7 +900,12 @@ const ActivityForm = () => {
                 title={modalTitle}
                 message={modalMessage}
                 onConfirm={modalType === "success" && modalTitle.includes("exitosamente")
-        ? () => navigate("/hoy")
+        ? () =>
+              navigate("/hoy", {
+                  state: {
+                      firstActivity: studyWasEmptyOnMountRef.current === true,
+                  },
+              })
         : undefined
     }
             />
@@ -1022,7 +1037,8 @@ const ActivityForm = () => {
                                             console.error("Error al borrar actividad al cancelar:", err);
                                         }
                                     }
-                                    setIsFinished(true); // Evitamos que el cleanup de useEffect intente borrar de nuevo
+                                    isFinishedRef.current = true;
+                                    setIsFinished(true); // Evitamos que el cleanup al desmontar intente borrar de nuevo
                                     setShowCancelConfirm(false);
                                     navigate("/hoy");
                                 }}

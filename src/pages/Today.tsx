@@ -243,14 +243,13 @@ export default function Today() {
     refetchTiempo
   } = useHoy(filters);
 
-  // Modal tutorial — solo al llegar desde la primera actividad creada
+  // Modal tutorial — solo al volver de crear la primera actividad (state explícito, no localStorage)
   useEffect(() => {
-    const shouldShow = window.localStorage.getItem("showTodayTutorial") === "true";
-    if (shouldShow && !loading) {
-      window.localStorage.removeItem("showTodayTutorial");
-      setShowTutorialModal(true);
-    }
-  }, [loading]);
+    const show = (location.state as { firstActivity?: boolean } | null)?.firstActivity === true;
+    if (!show) return;
+    setShowTutorialModal(true);
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state, location.pathname, navigate]);
 
   // Cargar límite desde el backend al montar el componente
   useEffect(() => {
@@ -654,8 +653,9 @@ export default function Today() {
         </p>
 
         <button
+          type="button"
           onClick={() => navigate('/crear')}
-          className="group relative flex items-center gap-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl px-10 py-5 text-lg transition-all hover:-translate-y-1 shadow-[0_0_40px_-10px_rgba(37,99,235,0.4)] hover:shadow-[0_0_60px_-15px_rgba(37,99,235,0.6)]"
+          className="cursor-pointer group relative flex items-center gap-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl px-10 py-5 text-lg transition-all hover:-translate-y-1 shadow-[0_0_40px_-10px_rgba(37,99,235,0.4)] hover:shadow-[0_0_60px_-15px_rgba(37,99,235,0.6)]"
         >
           <span className="text-2xl font-light leading-none mb-0.5">+</span>
           Crear mi primera actividad
@@ -1207,7 +1207,6 @@ export default function Today() {
                   console.error("Error updating user config from welcome modal:", error);
                 }
 
-                window.localStorage.setItem("showTodayTutorial", "true");
                 window.localStorage.removeItem("welcomeInProgress");
                 setShowWelcomeModal(false);
               }}

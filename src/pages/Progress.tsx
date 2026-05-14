@@ -688,12 +688,14 @@ export default function ProgressPage() {
         <p className="text-lg md:text-xl text-slate-400 max-w-2xl mb-12 leading-relaxed font-medium px-4">
           Aún no tienes actividades registradas. Este es el momento perfecto para organizar tu progreso académico.
         </p>
-        <Button asChild className="bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl px-10 py-5 text-lg transition-all hover:-translate-y-1 shadow-[0_0_40px_-10px_rgba(37,99,235,0.4)] hover:shadow-[0_0_60px_-15px_rgba(37,99,235,0.6)]">
-          <Link to="/crear">
-            <span className="text-2xl font-light leading-none mb-0.5 mr-2">+</span>
-            Crear mi primera actividad
-          </Link>
-        </Button>
+        <button
+          type="button"
+          onClick={() => navigate("/crear")}
+          className="cursor-pointer group relative flex items-center gap-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl px-10 py-5 text-lg transition-all hover:-translate-y-1 shadow-[0_0_40px_-10px_rgba(37,99,235,0.4)] hover:shadow-[0_0_60px_-15px_rgba(37,99,235,0.6)]"
+        >
+          <span className="text-2xl font-light leading-none mb-0.5">+</span>
+          Crear mi primera actividad
+        </button>
       </div>
     );
   }
@@ -799,31 +801,7 @@ export default function ProgressPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Activities */}
         <div className="lg:col-span-2 space-y-6">
-          {isFirstTime ? (
-            <div className="flex flex-col items-center justify-center py-20 w-full px-4 text-center animate-in fade-in zoom-in-[0.98] duration-700">
-              <div className="relative mb-14">
-                <div className="absolute inset-0 bg-blue-500/20 blur-[70px] rounded-full transform scale-150"></div>
-                <div className="relative w-48 h-48 bg-[#111827] border border-slate-800/80 rounded-[3rem] shadow-2xl shadow-black/40 flex items-center justify-center rotate-3 transform hover:rotate-6 transition-all duration-500 z-10">
-                  <BarChart3 className="w-24 h-24 text-blue-500 drop-shadow-2xl" strokeWidth={1.5} />
-                  <div className="absolute -bottom-6 -right-6 w-20 h-20 bg-blue-600 rounded-[1.2rem] shadow-xl shadow-blue-600/30 flex items-center justify-center -rotate-12 transform hover:rotate-0 hover:scale-110 transition-all duration-300 border-[6px] border-[#111827]">
-                    <Check className="w-10 h-10 text-white" strokeWidth={3} />
-                  </div>
-                </div>
-              </div>
-              <h2 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-slate-500 mb-6 tracking-tight drop-shadow-sm">
-                Un lienzo en blanco
-              </h2>
-              <p className="text-lg md:text-xl text-slate-400 max-w-2xl mb-12 leading-relaxed font-medium px-4">
-                Aún no tienes actividades registradas. Este es el momento perfecto para organizar tu progreso académico.
-              </p>
-              <Button asChild className="bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl px-10 py-5 text-lg transition-all hover:-translate-y-1 shadow-[0_0_40px_-10px_rgba(37,99,235,0.4)] hover:shadow-[0_0_60px_-15px_rgba(37,99,235,0.6)]">
-                <Link to="/crear">
-                  <span className="text-2xl font-light leading-none mb-0.5 mr-2">+</span>
-                  Crear mi primera actividad
-                </Link>
-              </Button>
-            </div>
-          ) : isEmptyFiltered ? (
+          {isEmptyFiltered ? (
             <div className="bg-[#111827] border border-slate-800/60 rounded-3xl shadow-xl shadow-black/20 flex flex-col items-center justify-center py-20 text-center px-8">
               <div className="w-14 h-14 rounded-2xl bg-slate-800/60 border border-slate-700/50 flex items-center justify-center mb-5">
                 <Search className="h-6 w-6 text-slate-500" />

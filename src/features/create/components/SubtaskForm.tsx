@@ -96,9 +96,7 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                     <InfoTooltip text="Horas estimadas para completar esta subtarea." />
                     Est. Horas <span className="text-blue-500">*</span>
                 </span>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Acción
-                </span>
+                <span className="min-w-[48px]" aria-hidden />
             </div>
 
             {/* Subtarea rows */}

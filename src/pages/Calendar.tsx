@@ -910,7 +910,7 @@ export default function Calendar() {
                                                     }`} />
                                                 <span className={`text-xs font-black uppercase tracking-widest ${willConflictForMove ? "text-amber-300" : "text-blue-500"
                                                     }`}>
-                                                    {willConflictForMove ? "Mover aquí (con conflicto)" : "Mover aquí"}
+                                                    {willConflictForMove ? "Click aquí para mover (con conflicto)" : "Click aquí para mover"}
                                                 </span>
 
                                             </button>
