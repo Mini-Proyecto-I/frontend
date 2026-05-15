@@ -82,6 +82,7 @@ export default function Today() {
   const [isPostponeModalOpen, setIsPostponeModalOpen] = useState(false);
   const [postponingTask, setPostponingTask] = useState<any | null>(null);
   const [postponeNote, setPostponeNote] = useState("");
+  const [isPostponing, setIsPostponing] = useState(false);
   const [postponeSuccessOpen, setPostponeSuccessOpen] = useState(false);
   const [postponeSuccessMessage, setPostponeSuccessMessage] = useState("");
   const [welcomeStep, setWelcomeStep] = useState(1);
@@ -282,8 +283,9 @@ export default function Today() {
 
 
   const handlePostpone = async () => {
-    if (!postponingTask) return;
+    if (!postponingTask || isPostponing) return;
     const taskLabel = String(postponingTask?.title ?? postponingTask?.name ?? "esta subtarea");
+    setIsPostponing(true);
     try {
       await postponeSubtask(postponingTask.activity?.id, postponingTask.id, postponeNote);
 
@@ -313,12 +315,14 @@ export default function Today() {
         `Se cambió el estado de "${taskLabel}" a Pospuesta. La fecha de entrega no se verá afectada.`
       );
       setPostponeSuccessOpen(true);
-    } catch (e) {
-      console.error("Error al posponer subtarea:", e);
-    } finally {
       setIsPostponeModalOpen(false);
       setPostponingTask(null);
       setPostponeNote("");
+    } catch (e) {
+      console.error("Error al posponer subtarea:", e);
+      showToast("No se pudo posponer la tarea. Intenta de nuevo.", "error");
+    } finally {
+      setIsPostponing(false);
     }
   };
 
@@ -1463,7 +1467,8 @@ export default function Today() {
                   onChange={(e) => setPostponeNote(e.target.value)}
                   placeholder="Añade una nota sobre por qué pospones esta subtarea..."
                   rows={4}
-                  className="w-full bg-slate-900/50 border border-slate-800 rounded-xl text-white text-sm p-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-none placeholder:text-slate-600"
+                  disabled={isPostponing}
+                  className="w-full bg-slate-900/50 border border-slate-800 rounded-xl text-white text-sm p-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-none placeholder:text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <div className="flex items-start gap-2 pt-1">
                   <Info className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
@@ -1477,20 +1482,31 @@ export default function Today() {
             {/* Footer */}
             <div className="px-6 py-6 mt-2 flex items-center justify-end gap-3">
               <button
+                type="button"
                 onClick={() => {
                   setIsPostponeModalOpen(false);
                   setPostponingTask(null);
                   setPostponeNote("");
                 }}
-                className="px-5 py-2.5 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                disabled={isPostponing}
+                className="px-5 py-2.5 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancelar
               </button>
               <button
+                type="button"
                 onClick={handlePostpone}
-                className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-all shadow-lg shadow-blue-500/20 active:scale-95 cursor-pointer"
+                disabled={isPostponing}
+                className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-all shadow-lg shadow-blue-500/20 active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[120px]"
               >
-                Posponer
+                {isPostponing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Posponiendo...
+                  </>
+                ) : (
+                  "Posponer"
+                )}
               </button>
             </div>
           </div>
@@ -1827,7 +1843,10 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
             {isConflicted && onViewConflict && (
               <button
                 type="button"
-                onClick={!isDone ? onViewConflict : undefined}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isDone) onViewConflict();
+                }}
                 disabled={isDone}
                 className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors cursor-pointer ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-[#F59E0B]/90 hover:text-[#F59E0B] bg-[#F59E0B]/20 hover:bg-[#F59E0B]/30 border-[#F59E0B]/40'}`}
               >
@@ -1838,7 +1857,10 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
 
             <button
               type="button"
-              onClick={!isDone ? () => onTitleClick?.() : undefined}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isDone) onTitleClick?.();
+              }}
               disabled={isDone}
               className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 border-slate-700/50 cursor-pointer'}`}
             >
@@ -1859,7 +1881,10 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
               onPostpone && (
                 <button
                   type="button"
-                  onClick={!isDone ? onPostpone : undefined}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isDone) onPostpone();
+                  }}
                   disabled={isDone}
                   className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 border-slate-700/50 cursor-pointer'}`}
                 >
@@ -1871,7 +1896,10 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
 
             <button
               type="button"
-              onClick={!isDone ? handleReprogram : undefined}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isDone) handleReprogram();
+              }}
               disabled={isDone}
               className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-blue-600/15 hover:bg-blue-600/25 border-blue-500/30 cursor-pointer'}`}
             >
