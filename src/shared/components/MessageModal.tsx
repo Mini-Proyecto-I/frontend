@@ -9,6 +9,7 @@ interface MessageModalProps {
   title: string;
   message: string;
   onConfirm?: () => void;
+  overlayClassName?: string;
 }
 
 export const MessageModal = ({
@@ -18,8 +19,15 @@ export const MessageModal = ({
   title,
   message,
   onConfirm,
+  overlayClassName,
 }: MessageModalProps) => {
-  if (!open) return null;
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (open && modalRef.current) {
+      modalRef.current.focus();
+    }
+  }, [open]);
 
   const handleConfirm = () => {
     if (onConfirm) onConfirm();
@@ -44,16 +52,10 @@ export const MessageModal = ({
     },
   }[type];
 
-  const modalRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-  if (open && modalRef.current) {
-    modalRef.current.focus();
-  }
-}, [open]);
+  if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+    <div className={overlayClassName ?? "fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"}>
       <div
        ref={modalRef}
        tabIndex={-1}

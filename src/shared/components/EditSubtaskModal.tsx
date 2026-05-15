@@ -1,8 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CalendarRange, Pencil, X, Trash2 } from "lucide-react";
 import { Input } from "@/shared/components/input";
 import { Button } from "@/shared/components/button";
+import { MessageModal } from "@/shared/components/MessageModal";
+import {
+  getApiValidationErrorMessage,
+  SUBTASK_SAVE_GENERIC_FALLBACK,
+} from "@/shared/utils/apiErrorMessage";
 
 type SaveResult =
   | { ok: true }
@@ -32,13 +37,18 @@ export default function EditSubtaskModal({
   const [editHours, setEditHours] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [showSavedSuccess, setShowSavedSuccess] = useState(false);
   const wasOpenRef = useRef(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  const modalVisible = open || showSavedSuccess;
 
   // Cargar valores SOLO cuando se abre (evita resets durante guardado/refetch)
   useEffect(() => {
     const wasOpen = wasOpenRef.current;
     wasOpenRef.current = open;
     if (open && !wasOpen) {
+      setShowSavedSuccess(false);
       setEditError(null);
       setEditTitle(String(initialTitle ?? ""));
       const h = initialHours;
@@ -47,17 +57,17 @@ export default function EditSubtaskModal({
     }
   }, [open, initialTitle, initialHours]);
 
-  if (!open) return null;
-
-  const modalRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
-  if (open && modalRef.current) {
-    modalRef.current.focus();
-  }
-}, [open]);
+    if (open && modalRef.current) {
+      modalRef.current.focus();
+    }
+  }, [open]);
+
+  if (!modalVisible) return null;
 
   return (
+    <Fragment>
+    {open && !showSavedSuccess && (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
       <div
        ref={modalRef}
@@ -184,7 +194,7 @@ export default function EditSubtaskModal({
                     });
 
                     if (result?.ok) {
-                      onOpenChange(false);
+                      setShowSavedSuccess(true);
                       return;
                     }
 
@@ -194,12 +204,14 @@ export default function EditSubtaskModal({
                     }
 
                     setEditError(
-                      result?.error ||
-                        "No se pudo guardar los cambios. Verifica que las horas no excedan tu límite diario o ajusta la subtarea y vuelve a intentarlo."
+                      result?.error || SUBTASK_SAVE_GENERIC_FALLBACK
                     );
-                  } catch {
+                  } catch (error) {
                     setEditError(
-                      "No se pudo guardar los cambios. Revisa tu conexión y que las horas no excedan tu límite diario."
+                      getApiValidationErrorMessage(
+                        error,
+                        "No se pudo guardar los cambios. Revisa tu conexión e inténtalo de nuevo."
+                      )
                     );
                   } finally {
                     setIsSavingEdit(false);
@@ -214,6 +226,20 @@ export default function EditSubtaskModal({
         </div>
       </div>
     </div>
+    )}
+    <MessageModal
+      open={showSavedSuccess}
+      onOpenChange={(next) => {
+        if (!next) {
+          setShowSavedSuccess(false);
+          onOpenChange(false);
+        }
+      }}
+      type="success"
+      title="Cambios guardados"
+      message="Tu subtarea se modificó correctamente y ya está actualizada."
+    />
+    </Fragment>
   );
 }
 

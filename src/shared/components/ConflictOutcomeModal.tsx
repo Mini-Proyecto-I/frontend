@@ -23,15 +23,15 @@ export function ConflictOutcomeModal({
   getRelativeDateLabel,
   getFormattedDate,
 }: ConflictOutcomeModalProps) {
-  if (!isOpen || !outcome) return null;
-
   const modalRef = useRef<HTMLDivElement>(null);
 
-      useEffect(() => {
+  useEffect(() => {
     if (isOpen && modalRef.current) {
       modalRef.current.focus();
     }
   }, [isOpen]);
+
+  if (!isOpen || !outcome) return null;
 
   return (
     <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">

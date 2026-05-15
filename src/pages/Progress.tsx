@@ -41,10 +41,15 @@ import { Badge } from '@/shared/components/badge';
 import { Button } from '@/shared/components/button';
 import { Input } from '@/shared/components/input';
 import { cn } from '@/shared/utils/utils';
+import {
+  getApiValidationErrorMessage,
+  SUBTASK_SAVE_GENERIC_FALLBACK,
+} from "@/shared/utils/apiErrorMessage";
 import { Link, useNavigate } from 'react-router-dom';
 import { ResolveConflictModal } from '@/shared/components/ResolveConflictModal';
 import { ConflictOutcomeModal } from '@/shared/components/ConflictOutcomeModal';
 import EditSubtaskModal from '@/shared/components/EditSubtaskModal';
+import DeleteConfirmationDialog from '@/shared/components/DeleteConfirmationDialog';
 import PostponeSubtaskModal from '@/shared/components/PostponeSubtaskModal';
 import { SubtaskDetailModal } from '@/shared/components/SubtaskDetailModal';
 import { MessageModal } from "@/shared/components/MessageModal";
@@ -281,8 +286,7 @@ export default function ProgressPage() {
   // Delete State
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingTask, setDeletingTask] = useState<any>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-
+  
   const [openSection, setOpenSection] = useState<string | null>("upcoming");
 
   const toggleSection = (section: string) => {
@@ -536,22 +540,21 @@ export default function ProgressPage() {
     setIsDeleteModalOpen(true);
   };
 
-  const handleDeleteTask = async () => {
-    if (!deletingTask) return;
-    const { activityId, id: subtaskId } = deletingTask;
+  const handleDeleteTask = async (task?: Subtask & { activityId?: number }) => {
+    const target = task ?? deletingTask;
+    if (!target) return;
+    const activityId = target.activityId ?? target.activity?.id;
+    const subtaskId = target.id;
+    if (!activityId) return;
 
-    setIsDeleting(true);
     try {
       const { deleteSubtask } = await import('@/api/services/subtask');
       await deleteSubtask(activityId, subtaskId);
-      showToast('Tarea eliminada correctamente', 'success');
-      setIsDeleteModalOpen(false);
-      setDeletingTask(null);
+      setDetailTask(null);
       refresh();
     } catch (err) {
       showToast('Error al eliminar la tarea', 'error');
-    } finally {
-      setIsDeleting(false);
+      throw err;
     }
   };
 
@@ -970,15 +973,15 @@ export default function ProgressPage() {
                         return (
                           <div
                             key={st.id}
-                            onClick={() => setDetailTask({ ...st, activity })}
+                            onClick={() => !isProcessing && setDetailTask({ ...st, activity })}
                             className={cn(
-                              "group p-4 rounded-xl border transition-all duration-200 bg-[#1F2937]/30 cursor-pointer",
+                              "relative group p-4 rounded-xl border transition-all duration-200 bg-[#1F2937]/30 cursor-pointer",
                               isConflicted
                                 ? "border-amber-400 animate-pulse shadow-[0_0_15px_rgba(251,191,36,0.3)] bg-amber-400/5"
                                 : isPostponed
                                   ? "border-[#8B5CF6]/30 bg-[#8B5CF6]/20"
                                   : "border-slate-700/50 hover:border-blue-500/50 hover:bg-slate-800/40 bg-slate-800/20",
-                              isProcessing && "opacity-50 pointer-events-none"
+                              isProcessing && "cursor-wait"
                             )}
                           >
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3">
@@ -1028,7 +1031,7 @@ export default function ProgressPage() {
                                       variant="ghost"
                                       size="sm"
                                       className="h-8 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                                      onClick={() => setDetailTask(st)}
+                                      onClick={() => setDetailTask({ ...st, activity })}
                                     >
                                       <FileText className="h-3 w-3 mr-1" />
                                       Ver nota
@@ -1061,6 +1064,17 @@ export default function ProgressPage() {
                                 )}
                               </div>
                             </div>
+                            {isProcessing && (
+                              <div
+                                className="absolute inset-0 bg-black/30 flex items-center justify-center z-10 rounded-xl"
+                                aria-hidden="true"
+                              >
+                                <span className="bg-[#111827] border border-slate-700 text-slate-200 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg">
+                                  <RefreshCw className="h-4 w-4 animate-spin text-blue-400" />
+                                  Cargando...
+                                </span>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -1377,21 +1391,29 @@ export default function ProgressPage() {
           const activityId = editingTask.activity?.id;
           const subtaskId = editingTask.id;
 
+          if (!activityId) {
+            return { ok: false, error: "No se pudo identificar la actividad." };
+          }
+
+          setProcessingTasks((prev) => new Set(prev).add(subtaskId));
           try {
             await updateSubtask(activityId, subtaskId, {
               title,
               estimated_hours: estimatedHours,
             });
 
-            setIsEditModalOpen(false);
-            setEditingTask(null);
             return { ok: true };
-          } catch {
+          } catch (error) {
             return {
               ok: false,
-              error:
-                "No pudimos guardar los cambios. Revisa que las horas no superen tu límite diario de estudio y vuelve a intentarlo.",
+              error: getApiValidationErrorMessage(error, SUBTASK_SAVE_GENERIC_FALLBACK),
             };
+          } finally {
+            setProcessingTasks((prev) => {
+              const next = new Set(prev);
+              next.delete(subtaskId);
+              return next;
+            });
           }
         }}
       />
@@ -1422,62 +1444,15 @@ export default function ProgressPage() {
         message="No puedes completar esta tarea mientras tenga un conflicto de horario. Resuelve el conflicto primero reduciendo las horas o moviendo la tarea a otro día."
       />
 
-      {isDeleteModalOpen && deletingTask && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-          <div className="w-full max-w-[560px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
-            <div className="p-6 sm:p-7 relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsDeleteModalOpen(false);
-                  setDeletingTask(null);
-                }}
-                className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
-                aria-label="Cerrar"
-                disabled={isDeleting}
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="flex items-start gap-4 mb-6">
-                <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
-                  <Trash2 className="w-6 h-6 text-red-500" />
-                </div>
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-                    Eliminar subtarea
-                  </h3>
-                  <p className="text-slate-400 text-sm mt-1 leading-relaxed">
-                    ¿Estás seguro de que quieres eliminar la subtarea{" "}
-                    <span className="text-red-400 font-semibold italic">"{deletingTask.name || deletingTask.title}"</span>? Esta acción no se puede deshacer.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-3 justify-end pt-4 border-t border-slate-800/60">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsDeleteModalOpen(false);
-                    setDeletingTask(null);
-                  }}
-                  className="h-11 px-6 rounded-xl border-slate-700 text-slate-400 hover:bg-slate-800"
-                  disabled={isDeleting}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={handleDeleteTask}
-                  className="h-11 px-8 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-lg shadow-red-600/20"
-                  disabled={isDeleting}
-                >
-                  {isDeleting ? "Eliminando..." : "Eliminar tarea"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteConfirmationDialog
+        open={isDeleteModalOpen}
+        onOpenChange={(next) => {
+          setIsDeleteModalOpen(next);
+          if (!next) setDeletingTask(null);
+        }}
+        onConfirm={() => handleDeleteTask()}
+        itemName={deletingTask?.name || deletingTask?.title}
+      />
       <ResolveConflictModal
         isOpen={isConflictModalOpen}
         onClose={() => {
@@ -1519,8 +1494,38 @@ export default function ProgressPage() {
         subtask={detailTask}
         getFormattedDate={getFormattedDate}
         onEdit={(st: any) => {
-          setEditingTask({ ...st, title: st.name || st.title });
+          setEditingTask({
+            ...st,
+            activity: st.activity ?? detailTask?.activity,
+            title: st.name || st.title,
+          });
           setIsEditModalOpen(true);
+        }}
+        onReprogram={(st: any) => {
+          const activityId = st.activity?.id ?? detailTask?.activity?.id;
+          const targetDate = st.target_date;
+          const estimatedHours = parseFloat(String(st.estimated_hours || 0)) || 0;
+          navigate("/calendario", {
+            state: {
+              focusDate: targetDate,
+              reprogramSubtask: {
+                id: st.id,
+                activityId,
+                title: st.name || st.title,
+                deadline: st.activity?.deadline ?? detailTask?.activity?.deadline,
+                dateKey: targetDate,
+                durationNum: estimatedHours,
+              },
+            },
+          });
+        }}
+        onPostpone={(st: any) => {
+          const activityId = st.activity?.id ?? detailTask?.activity?.id;
+          if (activityId) openPostponeModal(st, activityId);
+        }}
+        onDelete={(st: any) => {
+          const activityId = st.activity?.id ?? detailTask?.activity?.id;
+          return handleDeleteTask({ ...st, activityId });
         }}
       />
       {/* Floating help button */}

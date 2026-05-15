@@ -53,6 +53,8 @@ export default function ConflictModal({
   multipleTasks,
   onReajustar,
 }: ConflictModalProps) {
+  const modalRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!open) return;
 
@@ -64,17 +66,16 @@ export default function ConflictModal({
     };
   }, [open]);
 
+  useEffect(() => {
+    if (open && modalRef.current) {
+      modalRef.current.focus();
+    }
+  }, [open]);
+
   if (!open) return null;
 
   const isMultiple = !!multipleTasks;
   const limiteDiario = singleTask?.limiteDiario || multipleTasks?.limiteDiario || 6;
-  const modalRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-  if (open && modalRef.current) {
-    modalRef.current.focus();
-  }
-}, [open]);
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">

@@ -1,13 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Pencil, Trash2, Calendar, Clock, Loader2, CheckCircle2, AlertCircle, AlertTriangle, X, FileText } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/components/dialog";
 import EditSubtaskModal from "@/shared/components/EditSubtaskModal";
 import { MessageModal } from "@/shared/components/MessageModal";
 import { patchSubtask, updateSubtask, deleteSubtask } from "@/api/services/subtask";
@@ -27,8 +20,14 @@ interface SubtaskItemProps {
   isActive?: boolean;
   todayBadge?: boolean;
   onStatusChange?: (subtaskId: string, newStatus: boolean) => void; // Callback con ID y nuevo estado para actualización optimista
-  onSubtaskUpdated?: () => void; // Callback para refrescar todas las subtareas después de editar
+  onSubtaskUpdated?: (patch?: {
+    subtaskId: string;
+    title: string;
+    estimated_hours: number;
+  }) => void | Promise<void>;
   deadlineDate?: string; // Fecha de entrega de la actividad
+  activityTitle?: string;
+  courseName?: string;
   isConflicted?: boolean;
   status?: string;
   onOpenResolveConflict?: () => void;
@@ -49,6 +48,8 @@ export default function SubtaskItem({
   onStatusChange,
   onSubtaskUpdated,
   deadlineDate,
+  activityTitle,
+  courseName,
   isConflicted = false,
   status = "PENDING",
   onOpenResolveConflict,
@@ -59,9 +60,9 @@ export default function SubtaskItem({
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [deleteArmed, setDeleteArmed] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [showEditSuccessDialog, setShowEditSuccessDialog] = useState(false);
   const [pendingEditData, setPendingEditData] = useState<{ nombre: string; horas: string } | null>(null);
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [conflictData, setConflictData] = useState<{
@@ -77,6 +78,28 @@ export default function SubtaskItem({
   const localChangeRef = useRef(false); // Ref para rastrear si el cambio fue iniciado localmente
   const lastLocalStateRef = useRef<boolean | null>(null); // Ref para rastrear el último estado establecido localmente
   const deleteArmTimeoutRef = useRef<number | null>(null);
+  const awaitingEditSyncRef = useRef<{ title: string; hours: number } | null>(null);
+  const editSyncTimeoutRef = useRef<number | null>(null);
+
+  const normalizeHoursDisplay = (value: string): number => {
+    const n = parseFloat(value.replace(/h$/i, "").trim());
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const clearEditSyncLock = () => {
+    awaitingEditSyncRef.current = null;
+    if (editSyncTimeoutRef.current) {
+      window.clearTimeout(editSyncTimeoutRef.current);
+      editSyncTimeoutRef.current = null;
+    }
+    setIsSavingEdit(false);
+  };
+
+  const propsMatchSavedEdit = (saved: { title: string; hours: number }) => {
+    const titleMatches = title.trim() === saved.title.trim();
+    const hoursMatch = Math.abs(normalizeHoursDisplay(hours) - saved.hours) < 0.001;
+    return titleMatches && hoursMatch;
+  };
 
   const borderClass = isConflicted
     ? "border-amber-400 animate-pulse shadow-[0_0_15px_rgba(251,191,36,0.5)] bg-amber-400/10"
@@ -101,8 +124,26 @@ export default function SubtaskItem({
       if (deleteArmTimeoutRef.current) {
         window.clearTimeout(deleteArmTimeoutRef.current);
       }
+      if (editSyncTimeoutRef.current) {
+        window.clearTimeout(editSyncTimeoutRef.current);
+      }
     };
   }, []);
+
+  // Desbloquear el card solo cuando los props reflejan lo guardado
+  useEffect(() => {
+    const pending = awaitingEditSyncRef.current;
+    if (!pending || !isSavingEdit) return;
+
+    if (propsMatchSavedEdit(pending)) {
+      awaitingEditSyncRef.current = null;
+      if (editSyncTimeoutRef.current) {
+        window.clearTimeout(editSyncTimeoutRef.current);
+        editSyncTimeoutRef.current = null;
+      }
+      setIsSavingEdit(false);
+    }
+  }, [title, hours, isSavingEdit]);
 
   const handleCheckChange = async (checked: boolean) => {
     if (checked && isConflicted) {
@@ -157,22 +198,18 @@ export default function SubtaskItem({
   const handleDelete = async () => {
     if (!activityId || !id) {
       showToast("Error: ID de actividad o subtarea no disponible.", "error");
-      return;
+      throw new Error("Missing ids");
     }
-
-    setIsDeleting(true);
 
     try {
       await deleteSubtask(activityId, id);
-      showToast("Subtarea eliminada correctamente", "success");
       if (onSubtaskUpdated) {
         onSubtaskUpdated();
       }
     } catch (error: any) {
       console.error("Error al eliminar subtarea:", error);
       showToast(error?.response?.data?.detail || "Error al eliminar la subtarea.", "error");
-    } finally {
-      setIsDeleting(false);
+      throw error;
     }
   };
 
@@ -228,28 +265,52 @@ export default function SubtaskItem({
       horas: String(payload.estimatedHours),
     });
 
+    setIsSavingEdit(true);
+    if (editSyncTimeoutRef.current) {
+      window.clearTimeout(editSyncTimeoutRef.current);
+    }
+    editSyncTimeoutRef.current = window.setTimeout(() => {
+      if (awaitingEditSyncRef.current) {
+        console.warn("Timeout esperando sincronización de subtarea editada");
+        clearEditSyncLock();
+      }
+    }, 20000);
+
     try {
       const subtaskUpdateData: any = {
         title: payload.title.trim(),
         estimated_hours: String(payload.estimatedHours),
       };
 
+      const savedTitle = payload.title.trim();
+      const savedHours = payload.estimatedHours;
+
       await updateSubtask(activityId, id, subtaskUpdateData);
 
-      showToast("¡Todo salió bien! La subtarea se actualizó correctamente.", "success");
+      awaitingEditSyncRef.current = { title: savedTitle, hours: savedHours };
 
-      // Cerrar modal (el modal también se cierra al recibir ok:true, esto es solo por consistencia)
-      setShowEditDialog(false);
+      if (onSubtaskUpdated) {
+        await onSubtaskUpdated({
+          subtaskId: id,
+          title: savedTitle,
+          estimated_hours: savedHours,
+        });
+      }
 
-      setTimeout(() => {
-        setShowEditSuccessDialog(true);
-      }, 200);
+      if (propsMatchSavedEdit({ title: savedTitle, hours: savedHours })) {
+        awaitingEditSyncRef.current = null;
+        if (editSyncTimeoutRef.current) {
+          window.clearTimeout(editSyncTimeoutRef.current);
+          editSyncTimeoutRef.current = null;
+        }
+        setIsSavingEdit(false);
+      }
 
-      if (onSubtaskUpdated) onSubtaskUpdated();
       setPendingEditData(null);
 
       return { ok: true as const };
     } catch (error: any) {
+      clearEditSyncLock();
       console.error("Error al actualizar subtarea:", error);
 
       // Detectar si es un error de conflicto de horas (mismo criterio que antes)
@@ -271,6 +332,7 @@ export default function SubtaskItem({
       }
 
       if (isConflictError) {
+        clearEditSyncLock();
         const fechaSubtask = dateOriginal || date.split(" ")[0];
         const limiteDiario = (() => {
           const saved = window.localStorage.getItem("studyLimitHours");
@@ -350,7 +412,10 @@ export default function SubtaskItem({
       />
       <article
         onClick={handleSubtaskClick}
-        className={`group cursor-pointer bg-[#111827] border border-slate-700/50 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 transition-all hover:bg-slate-800 hover:border-slate-600 relative overflow-hidden ${borderClass}`}
+        className={cn(
+          "group bg-[#111827] border border-slate-700/50 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 transition-all hover:bg-slate-800 hover:border-slate-600 cursor-pointer",
+          borderClass
+        )}
       >
         <div className={`flex-1 min-w-0 ${isChecked ? "line-through text-slate-500 dark:text-slate-400" : ""} ${status === "POSTPONED" ? "opacity-80" : ""}`}>
           <div className="flex items-center gap-2 mb-2">
@@ -459,7 +524,11 @@ export default function SubtaskItem({
           estimated_hours: hours.replace("h", ""),
           status: isChecked ? "DONE" : status === "POSTPONED" ? "POSTPONED" : "PENDING",
           execution_note: note,
-          activity: { id: activityId }
+          activity: {
+            id: activityId,
+            title: activityTitle,
+            course: courseName ?? undefined,
+          },
         }}
         getFormattedDate={(d) => d}
         onEdit={() => {
@@ -483,11 +552,7 @@ export default function SubtaskItem({
           });
         }}
         onPostpone={() => onOpenPostpone?.()}
-        onDelete={() => {
-          if (window.confirm("¿Estás seguro de que deseas eliminar esta subtarea?")) {
-            handleDelete();
-          }
-        }}
+        onDelete={handleDelete}
       />
 
       <EditSubtaskModal
@@ -514,28 +579,6 @@ export default function SubtaskItem({
         }}
         onSave={handleSaveEditFromTodayModal}
       />
-
-      <Dialog open={showEditSuccessDialog} onOpenChange={setShowEditSuccessDialog}>
-        <DialogContent className="sm:max-w-[420px]">
-          <DialogHeader>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-full">
-                <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-              </div>
-              <DialogTitle className="text-lg font-semibold text-slate-900 dark:text-white">
-                Subtarea actualizada
-              </DialogTitle>
-            </div>
-            <DialogDescription className="text-sm text-slate-600 dark:text-slate-400 pt-2">
-              Tu subtarea{" "}
-              <span className="font-semibold text-slate-900 dark:text-white">
-                {title}
-              </span>{" "}
-              se ha editado correctamente.
-            </DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
 
       {/* Modal de conflicto de horas */}
       {showConflictModal && conflictData && (

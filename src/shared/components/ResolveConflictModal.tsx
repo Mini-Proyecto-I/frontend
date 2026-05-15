@@ -54,15 +54,15 @@ export function ResolveConflictModal({
   onReduceConfirm,
   onMoveTask,
 }: ResolveConflictModalProps) {
-  if (!isOpen || !selectedConflict) return null;
-
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-  if (isOpen && modalRef.current) {
-    modalRef.current.focus();
-  }
-}, [isOpen]);
+    if (isOpen && modalRef.current) {
+      modalRef.current.focus();
+    }
+  }, [isOpen]);
+
+  if (!isOpen || !selectedConflict) return null;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">

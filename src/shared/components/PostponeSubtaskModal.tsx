@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Clock, Info, X } from "lucide-react";
+import { Clock, Info, Loader2, X } from "lucide-react";
 import { Button } from "@/shared/components/button";
 
 interface PostponeSubtaskModalProps {
@@ -16,22 +16,32 @@ export default function PostponeSubtaskModal({
   isProcessing = false
 }: PostponeSubtaskModalProps) {
   const [note, setNote] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const isBusy = isProcessing || isSubmitting;
+
+  useEffect(() => {
+    if (isOpen && modalRef.current) {
+      modalRef.current.focus();
+    }
+    if (!isOpen) {
+      setIsSubmitting(false);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handleConfirm = async () => {
-    await onConfirm(note);
-    setNote("");
-    onClose();
+    if (isBusy) return;
+    setIsSubmitting(true);
+    try {
+      await onConfirm(note);
+      setNote("");
+      onClose();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
-
-  const modalRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-  if (isOpen && modalRef.current) {
-    modalRef.current.focus();
-  }
-}, [isOpen]);
 
   return (
     <div 
@@ -54,8 +64,10 @@ export default function PostponeSubtaskModal({
             </h2>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors"
+            disabled={isBusy}
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <X className="w-5 h-5" />
           </button>
@@ -78,7 +90,7 @@ export default function PostponeSubtaskModal({
               placeholder="Añade una nota sobre por qué pospones esta subtarea..."
               rows={4}
               className="w-full bg-slate-900/50 border border-slate-800 rounded-xl text-white text-sm p-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-none placeholder:text-slate-600"
-              disabled={isProcessing}
+              disabled={isBusy}
             />
             <div className="flex items-start gap-2 pt-1">
               <Info className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
@@ -95,16 +107,24 @@ export default function PostponeSubtaskModal({
             variant="ghost"
             onClick={onClose}
             className="text-slate-300 hover:text-white hover:bg-slate-800 cursor-pointer"
-            disabled={isProcessing}
+            disabled={isBusy}
           >
             Cancelar
           </Button>
           <Button
+            type="button"
             onClick={handleConfirm}
-            className="bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/20 cursor-pointer"
-            disabled={isProcessing}
+            className="bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-lg shadow-blue-500/20 cursor-pointer min-w-[120px]"
+            disabled={isBusy}
           >
-            {isProcessing ? "Pospone..." : "Posponer"}
+            {isBusy ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Posponiendo...
+              </>
+            ) : (
+              "Posponer"
+            )}
           </Button>
         </div>
       </div>

@@ -11,6 +11,7 @@ import { queryCache } from "@/lib/queryCache";
 import { Input } from "@/shared/components/input";
 import { Button } from "@/shared/components/button";
 import EditSubtaskModal from "@/shared/components/EditSubtaskModal";
+import DeleteConfirmationDialog from "@/shared/components/DeleteConfirmationDialog";
 import { ResolveConflictModal } from "@/shared/components/ResolveConflictModal";
 import { ConflictOutcomeModal } from "@/shared/components/ConflictOutcomeModal";
 import { OverloadAlert } from "@/features/today/components/OverloadAlert";
@@ -28,6 +29,10 @@ import { MessageModal } from "@/shared/components/MessageModal";
 import { TaskHistoryModal } from "@/shared/components/TaskHistoryModal";
 import { History } from "lucide-react";
 import { useToast } from '@/shared/components/toast';
+import {
+  getApiValidationErrorMessage,
+  SUBTASK_SAVE_GENERIC_FALLBACK,
+} from "@/shared/utils/apiErrorMessage";
 
 
 function getGreeting(name: string) {
@@ -77,6 +82,7 @@ export default function Today() {
   const [isPostponeModalOpen, setIsPostponeModalOpen] = useState(false);
   const [postponingTask, setPostponingTask] = useState<any | null>(null);
   const [postponeNote, setPostponeNote] = useState("");
+  const [isPostponing, setIsPostponing] = useState(false);
   const [postponeSuccessOpen, setPostponeSuccessOpen] = useState(false);
   const [postponeSuccessMessage, setPostponeSuccessMessage] = useState("");
   const [welcomeStep, setWelcomeStep] = useState(1);
@@ -93,7 +99,6 @@ export default function Today() {
   const [editingTask, setEditingTask] = useState<any | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingTask, setDeletingTask] = useState<any | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [detailTask, setDetailTask] = useState<any | null>(null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historySubtaskId, setHistorySubtaskId] = useState<string | null>(null);
@@ -117,12 +122,12 @@ export default function Today() {
     setIsDeleteModalOpen(true);
   };
 
-  const handleDelete = async () => {
-    if (!deletingTask) return;
+  const handleDelete = async (task?: any) => {
+    const target = task ?? deletingTask;
+    if (!target) return;
 
-    setIsDeleting(true);
-    const activityId = deletingTask.activity?.id;
-    const subtaskId = deletingTask.id;
+    const activityId = target.activity?.id;
+    const subtaskId = target.id;
 
     try {
       await deleteSubtask(activityId, subtaskId);
@@ -144,13 +149,11 @@ export default function Today() {
       refetch();
       refetchTiempo();
 
-      setIsDeleteModalOpen(false);
-      setDeletingTask(null);
+      setDetailTask(null);
     } catch (e: any) {
       console.error("Error al eliminar subtarea:", e);
-      // You could add an error state here if needed
-    } finally {
-      setIsDeleting(false);
+      showToast("Error al eliminar la subtarea.", "error");
+      throw e;
     }
   };
 
@@ -280,8 +283,9 @@ export default function Today() {
 
 
   const handlePostpone = async () => {
-    if (!postponingTask) return;
+    if (!postponingTask || isPostponing) return;
     const taskLabel = String(postponingTask?.title ?? postponingTask?.name ?? "esta subtarea");
+    setIsPostponing(true);
     try {
       await postponeSubtask(postponingTask.activity?.id, postponingTask.id, postponeNote);
 
@@ -311,12 +315,14 @@ export default function Today() {
         `Se cambió el estado de "${taskLabel}" a Pospuesta. La fecha de entrega no se verá afectada.`
       );
       setPostponeSuccessOpen(true);
-    } catch (e) {
-      console.error("Error al posponer subtarea:", e);
-    } finally {
       setIsPostponeModalOpen(false);
       setPostponingTask(null);
       setPostponeNote("");
+    } catch (e) {
+      console.error("Error al posponer subtarea:", e);
+      showToast("No se pudo posponer la tarea. Intenta de nuevo.", "error");
+    } finally {
+      setIsPostponing(false);
     }
   };
 
@@ -1412,86 +1418,25 @@ export default function Today() {
             refetch();
             refetchTiempo();
 
-            setIsEditModalOpen(false);
-            setEditingTask(null);
             return { ok: true };
-          } catch {
+          } catch (error) {
             return {
               ok: false,
-              error:
-                "No pudimos guardar los cambios. Revisa que las horas no superen tu límite diario de estudio y vuelve a intentarlo.",
+              error: getApiValidationErrorMessage(error, SUBTASK_SAVE_GENERIC_FALLBACK),
             };
           }
         }}
       />
 
-      {/* Delete Confirmation Modal */}
-      {isDeleteModalOpen && deletingTask && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-          <div className="w-full max-w-[560px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
-            <div className="p-6 sm:p-7 relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsDeleteModalOpen(false);
-                  setDeletingTask(null);
-                }}
-                className="absolute top-4 right-4 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors cursor-pointer"
-                aria-label="Cerrar"
-                disabled={isDeleting}
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
-                  <Trash2 className="w-6 h-6 text-red-400" />
-                </div>
-                <div className="pr-8">
-                  <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-                    Eliminar subtarea
-                  </h3>
-                  <p className="text-slate-400 text-sm mt-1 leading-relaxed">
-                    ¿Estás seguro que quieres eliminar la subtarea{" "}
-                    <span className="text-red-300 font-semibold">"{deletingTask.title}"</span>?
-                    Esta acción no se puede deshacer.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                <Button
-                  onClick={() => {
-                    setIsDeleteModalOpen(false);
-                    setDeletingTask(null);
-                  }}
-                  disabled={isDeleting}
-                  className="h-11 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold border border-slate-700"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  disabled={isDeleting}
-                  onClick={handleDelete}
-                  className="h-11 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold shadow-lg shadow-red-600/20 flex items-center justify-center gap-2"
-                >
-                  {isDeleting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Eliminando...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-4 h-4" />
-                      Eliminar
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteConfirmationDialog
+        open={isDeleteModalOpen}
+        onOpenChange={(next) => {
+          setIsDeleteModalOpen(next);
+          if (!next) setDeletingTask(null);
+        }}
+        onConfirm={() => handleDelete()}
+        itemName={deletingTask?.title}
+      />
       {isPostponeModalOpen && postponingTask && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
           <div className="w-full max-w-lg bg-[#0B1220] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
@@ -1522,7 +1467,8 @@ export default function Today() {
                   onChange={(e) => setPostponeNote(e.target.value)}
                   placeholder="Añade una nota sobre por qué pospones esta subtarea..."
                   rows={4}
-                  className="w-full bg-slate-900/50 border border-slate-800 rounded-xl text-white text-sm p-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-none placeholder:text-slate-600"
+                  disabled={isPostponing}
+                  className="w-full bg-slate-900/50 border border-slate-800 rounded-xl text-white text-sm p-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-none placeholder:text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
                 />
                 <div className="flex items-start gap-2 pt-1">
                   <Info className="w-4 h-4 text-slate-500 mt-0.5 shrink-0" />
@@ -1536,20 +1482,31 @@ export default function Today() {
             {/* Footer */}
             <div className="px-6 py-6 mt-2 flex items-center justify-end gap-3">
               <button
+                type="button"
                 onClick={() => {
                   setIsPostponeModalOpen(false);
                   setPostponingTask(null);
                   setPostponeNote("");
                 }}
-                className="px-5 py-2.5 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                disabled={isPostponing}
+                className="px-5 py-2.5 text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancelar
               </button>
               <button
+                type="button"
                 onClick={handlePostpone}
-                className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-all shadow-lg shadow-blue-500/20 active:scale-95 cursor-pointer"
+                disabled={isPostponing}
+                className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-all shadow-lg shadow-blue-500/20 active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[120px]"
               >
-                Posponer
+                {isPostponing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Posponiendo...
+                  </>
+                ) : (
+                  "Posponer"
+                )}
               </button>
             </div>
           </div>
@@ -1587,10 +1544,7 @@ export default function Today() {
           setPostponingTask(st);
           setIsPostponeModalOpen(true);
         }}
-        onDelete={(st: any) => {
-          setDeletingTask(st);
-          setIsDeleteModalOpen(true);
-        }}
+        onDelete={(st: any) => handleDelete(st)}
       />
 
       {/* History Task Modal */}
@@ -1889,7 +1843,10 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
             {isConflicted && onViewConflict && (
               <button
                 type="button"
-                onClick={!isDone ? onViewConflict : undefined}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isDone) onViewConflict();
+                }}
                 disabled={isDone}
                 className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors cursor-pointer ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-[#F59E0B]/90 hover:text-[#F59E0B] bg-[#F59E0B]/20 hover:bg-[#F59E0B]/30 border-[#F59E0B]/40'}`}
               >
@@ -1900,7 +1857,10 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
 
             <button
               type="button"
-              onClick={!isDone ? () => onTitleClick?.() : undefined}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isDone) onTitleClick?.();
+              }}
               disabled={isDone}
               className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 border-slate-700/50 cursor-pointer'}`}
             >
@@ -1921,7 +1881,10 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
               onPostpone && (
                 <button
                   type="button"
-                  onClick={!isDone ? onPostpone : undefined}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isDone) onPostpone();
+                  }}
                   disabled={isDone}
                   className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 border-slate-700/50 cursor-pointer'}`}
                 >
@@ -1933,7 +1896,10 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
 
             <button
               type="button"
-              onClick={!isDone ? handleReprogram : undefined}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isDone) handleReprogram();
+              }}
               disabled={isDone}
               className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-blue-600/15 hover:bg-blue-600/25 border-blue-500/30 cursor-pointer'}`}
             >
