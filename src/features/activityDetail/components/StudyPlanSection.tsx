@@ -30,6 +30,8 @@ interface StudyPlanSectionProps {
     estimated_hours: number;
   }) => void | Promise<void>;
   deadlineDate?: string; // Fecha de entrega de la actividad
+  activityTitle?: string;
+  courseName?: string;
   onOpenResolveConflict?: (subtask: Subtask) => void;
   onOpenPostpone?: (subtask: Subtask) => void;
 }
@@ -40,6 +42,8 @@ export default function StudyPlanSection({
   onSubtaskStatusChange,
   onSubtaskUpdated,
   deadlineDate,
+  activityTitle,
+  courseName,
   onOpenResolveConflict,
   onOpenPostpone,
 }: StudyPlanSectionProps) {
@@ -156,6 +160,8 @@ export default function StudyPlanSection({
             onStatusChange={onSubtaskStatusChange}
             onSubtaskUpdated={onSubtaskUpdated}
             deadlineDate={deadlineDate}
+            activityTitle={activityTitle}
+            courseName={courseName}
             isConflicted={subtask.isConflicted}
             status={subtask.status}
             onOpenResolveConflict={() => onOpenResolveConflict?.(subtask)}
