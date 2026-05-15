@@ -8,6 +8,53 @@ import { queryCache } from '@/lib/queryCache';
 const ACTIVITIES_TTL = 5 * 60 * 1000; // 5 minutes
 const SUBTASKS_TTL = 5 * 60 * 1000;   // 5 minutes
 
+/** La lista de progreso muestra `name || title`; el API devuelve `title`. */
+function mergeSubtaskFields(
+  st: Subtask,
+  patch: Partial<Subtask> & Record<string, unknown>
+): Subtask {
+  const next = { ...st, ...patch } as Subtask;
+  const t = patch.title;
+  if (typeof t === 'string') {
+    next.name = t;
+  }
+  return next;
+}
+
+function mergeSubtaskFromApiResponse(st: Subtask, server: Record<string, unknown>): Subtask {
+  const serverTitle = server.title;
+  const nextTitle = typeof serverTitle === 'string' ? serverTitle : st.title;
+  const serverName = server.name;
+  const nextName =
+    (typeof serverName === 'string' && serverName.length > 0 ? serverName : null) ??
+    (typeof nextTitle === 'string' ? nextTitle : st.name);
+
+  let estimated_hours = st.estimated_hours;
+  if (server.estimated_hours != null && server.estimated_hours !== '') {
+    const eh = server.estimated_hours;
+    const num = typeof eh === 'string' ? parseFloat(eh) : Number(eh);
+    if (!Number.isNaN(num)) estimated_hours = num;
+  }
+
+  return {
+    ...st,
+    name: String(nextName ?? ''),
+    title: nextTitle,
+    estimated_hours,
+    status: (server.status as Subtask['status']) ?? st.status,
+    target_date:
+      server.target_date !== undefined
+        ? (server.target_date as string | null | undefined)
+        : st.target_date,
+    is_conflicted:
+      typeof server.is_conflicted === 'boolean' ? server.is_conflicted : st.is_conflicted,
+    posponed_note:
+      server.posponed_note === undefined
+        ? st.posponed_note
+        : (server.posponed_note as string | null | undefined),
+  };
+}
+
 export interface Course {
   id: number | string;
   name: string;
@@ -122,7 +169,7 @@ export function useProgressData() {
           if (activity.id !== activityId) return activity;
 
           const updatedSubtasks = activity.subtasks.map((st: Subtask) =>
-            st.id === subtaskId ? { ...st, ...updates } : st
+            st.id === subtaskId ? mergeSubtaskFields(st, updates as Partial<Subtask> & Record<string, unknown>) : st
           );
 
           // Recalculate counters for the activity to keep UI in sync optimistically
@@ -165,6 +212,42 @@ export function useProgressData() {
         } else {
           showToast('Cambios guardados correctamente', 'success');
         }
+
+        const srv = responseData as Record<string, unknown> | undefined;
+        if (
+          !options?.tolerant &&
+          srv &&
+          typeof srv === 'object' &&
+          !Array.isArray(srv) &&
+          'id' in srv &&
+          (Object.prototype.hasOwnProperty.call(srv, 'title') ||
+            Object.prototype.hasOwnProperty.call(srv, 'estimated_hours'))
+        ) {
+          setActivities((prev: Activity[]) => {
+            const updated = prev.map((activity: Activity) => {
+              if (activity.id !== activityId) return activity;
+              const updatedSubtasks = activity.subtasks.map((st: Subtask) =>
+                st.id === subtaskId ? mergeSubtaskFromApiResponse(st, srv) : st
+              );
+              const total = activity.total_subtasks ?? updatedSubtasks.length;
+              const done = updatedSubtasks.filter((s) => s.status === 'DONE').length;
+              const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+              return {
+                ...activity,
+                subtasks: updatedSubtasks,
+                total_subtasks_done: done,
+                completion_percent: pct,
+              };
+            });
+            queryCache.set('activities', updated, ACTIVITIES_TTL);
+            const updatedActivity = updated.find((a) => a.id === activityId);
+            if (updatedActivity) {
+              queryCache.set(`subtasks:${activityId}`, updatedActivity.subtasks, SUBTASKS_TTL);
+            }
+            return updated;
+          });
+        }
+
         return responseData;
       } catch (err) {
         // On error: invalidate cache and re-fetch to get authoritative state

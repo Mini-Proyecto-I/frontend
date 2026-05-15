@@ -16,6 +16,13 @@ export default function PostponeSubtaskModal({
   isProcessing = false
 }: PostponeSubtaskModalProps) {
   const [note, setNote] = useState("");
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isOpen && modalRef.current) {
+      modalRef.current.focus();
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -24,14 +31,6 @@ export default function PostponeSubtaskModal({
     setNote("");
     onClose();
   };
-
-  const modalRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-  if (isOpen && modalRef.current) {
-    modalRef.current.focus();
-  }
-}, [isOpen]);
 
   return (
     <div 

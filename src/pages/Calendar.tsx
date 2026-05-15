@@ -23,6 +23,10 @@ import { patchActivity } from "@/api/services/activity";
 import { queryCache } from "@/lib/queryCache";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import EditSubtaskModal from "@/shared/components/EditSubtaskModal";
+import {
+    getApiValidationErrorMessage,
+    SUBTASK_SAVE_GENERIC_FALLBACK,
+} from "@/shared/utils/apiErrorMessage";
 
 export default function Calendar() {
     const navigate = useNavigate();
@@ -1784,13 +1788,11 @@ export default function Calendar() {
                         });
                         queryCache.invalidate("activities");
                         await refetch();
-                        setEditingSubtask(null);
                         return { ok: true };
                     } catch (error) {
                         return {
                             ok: false,
-                            error:
-                                "No pudimos guardar los cambios. Revisa que las horas no superen tu límite diario de estudio y vuelve a intentarlo.",
+                            error: getApiValidationErrorMessage(error, SUBTASK_SAVE_GENERIC_FALLBACK),
                         };
                     }
                 }}

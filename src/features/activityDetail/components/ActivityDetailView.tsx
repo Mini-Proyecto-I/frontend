@@ -218,6 +218,27 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
     }
   };
 
+  const handleSubtaskUpdated = async (patch?: {
+    subtaskId: string;
+    title: string;
+    estimated_hours: number;
+  }) => {
+    if (patch) {
+      setSubtasks((prev) =>
+        prev.map((subtask) =>
+          String(subtask.id) === String(patch.subtaskId)
+            ? {
+                ...subtask,
+                title: patch.title,
+                estimated_hours: patch.estimated_hours,
+              }
+            : subtask
+        )
+      );
+    }
+    await fetchSubtasksOnly();
+  };
+
   useEffect(() => {
     if (!activityId) {
       setError("ID de actividad no proporcionado");
@@ -509,7 +530,7 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
               subtasks={formattedSubtasks}
               activityId={activityId || ""}
               onSubtaskStatusChange={handleSubtaskStatusChange}
-              onSubtaskUpdated={fetchSubtasksOnly}
+              onSubtaskUpdated={handleSubtaskUpdated}
               deadlineDate={activity.deadline}
               onOpenResolveConflict={(st: any) => {
                 setConflictModalTask(st);

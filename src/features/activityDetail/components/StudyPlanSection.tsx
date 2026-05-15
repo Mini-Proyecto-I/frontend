@@ -24,7 +24,11 @@ interface StudyPlanSectionProps {
   subtasks?: Subtask[];
   activityId: string;
   onSubtaskStatusChange?: (subtaskId: string, newStatus: boolean) => void;
-  onSubtaskUpdated?: () => void; // Callback para refrescar todas las subtareas después de editar
+  onSubtaskUpdated?: (patch?: {
+    subtaskId: string;
+    title: string;
+    estimated_hours: number;
+  }) => void | Promise<void>;
   deadlineDate?: string; // Fecha de entrega de la actividad
   onOpenResolveConflict?: (subtask: Subtask) => void;
   onOpenPostpone?: (subtask: Subtask) => void;

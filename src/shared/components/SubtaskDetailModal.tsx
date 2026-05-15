@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import DeleteConfirmationDialog from "@/shared/components/DeleteConfirmationDialog";
 import { parseISO, isSameDay } from "date-fns";
 import { Calendar, Clock, History, Pencil, AlertCircle, CalendarRange, Trash2, ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -23,7 +24,7 @@ export interface SubtaskDetailModalProps {
   onEdit?: (subtask: any) => void;
   onReprogram?: (subtask: any) => void;
   onPostpone?: (subtask: any) => void;
-  onDelete?: (subtask: any) => void;
+  onDelete?: (subtask: any) => void | Promise<void>;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -47,6 +48,13 @@ export function SubtaskDetailModal({
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historySubtaskId, setHistorySubtaskId] = useState<string | null>(null);
   const [historyTaskTitle, setHistoryTaskTitle] = useState("");
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setShowDeleteDialog(false);
+    }
+  }, [open]);
 
   const handleShowHistory = (subtaskId: string, title: string) => {
     setHistorySubtaskId(subtaskId);
@@ -57,9 +65,23 @@ export function SubtaskDetailModal({
   if (!subtask) return null;
 
   const isToday = subtask.target_date && isSameDay(parseISO(subtask.target_date), new Date());
+  const subtaskName = subtask.title || subtask.name;
+
+  const handleConfirmDelete = async () => {
+    if (!onDelete) return;
+    await onDelete(subtask);
+  };
+
+  const handleDeleteDialogOpenChange = (next: boolean) => {
+    setShowDeleteDialog(next);
+    if (!next) {
+      onOpenChange(false);
+    }
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open && !showDeleteDialog} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] bg-[#111827] border-slate-800">
         <DialogHeader>
           <div className="flex items-center gap-3">
@@ -219,10 +241,8 @@ export function SubtaskDetailModal({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  onOpenChange(false);
-                  onDelete?.(subtask);
-                }}
+                onClick={() => setShowDeleteDialog(true)}
+                disabled={!onDelete}
                 className="h-11 rounded-xl border-slate-800 bg-slate-800/20 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-all flex items-center justify-center gap-2 group"
               >
                 <Trash2 className="w-4 h-4 group-hover:rotate-12 transition-transform" />
@@ -251,5 +271,13 @@ export function SubtaskDetailModal({
         </div>
       </DialogContent>
     </Dialog>
+
+    <DeleteConfirmationDialog
+      open={showDeleteDialog}
+      onOpenChange={handleDeleteDialogOpenChange}
+      onConfirm={handleConfirmDelete}
+      itemName={subtaskName}
+    />
+    </>
   );
 }
