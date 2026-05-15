@@ -26,6 +26,8 @@ interface SubtaskItemProps {
     estimated_hours: number;
   }) => void | Promise<void>;
   deadlineDate?: string; // Fecha de entrega de la actividad
+  activityTitle?: string;
+  courseName?: string;
   isConflicted?: boolean;
   status?: string;
   onOpenResolveConflict?: () => void;
@@ -46,6 +48,8 @@ export default function SubtaskItem({
   onStatusChange,
   onSubtaskUpdated,
   deadlineDate,
+  activityTitle,
+  courseName,
   isConflicted = false,
   status = "PENDING",
   onOpenResolveConflict,
@@ -520,7 +524,11 @@ export default function SubtaskItem({
           estimated_hours: hours.replace("h", ""),
           status: isChecked ? "DONE" : status === "POSTPONED" ? "POSTPONED" : "PENDING",
           execution_note: note,
-          activity: { id: activityId }
+          activity: {
+            id: activityId,
+            title: activityTitle,
+            course: courseName ?? undefined,
+          },
         }}
         getFormattedDate={(d) => d}
         onEdit={() => {

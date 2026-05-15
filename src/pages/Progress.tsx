@@ -1031,7 +1031,7 @@ export default function ProgressPage() {
                                       variant="ghost"
                                       size="sm"
                                       className="h-8 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                                      onClick={() => setDetailTask(st)}
+                                      onClick={() => setDetailTask({ ...st, activity })}
                                     >
                                       <FileText className="h-3 w-3 mr-1" />
                                       Ver nota

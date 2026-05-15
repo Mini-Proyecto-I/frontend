@@ -15,6 +15,7 @@ import { Button } from "@/shared/components/button";
 import { cn } from "@/shared/utils/utils";
 import { TaskHistoryModal } from "./TaskHistoryModal";
 import { Separator } from "@/shared/components/separator";
+import { resolveSubtaskCourseName } from "@/shared/utils/course";
 
 export interface SubtaskDetailModalProps {
   open: boolean;
@@ -66,6 +67,7 @@ export function SubtaskDetailModal({
 
   const isToday = subtask.target_date && isSameDay(parseISO(subtask.target_date), new Date());
   const subtaskName = subtask.title || subtask.name;
+  const courseName = resolveSubtaskCourseName(subtask);
 
   const handleConfirmDelete = async () => {
     if (!onDelete) return;
@@ -181,7 +183,7 @@ export function SubtaskDetailModal({
                   {subtask.activity?.title || "Actividad"}
                 </p>
                 <p className="text-[11px] text-slate-500 font-medium">
-                  {subtask.activity?.course?.name || "Sin curso asignado"}
+                  {courseName ?? "Sin curso asignado"}
                 </p>
               </div>
               <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-all">

@@ -529,6 +529,8 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
             <StudyPlanSection
               subtasks={formattedSubtasks}
               activityId={activityId || ""}
+              activityTitle={activity.title}
+              courseName={activity.course?.name}
               onSubtaskStatusChange={handleSubtaskStatusChange}
               onSubtaskUpdated={handleSubtaskUpdated}
               deadlineDate={activity.deadline}

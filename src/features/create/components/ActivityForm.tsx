@@ -25,6 +25,7 @@ import {
 import SubtaskForm, { Subtarea } from "./SubtaskForm";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import { getConfig } from "@/api/services/config";
+import { queryCache } from "@/lib/queryCache";
 
 interface ExistingTask {
     id: string | number;
@@ -77,10 +78,12 @@ const ActivityForm = () => {
     const [isFinished, setIsFinished] = useState(false);
 
     /** Siempre valores actuales para cleanup al desmontar (evita closure obsoleta al cambiar isFinished). */
-    const createdActivityIdRef = useRef<number | null>(null);
-    const isFinishedRef = useRef(false);
-    createdActivityIdRef.current = createdActivityId;
-    isFinishedRef.current = isFinished;
+  const createdActivityIdRef = useRef<number | null>(null);
+  const isFinishedRef = useRef(false);
+  /** Subtareas ya persistidas en el backend (evita bloqueo al ir a Calendario y doble guardado). */
+  const subtasksSavedRef = useRef(false);
+  createdActivityIdRef.current = createdActivityId;
+  isFinishedRef.current = isFinished;
 
     // Estados para cursos
     const [courses, setCourses] = useState<Course[]>([]);
@@ -229,8 +232,9 @@ const ActivityForm = () => {
     // Bloqueamos la navegación si se creó la actividad y no se ha finalizado el flujo
     const blocker = useBlocker(
         ({ currentLocation, nextLocation }) =>
-            createdActivityId !== null && 
-            !isFinished && 
+            createdActivityId !== null &&
+            !isFinished &&
+            !subtasksSavedRef.current &&
             currentLocation.pathname !== nextLocation.pathname &&
             !showCancelConfirm &&
             !showUnsavedSubtasksConfirm
@@ -690,15 +694,26 @@ const ActivityForm = () => {
         return conflicts;
     }, [subtareas, existingHoursByDate, studyLimitHours, getExistingTasksForDate]);
 
-        const navigateToCreateSuccess = () => {
-            if (!createdActivityId) return;
-            isFinishedRef.current = true;
-            setIsFinished(true); // Marcamos como finalizado para evitar el borrado en el cleanup
-            setModalType("success");
-            setModalTitle("¡Actividad creada exitosamente!");
-            setModalMessage(`Ya hemos preparado <strong class="text-white">"${titulo}"</strong> en tu calendario y subtareas.`);
-            setModalOpen(true);
-        };
+    const markSubtasksPersisted = () => {
+        subtasksSavedRef.current = true;
+        queryCache.invalidateByPrefix("hoy:");
+        queryCache.invalidate("activities");
+        refetchHoy();
+    };
+
+    const markCreationFlowComplete = () => {
+        isFinishedRef.current = true;
+        setIsFinished(true);
+    };
+
+    const navigateToCreateSuccess = () => {
+        if (!createdActivityId) return;
+        markCreationFlowComplete();
+        setModalType("success");
+        setModalTitle("¡Actividad creada exitosamente!");
+        setModalMessage(`Ya hemos preparado <strong class="text-white">"${titulo}"</strong> en tu calendario y subtareas.`);
+        setModalOpen(true);
+    };
 
     const getFirstConflictDate = (conflicts: ConflictInfo[]): string | null => {
         if (conflicts.length === 0) return null;
@@ -712,14 +727,20 @@ const ActivityForm = () => {
     const handleResolveConflictsNow = () => {
         const firstConflictDate = getFirstConflictDate(pendingConflicts);
         setShowConflictsAddedModal(false);
+        markCreationFlowComplete();
         if (!firstConflictDate) {
-            navigateToCreateSuccess();
+            navigate("/hoy", {
+                state: {
+                    firstActivity: studyWasEmptyOnMountRef.current === true,
+                },
+            });
             return;
         }
         navigate("/calendario", {
             state: {
                 focusDate: firstConflictDate,
                 conflictDateKey: firstConflictDate,
+                fromCreate: true,
             },
         });
     };
@@ -796,7 +817,6 @@ const ActivityForm = () => {
                 });
 
                 setErrors(newErrors);
-                refetchHoy();
 
                 setModalType("error");
                 setModalTitle("Error al guardar subtareas");
@@ -812,6 +832,8 @@ const ActivityForm = () => {
                 }, 200);
                 return;
             }
+
+            markSubtasksPersisted();
 
             if (conflictsDetected.length > 0) {
                 setPendingConflicts(conflictsDetected);
@@ -839,6 +861,15 @@ const ActivityForm = () => {
             setModalTitle("Error");
             setModalMessage("No se encontró la actividad. Por favor, intenta crear la actividad nuevamente.");
             setModalOpen(true);
+            return;
+        }
+
+        if (subtasksSavedRef.current) {
+            if (pendingConflicts.length > 0) {
+                setShowConflictsAddedModal(true);
+                return;
+            }
+            navigateToCreateSuccess();
             return;
         }
 
@@ -1042,8 +1073,7 @@ const ActivityForm = () => {
                                             console.error("Error al borrar actividad al cancelar:", err);
                                         }
                                     }
-                                    isFinishedRef.current = true;
-                                    setIsFinished(true); // Evitamos que el cleanup al desmontar intente borrar de nuevo
+                                    markCreationFlowComplete();
                                     setShowCancelConfirm(false);
                                     navigate("/hoy");
                                 }}
@@ -1092,15 +1122,14 @@ const ActivityForm = () => {
                             <Button
                                 type="button"
                                 onClick={async () => {
-                                    if (createdActivityId) {
+                                    if (createdActivityId && !subtasksSavedRef.current) {
                                         try {
                                             await deleteActivity(createdActivityId);
                                         } catch (err) {
                                             console.error("Error al borrar actividad al salir:", err);
                                         }
                                     }
-                                    isFinishedRef.current = true;
-                                    setIsFinished(true);
+                                    markCreationFlowComplete();
                                     setShowUnsavedSubtasksConfirm(false);
                                     blocker.proceed?.();
                                 }}
