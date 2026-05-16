@@ -94,7 +94,10 @@ export function AppHeader() {
                                     onClick={() => setIsAvatarMenuOpen(!isAvatarMenuOpen)}
                                     title="Mi perfil"
                                 >
-                                    <AvatarImage src={`https://upload.wikimedia.org/wikipedia/commons/7/7c/Profile_avatar_placeholder_large.png`} />
+                                    <AvatarImage
+                                        src={`https://upload.wikimedia.org/wikipedia/commons/7/7c/Profile_avatar_placeholder_large.png`}
+                                        alt={`Avatar de ${displayName}`}
+                                    />
                                     <AvatarFallback className="bg-[#1E293B] text-slate-300 font-semibold text-base">
                                         {displayName.split(' ').map((n) => n[0]).join('')}
                                     </AvatarFallback>
@@ -162,7 +165,7 @@ export function AppHeader() {
                     <button
                         className="md:hidden p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
                         onClick={toggleMenu}
-                        aria-label="Toggle menu"
+                        aria-label={isMenuOpen ? "Cerrar menú de navegación" : "Abrir menú de navegación"}
                     >
                         {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                     </button>
@@ -170,7 +173,10 @@ export function AppHeader() {
                     {isAuthenticated && !isMenuOpen && (
                         <div className="sm:hidden block">
                             <Avatar className="h-8 w-8 shrink-0 border border-slate-800 bg-orange-200/20">
-                                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${displayName}&backgroundColor=d97706`} />
+                                <AvatarImage
+                                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${displayName}&backgroundColor=d97706`}
+                                    alt={`Avatar de ${displayName}`}
+                                />
                                 <AvatarFallback className="bg-[#1E293B] text-slate-300 font-semibold text-xs text-center flex items-center justify-center">
                                     {displayName.split(' ').map((n) => n[0]).join('')}
                                 </AvatarFallback>
@@ -187,7 +193,10 @@ export function AppHeader() {
                         <>
                             <div className="flex items-center gap-3 px-2 mb-2">
                                 <Avatar className="h-10 w-10 shrink-0 border border-slate-800 bg-orange-200/20">
-                                    <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${displayName}&backgroundColor=d97706`} />
+                                    <AvatarImage
+                                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${displayName}&backgroundColor=d97706`}
+                                        alt={`Avatar de ${displayName}`}
+                                    />
                                     <AvatarFallback className="bg-[#1E293B] text-slate-300 font-semibold">
                                         {displayName.split(' ').map((n) => n[0]).join('')}
                                     </AvatarFallback>

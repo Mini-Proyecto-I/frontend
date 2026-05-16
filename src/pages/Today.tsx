@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { parseISO, startOfDay, differenceInDays, format } from "date-fns";
 import { es } from "date-fns/locale";
-import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, Info, CheckCircle2, Eye, Calendar, Pencil, Check, ChevronUp, ChevronDown, HelpCircle, CalendarRange, Trash2 } from "lucide-react";
+import { CalendarDays, AlertCircle, Clock, Search, X, Loader2, CalendarClock, Info, CheckCircle2, Calendar, Pencil, Check, ChevronUp, ChevronDown, HelpCircle, CalendarRange, Trash2 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import { useAuth } from "@/app/authContext";
@@ -667,9 +667,9 @@ export default function Today() {
           </div>
         </div>
 
-        <h2 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-slate-500 mb-6 tracking-tight drop-shadow-sm">
+        <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-slate-500 mb-6 tracking-tight drop-shadow-sm">
           Un lienzo en blanco
-        </h2>
+        </h1>
 
         <p className="text-lg md:text-xl text-slate-400 max-w-2xl mb-12 leading-relaxed font-medium px-4">
           Aún no tienes actividades registradas. Este es el momento perfecto para organizar tu día y darle forma a tus proyectos.
@@ -689,6 +689,7 @@ export default function Today() {
 
   return (
     <div className="flex flex-col lg:flex-row gap-8 max-w-[1580px] w-full mx-auto px-4 sm:px-6 lg:px-10 pb-10 mt-6 lg:mt-10">
+      <h1 className="sr-only">Vista de tareas de hoy</h1>
       <ToastComponent />
       {/* LEFT SIDE: TASKS (Approx 60% of layout)*/}
       <div className="flex-1 lg:w-[65%] xl:w-[70%] flex flex-col gap-6 order-2 lg:order-1 min-w-0">
@@ -891,10 +892,10 @@ export default function Today() {
           <div className="bg-[#111827] border border-slate-800/60 rounded-3xl p-6 lg:p-8 flex items-center justify-between shadow-xl shadow-black/20 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -mr-20 -mt-20"></div>
             <div className="space-y-2 relative z-10">
-              <h1 className="text-2xl lg:text-3xl font-extrabold text-white">
+              <h2 className="text-2xl lg:text-3xl font-extrabold text-white">
                 <span className="text-blue-500">{getGreeting(user?.name || "Estudiante")}</span>
-              </h1>
-              <p className="text-slate-400 font-medium">
+              </h2>
+              <p className="text-lg text-slate-400 font-medium">
                 Tienes {pendingTodayCount === 1 ? '1 tarea pendiente' : `${pendingTodayCount} tareas pendientes`} hoy
               </p>
             </div>
@@ -939,6 +940,7 @@ export default function Today() {
                         type="button"
                         onClick={() => adjustTempLimit(-0.5)}
                         className="h-9 w-9 p-0 bg-slate-800 hover:bg-slate-700 text-white rounded-lg"
+                        aria-label="Reducir límite diario en 30 minutos"
                       >
                         <ChevronDown className="w-4 h-4" />
                       </Button>
@@ -950,6 +952,7 @@ export default function Today() {
                         type="button"
                         onClick={() => adjustTempLimit(0.5)}
                         className="h-9 w-9 p-0 bg-slate-800 hover:bg-slate-700 text-white rounded-lg"
+                        aria-label="Aumentar límite diario en 30 minutos"
                       >
                         <ChevronUp className="w-4 h-4" />
                       </Button>
@@ -1212,6 +1215,7 @@ export default function Today() {
                   type="button"
                   onClick={() => adjustWelcomeLimit(-0.5)}
                   className="h-14 w-14 p-0 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white"
+                  aria-label="Reducir límite diario en 30 minutos"
                 >
                   <ChevronDown className="w-6 h-6" />
                 </Button>
@@ -1222,6 +1226,7 @@ export default function Today() {
                   type="button"
                   onClick={() => adjustWelcomeLimit(0.5)}
                   className="h-14 w-14 p-0 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white"
+                  aria-label="Aumentar límite diario en 30 minutos"
                 >
                   <ChevronUp className="w-6 h-6" />
                 </Button>
@@ -1803,6 +1808,7 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
         }}
         className="absolute top-4 right-4 p-2 rounded-xl text-slate-500 hover:text-blue-400 bg-slate-800/20 hover:bg-blue-500/10 transition-all group cursor-pointer z-10 border border-transparent hover:border-blue-500/20"
         title="Ver historial de la tarea"
+        aria-label={`Ver historial de ${title}`}
       >
         <History className="w-5 h-5 group-hover:rotate-12 transition-transform" />
       </button>
@@ -1842,11 +1848,11 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
             </Link>
           </div>
 
-          <h4
+          <h3
             className={`w-fit text-xl font-bold ${isDone ? 'text-slate-400 line-through opacity-70' : 'text-slate-100'} leading-tight tracking-tight pr-2 transition-colors`}
           >
             {title}
-          </h4>
+          </h3>
 
           <div className="mt-3 flex items-center justify-between gap-3">
             <span className={`text-[11px] font-black tracking-widest uppercase ${colors.text}`}>
@@ -1879,18 +1885,6 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!isDone) onTitleClick?.();
-              }}
-              disabled={isDone}
-              className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 border-slate-700/50 cursor-pointer'}`}
-            >
-              <Eye className="w-4 h-4" />
-              Ver detalle
-            </button>
           </div>
 
           <div className="flex items-center gap-3 ml-auto">
@@ -1910,10 +1904,10 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
                     if (!isDone) onPostpone();
                   }}
                   disabled={isDone}
-                  className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 border-slate-700/50 cursor-pointer'}`}
+                  className={`inline-flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-slate-800/35 hover:bg-slate-700/60 border-slate-700/50 cursor-pointer'}`}
                 >
-                  <Clock className="w-4 h-4" />
-                  Posponer
+                  <Clock className="w-5 h-5" />
+                 Posponer
                 </button>
               )
             )}
@@ -1925,9 +1919,9 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
                 if (!isDone) handleReprogram();
               }}
               disabled={isDone}
-              className={`inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-blue-600/15 hover:bg-blue-600/25 border-blue-500/30 cursor-pointer'}`}
+              className={`inline-flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-lg border transition-colors ${isDone ? 'opacity-40 cursor-not-allowed text-slate-500 bg-slate-800/20 border-slate-700/30' : 'text-slate-200 hover:text-white bg-blue-600/15 hover:bg-blue-600/25 border-blue-500/30 cursor-pointer'}`}
             >
-              <CalendarRange className="w-4 h-4" />
+              <CalendarRange className="w-5 h-5" />
               Reprogramar
             </button>
           </div>

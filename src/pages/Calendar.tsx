@@ -747,11 +747,29 @@ export default function Calendar() {
                         <div className="bg-blue-600/10 p-3 rounded-2xl border border-blue-500/20 text-blue-500 shrink-0">
                             <CalendarRange className="w-8 h-8" />
                         </div>
-                        <h2 className="text-3xl font-black text-white tracking-tight truncate">
+                        <h1 className="text-3xl font-black text-white tracking-tight truncate">
                             {weekRangeLabel}
-                        </h2>
+                        </h1>
                     </div>
                     <div className="flex flex-wrap gap-2 items-center md:shrink-0 md:justify-end">
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={handlePrevWeek}
+                            className="p-2 rounded-xl bg-slate-800/50 border border-slate-700 hover:bg-blue-500/20 hover:text-blue-400 hover:border-blue-500/50 transition-all text-slate-400 h-9 w-9"
+                            aria-label="Semana anterior"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={handleNextWeek}
+                            className="p-2 rounded-xl bg-slate-800/50 border border-slate-700 hover:bg-blue-500/20 hover:text-blue-400 hover:border-blue-500/50 transition-all text-slate-400 h-9 w-9"
+                            aria-label="Semana siguiente"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </Button>
                         <Button
                             variant="outline"
                             onClick={handleOpenWeekPicker}
@@ -769,55 +787,13 @@ export default function Calendar() {
                         </Button>
                     </div>
                 </div>
-                <p className="text-xs text-slate-400 font-medium max-w-2xl">
-                    En tu calendario puedes reprogramar tus tareas clickeando sobre ellas y luego clickeando sobre "mover aquí" en algún día antes de la fecha límite de la actividad y después de "hoy". Si un día queda sobrecargado, verás una guía para resolverlo moviendo tareas o reduciendo horas. Puedes moverte entre semanas con las flechas o el botón «Seleccionar semana»
+                <p className="text-xl text-slate-400 font-medium whitespace-nowrap">
+                    
+                    En tu calendario puedes ver tus tareas por semana. Para reprogramarlas clickea sobre ellas. Si un día queda sobrecargado, tendrás varias opciones para solucionar el conflicto.
                 </p>
             </div>
 
-            <div className="flex-1 min-h-0 relative group/calendar-nav">
-                {/* Flechas de navegación laterales */}
-                <div className="absolute left-[-20px] xl:left-[-100px] top-[47%] -translate-y-1/2 z-20 hidden md:block">
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handlePrevWeek}
-                        className="w-14 h-28 rounded-2xl bg-[#111827]/95 backdrop-blur-xl border-slate-800 hover:border-blue-500/50 hover:bg-blue-500/20 text-slate-400 hover:text-blue-400 shadow-[0_0_30px_rgba(0,0,0,0.5)] transition-all hover:scale-110 group/nav-btn"
-                    >
-                        <ChevronLeft className="w-8 h-8 group-hover/nav-btn:-translate-x-1 transition-transform" />
-                    </Button>
-                </div>
-
-                <div className="absolute right-[-20px] xl:right-[-100px] top-[47%] -translate-y-1/2 z-20 hidden md:block">
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handleNextWeek}
-                        className="w-14 h-28 rounded-2xl bg-[#111827]/95 backdrop-blur-xl border-slate-800 hover:border-blue-500/50 hover:bg-blue-500/20 text-slate-400 hover:text-blue-400 shadow-[0_0_30px_rgba(0,0,0,0.5)] transition-all hover:scale-110 group/nav-btn"
-                    >
-                        <ChevronRight className="w-8 h-8 group-hover/nav-btn:translate-x-1 transition-transform" />
-                    </Button>
-                </div>
-
-                {/* Flechas visibles siempre en móvil */}
-                <div className="flex md:hidden justify-between items-center mb-4 gap-4 px-2">
-                    <Button
-                        variant="outline"
-                        onClick={handlePrevWeek}
-                        className="flex-1 h-10 rounded-xl bg-slate-800/50 border-slate-700 text-slate-300"
-                    >
-                        <ChevronLeft className="w-4 h-4 mr-2" />
-                        Anterior
-                    </Button>
-                    <Button
-                        variant="outline"
-                        onClick={handleNextWeek}
-                        className="flex-1 h-10 rounded-xl bg-slate-800/50 border-slate-700 text-slate-300"
-                    >
-                        Siguiente
-                        <ChevronRight className="w-4 h-4 ml-2" />
-                    </Button>
-                </div>
-
+            <div className="flex-1 min-h-0 relative">
                 <div className="h-full overflow-y-auto overflow-x-hidden pr-2 scrollbar-gray">
                     <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-5 items-start pt-4 ${isMoving && selectedSubtask ? "pb-36" : "pb-2"}`}>
                         {weekDays.map((day, index) => {
@@ -972,7 +948,7 @@ export default function Calendar() {
                                                                     setSelectedSubtask(activity);
                                                                     setIsMoving(true);
                                                                 }}
-                                                                className={`relative p-5 rounded-2xl bg-[#111827] border border-slate-800/80 shadow-xl shadow-black/20 group border-l-4 ${activeTheme.border} transition-all duration-300 cursor-grab active:cursor-grabbing
+                                                                className={`relative p-5 rounded-2xl bg-[#111827] border border-slate-800/80 shadow-xl shadow-black/20 group border-l-4 ${activeTheme.border} transition-all duration-300 cursor-pointer
                                                             ${isConflicted ? activeTheme.glow : ''}
                                                             ${isSelected ? `ring-4 ${activeTheme.ring} translate-y-[-4px] scale-[1.02] z-20` : 'hover:translate-y-[-2px]'} 
                                                             ${shouldDim ? 'opacity-40 grayscale-[0.5]' : ''}
@@ -1003,6 +979,7 @@ export default function Calendar() {
                                                                             setMenuOpenId(isMenuOpen ? null : activity.id);
                                                                         }}
                                                                         className="text-slate-500 hover:text-blue-400 transition-colors p-1 rounded-lg hover:bg-slate-800"
+                                                                        aria-label={isMenuOpen ? "Cerrar menú de acciones" : "Abrir menú de acciones"}
                                                                     >
                                                                         <MoreVertical className="w-5 h-5" />
                                                                     </button>
@@ -1014,7 +991,7 @@ export default function Calendar() {
                                                                         >
                                                                             <Link to={`/actividad/${activity.activityId}`} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-slate-300 hover:bg-slate-800 hover:text-white transition-colors border-b border-slate-700/30">
                                                                                 <Eye className="w-4 h-4 text-blue-400" />
-                                                                                Ver detalle
+                                                                                Ver actividad
                                                                             </Link>
                                                                             <button
                                                                                 onClick={() => {
@@ -1673,6 +1650,7 @@ export default function Calendar() {
                                         type="button"
                                         onClick={() => setWeekPickerDate(subMonths(weekPickerDate, 1))}
                                         className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                                        aria-label="Ir al mes anterior"
                                     >
                                         <ChevronLeft className="w-4 h-4" />
                                     </button>
@@ -1683,6 +1661,7 @@ export default function Calendar() {
                                         type="button"
                                         onClick={() => setWeekPickerDate(addMonths(weekPickerDate, 1))}
                                         className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                                        aria-label="Ir al mes siguiente"
                                     >
                                         <ChevronRight className="w-4 h-4" />
                                     </button>

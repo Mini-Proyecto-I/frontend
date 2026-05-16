@@ -46,7 +46,6 @@ import {
   getApiValidationErrorMessage,
   SUBTASK_SAVE_GENERIC_FALLBACK,
 } from "@/shared/utils/apiErrorMessage";
-import { formatStudyHours } from "@/shared/utils/studyLimitFormat";
 import { Link, useNavigate } from 'react-router-dom';
 import { ResolveConflictModal } from '@/shared/components/ResolveConflictModal';
 import { ConflictOutcomeModal } from '@/shared/components/ConflictOutcomeModal';
@@ -593,7 +592,7 @@ export default function ProgressPage() {
     if (!conflictModalTask || !conflictActivityMeta) return;
     const hrs = parseFloat(reduceHours);
     if (isNaN(hrs) || hrs < 0.5) {
-      setReduceError("Ingresa un número válido (mínimo 30 min).");
+      setReduceError("Ingresa un número válido (mínimo 0.5)");
       return;
     }
 
@@ -667,7 +666,7 @@ export default function ProgressPage() {
         <div className="bg-[#111827] border border-red-500/30 rounded-3xl p-6 shadow-xl shadow-black/20">
           <div className="flex flex-col items-center py-16 text-center">
             <BarChart3 className="h-12 w-12 text-red-500 mb-4" />
-            <h3 className="font-semibold text-lg text-red-400 mb-2">Error al cargar los datos</h3>
+            <h1 className="font-semibold text-lg text-red-300 mb-2">Error al cargar los datos</h1>
             <p className="text-slate-400 mt-1 mb-6">{error}</p>
             <Button onClick={refresh} className="bg-blue-600 hover:bg-blue-700 text-white" variant="outline">
               <RefreshCw className="h-4 w-4 mr-2" /> Intentar de nuevo
@@ -693,9 +692,9 @@ export default function ProgressPage() {
             </div>
           </div>
         </div>
-        <h2 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-slate-500 mb-6 tracking-tight drop-shadow-sm">
+        <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-slate-500 mb-6 tracking-tight drop-shadow-sm">
           Un lienzo en blanco
-        </h2>
+        </h1>
         <p className="text-lg md:text-xl text-slate-400 max-w-2xl mb-12 leading-relaxed font-medium px-4">
           Aún no tienes actividades registradas. Este es el momento perfecto para organizar tu progreso académico.
         </p>
@@ -723,7 +722,7 @@ export default function ProgressPage() {
             <h1 className="text-2xl lg:text-3xl font-extrabold text-white mb-2">
               <span className="text-blue-500">Progreso Académico</span>
             </h1>
-            <p className="text-slate-400 font-medium">Haz seguimiento de tus actividades y gestiona las fechas límite pendientes.</p>
+            <p className="text-lg text-slate-400 font-medium">Haz seguimiento de tus actividades y gestiona las fechas límite pendientes.</p>
           </div>
         </div>
       </div>
@@ -936,6 +935,7 @@ export default function ProgressPage() {
                         size="icon"
                         className="h-8 w-8 text-slate-400 hover:text-blue-400"
                         onClick={() => setExpanded({ ...expanded, [activity.id]: !isOpen })}
+                        aria-label={isOpen ? "Contraer actividad" : "Expandir actividad"}
                       >
                         {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </Button>
@@ -1111,6 +1111,7 @@ export default function ProgressPage() {
                 onClick={() => setShowCircleHelp(true)}
                 className="text-slate-500 hover:text-blue-400 transition-colors p-1"
                 title="¿Cómo se calcula este progreso?"
+                aria-label="Mostrar explicación del cálculo de progreso"
               >
                 <HelpCircle className="w-8 h-8" />
               </button>
@@ -1125,7 +1126,7 @@ export default function ProgressPage() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400">Tiempo de estudio</span>
-                <span className="font-semibold text-white">{formatStudyHours(stats.hoursDone)}</span>
+                <span className="font-semibold text-white">{stats.hoursDone.toFixed(1)}h</span>
               </div>
             </div>
           </div>
