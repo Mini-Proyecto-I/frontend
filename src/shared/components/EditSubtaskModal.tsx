@@ -22,6 +22,8 @@ interface EditSubtaskModalProps {
   onSave: (data: { title: string; estimatedHours: number }) => Promise<SaveResult> | SaveResult;
   onReprogram?: () => void;
   onDelete?: () => void;
+  /** Tras cerrar el modal de confirmación (p. ej. refetch del calendario). */
+  onSuccessDismiss?: () => void;
 }
 
 export default function EditSubtaskModal({
@@ -32,6 +34,7 @@ export default function EditSubtaskModal({
   onSave,
   onReprogram,
   onDelete,
+  onSuccessDismiss,
 }: EditSubtaskModalProps) {
   const navigate = useNavigate();
   const [editTitle, setEditTitle] = useState("");
@@ -216,6 +219,7 @@ export default function EditSubtaskModal({
 
                     if (result?.ok) {
                       setShowSavedSuccess(true);
+                      onOpenChange(false);
                       return;
                     }
 
@@ -253,12 +257,13 @@ export default function EditSubtaskModal({
       onOpenChange={(next) => {
         if (!next) {
           setShowSavedSuccess(false);
-          onOpenChange(false);
+          onSuccessDismiss?.();
         }
       }}
       type="success"
       title="Cambios guardados"
       message="Tu subtarea se modificó correctamente y ya está actualizada."
+      overlayClassName="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
     />
     </Fragment>
   );
