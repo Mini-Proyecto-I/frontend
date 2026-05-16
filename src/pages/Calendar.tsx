@@ -1754,16 +1754,21 @@ export default function Calendar() {
                     setEditingSubtask(null);
                     handleDelete(editingSubtask.activityId, editingSubtask.id);
                 }}
+                onSuccessDismiss={() => {
+                    queryCache.invalidate("activities");
+                    refetch();
+                }}
                 onSave={async ({ title, estimatedHours }) => {
                     if (!editingSubtask) return { ok: false, error: "No hay subtarea seleccionada." };
 
+                    const activityId = editingSubtask.activityId;
+                    const subtaskId = editingSubtask.id;
+
                     try {
-                        await patchSubtask(editingSubtask.activityId, editingSubtask.id, {
+                        await patchSubtask(activityId, subtaskId, {
                             title,
                             estimated_hours: estimatedHours,
                         });
-                        queryCache.invalidate("activities");
-                        await refetch();
                         return { ok: true };
                     } catch (error) {
                         return {
