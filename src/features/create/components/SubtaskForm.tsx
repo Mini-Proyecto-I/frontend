@@ -64,11 +64,11 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                         <ClipboardList className="h-5 w-5 text-blue-500" />
                     </div>
                     <div>
-                        <h2 className="text-lg font-bold text-white flex items-center">
+                        <h2 className="text-xl font-bold text-white flex items-center">
                             Plan de estudio / Subtareas
                             <InfoTooltip text="Divide la actividad en tareas más manejables para organizarte mejor." />
                         </h2>
-                        <p className="text-xs text-slate-400 font-medium">
+                        <p className="text-xl text-slate-400 font-medium">
                             Divide la actividad en tareas más manejables.
                         </p>
                     </div>
@@ -76,7 +76,7 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                 <button
                     type="button"
                     onClick={onAdd}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 bg-blue-600 text-white transition-colors cursor-pointer shadow-lg shadow-blue-600/20"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-base font-bold hover:bg-blue-700 bg-blue-600 text-white transition-colors cursor-pointer shadow-lg shadow-blue-600/20"
                 >
                     <Plus className="h-4 w-4" />
                     Añadir subtarea
@@ -85,15 +85,15 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
 
             {/* Table header */}
             <div className="grid grid-cols-[1fr_160px_132px_48px] gap-3 items-center px-2 mb-3">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                <span className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                     <InfoTooltip text="Escribe un nombre descriptivo para una tarea concreta que te ayude a completar la actividad." />
                     Nombre subtarea <span className="text-blue-500">*</span>
                 </span>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                <span className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                     <InfoTooltip text="Fecha objetivo para completar esta subtarea." />
                     Fecha objetivo <span className="text-blue-500">*</span>
                 </span>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 whitespace-nowrap">
+                <span className="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 whitespace-nowrap">
                     <InfoTooltip text="Horas estimadas para completar esta subtarea." />
                     Horas Estimadas <span className="text-blue-500">*</span>
                 </span>

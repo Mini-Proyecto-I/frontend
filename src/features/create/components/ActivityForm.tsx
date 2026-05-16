@@ -919,7 +919,7 @@ const ActivityForm = () => {
     };
 
     const inputClass =
-        "w-full rounded-xl !bg-[#1F2937]/50 border border-slate-700/50 px-4 py-2.5 h-12 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors";
+        "w-full rounded-xl !bg-[#1F2937]/50 border border-slate-700/50 px-4 py-2.5 h-12 text-base text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors";
 
     return (
         <>
@@ -1157,14 +1157,14 @@ const ActivityForm = () => {
                     </div>
                 </div>
             )}
-            <div className="flex-1 min-h-screen overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto">
                 <div className="max-w-[880px] mx-auto px-4 sm:px-6 lg:px-10 py-6 lg:py-10">
 
                     {/* Header */}
-                    <h1 className="text-2xl lg:text-3xl font-extrabold text-white mb-2">
+                    <h1 className="text-3xl lg:text-4xl font-extrabold text-white mb-2">
                         {currentStep === 1 ? "Crear nueva actividad" : "Agregar subtareas"}
                     </h1>
-                    <p className="text-slate-400 font-medium text-sm mt-1 mb-8">
+                    <p className="text-slate-400 font-medium text-xl mt-1 mb-8">
                         {currentStep === 1
                             ? "Añade un nuevo examen, tarea, o proyecto a tu plan de estudio."
                             : "Divide tu actividad en subtareas más manejables para organizarte mejor."}
@@ -1176,14 +1176,14 @@ const ActivityForm = () => {
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep >= 1 ? 'bg-blue-600 text-white' : 'bg-[#1F2937]/50 border border-slate-700/50'}`}>
                                 {currentStep > 1 ? '✓' : '1'}
                             </div>
-                            <span className="text-sm font-bold">Actividad</span>
+                            <span className="text-base font-bold">Actividad</span>
                         </div>
                         <div className={`h-0.5 flex-1 ${currentStep >= 2 ? 'bg-blue-600' : 'bg-slate-800/60'}`} />
                         <div className={`flex items-center gap-2 ${currentStep >= 2 ? 'text-blue-500' : 'text-slate-400'}`}>
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep >= 2 ? 'bg-blue-600 text-white' : 'bg-[#1F2937]/50 border border-slate-700/50'}`}>
                                 2
                             </div>
-                            <span className="text-sm font-bold">Subtareas</span>
+                            <span className="text-base font-bold">Subtareas</span>
                         </div>
                     </div>
 
@@ -1192,15 +1192,15 @@ const ActivityForm = () => {
                         <>
                             <div className="rounded-3xl border border-slate-800/60 bg-[#111827] p-6 lg:p-8 mb-6 shadow-xl shadow-black/20">
                                 <div className="flex items-center gap-3 mb-6">
-                                    <div className="h-9 w-9 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center">
-                                        <ClipboardList className="h-5 w-5 text-blue-500" />
+                                    <div className="h-10 w-10 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center">
+                                        <ClipboardList className="h-6 w-6 text-blue-500" />
                                     </div>
                                     <div>
-                                        <h2 className="text-lg font-bold text-white flex items-center">
+                                        <h2 className="text-2xl font-bold text-white flex items-center">
                                             Detalles de la actividad
                                             <InfoTooltip text="Información general sobre la tarea o evento." />
                                         </h2>
-                                        <p className="text-xs text-slate-400 font-medium">
+                                        <p className="text-xl text-slate-400 font-medium">
                                             Información general sobre la tarea o evento.
                                         </p>
                                     </div>
@@ -1208,7 +1208,7 @@ const ActivityForm = () => {
 
                                 {/* Título */}
                                 <div className="mb-6" data-field="titulo">
-                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                    <label className="block text-sm font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                                         <span className="text-white">Título:</span> <span className="text-slate-400 normal-case">¿Qué tienes que hacer?</span> <span className="text-blue-500">*</span>
                                         <InfoTooltip text="Escribe un título descriptivo para identificar la actividad rápidamente." />
                                     </label>
@@ -1245,7 +1245,7 @@ const ActivityForm = () => {
                                 {/* Curso + Tipo */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                                     <div data-field="curso">
-                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                        <label className="block text-sm font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                                             <span className="text-white">Curso:</span> <span className="text-slate-400 normal-case">¿A qué curso pertenece?</span> <span className="text-blue-500">*</span>
                                             <InfoTooltip text="Selecciona el curso al que pertenece esta actividad." />
                                         </label>
@@ -1369,7 +1369,7 @@ const ActivityForm = () => {
                                     </div>
 
                                     <div data-field="tipo">
-                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                        <label className="block text-sm font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                                             <span className="text-white">Tipo:</span> <span className="text-slate-400 normal-case">¿Qué tipo de actividad es?</span> <span className="text-blue-500">*</span>
                                             <InfoTooltip text="Selecciona si es un examen, tarea o proyecto." />
                                         </label>
@@ -1406,7 +1406,7 @@ const ActivityForm = () => {
                                                             <div className="h-1.5 w-1.5 rounded-full bg-white" />
                                                         )}
                                                     </div>
-                                                    <span className="text-sm text-slate-200 font-medium">{t.label}</span>
+                                                    <span className="text-base text-slate-200 font-medium">{t.label}</span>
                                                 </label>
                                             ))}
                                         </div>
@@ -1434,7 +1434,7 @@ const ActivityForm = () => {
                                 {/* Fechas */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                                     <div className="flex flex-col justify-between" data-field="fechaEntrega">
-                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                        <label className="block text-sm font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                                             <span className="text-white">Fecha de entrega o del evento:</span> <span className="text-slate-400 normal-case">¿Cuándo debes entregar o presentar?</span> <span className="text-blue-500">*</span>
                                             <InfoTooltip text="Indica la fecha máxima o límite de entrega de esta actividad." />
                                         </label>
@@ -1473,11 +1473,11 @@ const ActivityForm = () => {
                                     </div>
 
                                     <div data-field="fechaEvento">
-                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                        <label className="block text-sm font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                                             <span className="text-white">Fecha adicional:</span> <span className="text-slate-400 normal-case">Si hay otra fecha importante (ej: sustentación)</span>
                                             <InfoTooltip text="Úsala cuando exista una fecha concreta en la que sucede el evento, por ejemplo un examen o presentación." />
                                         </label>
-                                        <div className="text-slate-400 text-xs mb-1 font-medium">(Opcional)</div>
+                                        <div className="text-slate-400 text-sm mb-1 font-medium">(Opcional)</div>
                                         <div className="relative">
                                             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500 pointer-events-none z-10" />
                                             <input
@@ -1515,8 +1515,8 @@ const ActivityForm = () => {
 
                                 {/* Descripción */}
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                                        <span className="text-white">Descripción</span> <span className="text-slate-400 text-xs normal-case">(Opcional)</span>
+                                    <label className="block text-sm font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                        <span className="text-white">Descripción</span> <span className="text-slate-400 text-sm normal-case">(Opcional)</span>
                                         <InfoTooltip text="Añade notas o detalles específicos sobre esta actividad." />
                                     </label>
                                     <textarea
@@ -1585,7 +1585,7 @@ const ActivityForm = () => {
                                     }
                                 }
                             }}
-                            className="px-6 py-2.5 rounded-xl bg-[#1F2937]/50 border border-slate-700/50 text-slate-400 text-sm font-bold hover:bg-slate-800/50 hover:text-slate-300 transition-colors"
+                            className="px-6 py-2.5 rounded-xl bg-[#1F2937]/50 border border-slate-700/50 text-slate-400 text-base font-bold hover:bg-slate-800/50 hover:text-slate-300 transition-colors"
                         >
                             {currentStep === 2 ? "Volver" : "Cancelar"}
                         </button>
@@ -1594,7 +1594,7 @@ const ActivityForm = () => {
                                 type="button"
                                 onClick={handleSaveActivity}
                                 disabled={isSavingActivity}
-                                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-colors cursor-pointer shadow-lg shadow-blue-600/20 ${isSavingActivity
+                                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-base font-bold transition-colors cursor-pointer shadow-lg shadow-blue-600/20 ${isSavingActivity
                                     ? "bg-blue-600/70 text-white cursor-not-allowed"
                                     : "bg-blue-600 text-white hover:bg-blue-700"
                                     }`}
@@ -1619,7 +1619,7 @@ const ActivityForm = () => {
                                 type="button"
                                 onClick={handleSaveSubtasks}
                                 disabled={isSavingSubtasks}
-                                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-colors cursor-pointer shadow-lg shadow-blue-600/20 ${isSavingSubtasks
+                                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-base font-bold transition-colors cursor-pointer shadow-lg shadow-blue-600/20 ${isSavingSubtasks
                                     ? "bg-blue-600/70 text-white cursor-not-allowed"
                                     : "bg-blue-600 text-white hover:bg-blue-700"
                                     }`}
