@@ -25,6 +25,7 @@ import { patchSubtask } from "@/api/services/subtask";
 import { queryCache } from "@/lib/queryCache";
 import type { ExistingTask } from "./ConflictResolutionModal";
 import UnifiedCalendarModal, { type UnifiedCalendarDay } from "./UnifiedCalendarModal";
+import { formatStudyHours } from "@/shared/utils/studyLimitFormat";
 
 interface RescheduleModalProps {
     open: boolean;
@@ -151,7 +152,7 @@ export default function RescheduleModal({
 
         if (newTotal > studyLimitHours) {
             setMoveError(
-                `Ese día ya tiene ${currentHoursNewDay.toFixed(1)}h programadas. Agregar ${taskHours.toFixed(1)}h excedería tu límite de ${studyLimitHours.toFixed(1)}h.`
+                `Ese día ya tiene ${formatStudyHours(currentHoursNewDay)} programadas. Agregar ${formatStudyHours(taskHours)} excedería tu límite de ${formatStudyHours(studyLimitHours)}.`
             );
             setIsMoving(false);
             return;
@@ -247,7 +248,7 @@ export default function RescheduleModal({
                 return {
                     id: act.id,
                     title: act.title,
-                    hoursLabel: `${act.durationNum}h`,
+                    hoursLabel: formatStudyHours(act.durationNum),
                     muted: act.status === "DONE",
                     highlighted: isTheTask,
                     highlightLabel: isTheTask ? "Mover esta tarea" : undefined,
@@ -279,7 +280,7 @@ export default function RescheduleModal({
                             <p className="text-slate-300 text-sm mt-0.5">
                                 Mueve{" "}
                                 <span className="text-white font-bold">"{task.title}"</span>{" "}
-                                ({task.hours.toFixed(1)}h)
+                                ({formatStudyHours(task.hours)})
                                 {task.deadline && (
                                     <>
                                         {" "}antes del{" "}

@@ -16,6 +16,7 @@ import { MessageModal } from "@/shared/components/MessageModal";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import InfoTooltip from "@/features/create/components/InfoTooltip";
+import { formatStudyHours, normalizeHalfHourStep } from "@/shared/utils/studyLimitFormat";
 
 interface AddSubtaskDialogProps {
   open: boolean;
@@ -41,7 +42,7 @@ export default function AddSubtaskDialog({
 }: AddSubtaskDialogProps) {
   const [nombre, setNombre] = useState("");
   const [fechaObjetivo, setFechaObjetivo] = useState("");
-  const [horas, setHoras] = useState("");
+  const [horas, setHoras] = useState("0.5");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showCreatedModal, setShowCreatedModal] = useState(false);
   const [showConflictConfirmModal, setShowConflictConfirmModal] = useState(false);
@@ -103,7 +104,7 @@ export default function AddSubtaskDialog({
       if (isNaN(hoursValue) || hoursValue <= 0) {
         newErrors.horas = "Las horas estimadas deben ser un número válido mayor a 0.";
       } else if (hoursValue % 0.5 !== 0) {
-        newErrors.horas = "Las horas deben ser múltiplos de 0.5 (ej: 1, 1.5, 2, 2.5, etc.).";
+        newErrors.horas = "Las horas deben ir en bloques de 30 min (ej: 1h, 1h 30min, 2h, 2h 30min).";
       }
     }
 
@@ -135,7 +136,7 @@ export default function AddSubtaskDialog({
   const markCreatedAndShowSuccess = () => {
     setNombre("");
     setFechaObjetivo("");
-    setHoras("");
+    setHoras("0.5");
     setErrors({});
     setShowDatePicker(false);
     setShowConflictConfirmModal(false);
@@ -193,7 +194,6 @@ export default function AddSubtaskDialog({
         target_date: fechaObjetivo || null,
         status: "PENDING",
       });
-
       await waitForSubtasksRefresh();
       markCreatedAndShowSuccess();
     } catch (error: any) {
@@ -239,7 +239,7 @@ export default function AddSubtaskDialog({
   const handleClose = () => {
     setNombre("");
     setFechaObjetivo("");
-    setHoras("");
+    setHoras("0.5");
     setErrors({});
     setShowDatePicker(false);
     setShowCreatedModal(false);
@@ -341,7 +341,7 @@ export default function AddSubtaskDialog({
           </DialogHeader>
 
           <div className="py-4">
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_160px_110px] gap-3 items-center px-1 mb-3">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_160px_132px] gap-3 items-center px-1 mb-3">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                 Nombre subtarea <span className="text-blue-500">*</span>
                 <InfoTooltip text="Escribe un nombre descriptivo para una tarea concreta que te ayude a completar la actividad." />
@@ -356,7 +356,7 @@ export default function AddSubtaskDialog({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_160px_110px] gap-3 rounded-xl px-3 py-3 bg-[#1F2937]/50 border border-slate-700/50">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_160px_132px] gap-3 rounded-xl px-3 py-3 bg-[#1F2937]/50 border border-slate-700/50">
               <div>
               <input
                 type="text"
@@ -427,29 +427,37 @@ export default function AddSubtaskDialog({
               )}
             </div>
 
-              <div>
-              <div className="relative">
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  value={horas}
-                  onChange={(e) => {
-                    setHoras(e.target.value);
-                    if (errors.horas) {
-                      setErrors((prev) => ({ ...prev, horas: undefined }));
-                    }
+            <div>
+              <div className={`w-full h-10 rounded-lg text-sm border transition-colors bg-[#1F2937]/50 text-slate-200 flex items-center overflow-hidden ${
+                errors.horas ? "border-[#EF4444]" : "border-slate-700/50"
+              }`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = normalizeHalfHourStep(parseFloat(horas) - 0.5, 0.5, 24);
+                    setHoras(String(next));
+                    if (errors.horas) setErrors((prev) => ({ ...prev, horas: undefined }));
                   }}
-                  placeholder="ej. 2.5"
-                  className={`w-full h-10 rounded-lg text-sm text-center py-1.5 focus:outline-none border pr-7 transition-colors bg-[#1F2937]/50 text-slate-200 ${
-                    errors.horas
-                      ? "border-[#EF4444] focus:ring-[#EF4444] focus:border-[#EF4444]"
-                      : "border-slate-700/50 focus:ring-blue-500 focus:border-blue-500"
-                  }`}
-                />
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-500">
-                  hr
+                  className="h-full w-[30px] p-0 text-slate-200 hover:bg-[#334155]/40 text-sm font-bold border-r border-slate-700/50"
+                  aria-label="Restar 30 minutos"
+                >
+                  -
+                </button>
+                <span className="h-full flex-1 px-1 text-slate-100 font-bold text-xs flex items-center justify-center text-center">
+                  {formatStudyHours(parseFloat(horas) || 0)}
                 </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = normalizeHalfHourStep(parseFloat(horas) + 0.5, 0.5, 24);
+                    setHoras(String(next));
+                    if (errors.horas) setErrors((prev) => ({ ...prev, horas: undefined }));
+                  }}
+                  className="h-full w-[30px] p-0 text-slate-200 hover:bg-[#334155]/40 text-sm font-bold border-l border-slate-700/50"
+                  aria-label="Sumar 30 minutos"
+                >
+                  +
+                </button>
               </div>
               {errors.horas && (
                 <div className="mt-2 flex items-start gap-1.5">

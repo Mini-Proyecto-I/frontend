@@ -1,6 +1,7 @@
 import { cn } from "@/shared/utils/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/card";
 import { Progress } from "@/shared/components/progress";
+import { formatStudyHours } from "@/shared/utils/studyLimitFormat";
 
 interface CapacityCardProps {
   totalHours: number;
@@ -18,14 +19,14 @@ export const CapacityCard = ({ totalHours, dailyLimit, progressPercent, isOverlo
       <CardContent>
         <div className="flex items-baseline gap-1 mb-3">
           <span className={cn('text-3xl font-bold transition-colors', isOverloaded ? 'text-destructive' : 'text-primary')}>
-            {totalHours}
+            {formatStudyHours(totalHours)}
           </span>
-          <span className="text-muted-foreground text-sm">/ {dailyLimit}h límite</span>
+          <span className="text-muted-foreground text-sm">/ {formatStudyHours(dailyLimit)} límite</span>
         </div>
         <Progress value={progressPercent} className={cn('h-2.5 rounded-full', isOverloaded && '[&>div]:bg-destructive')} />
         {isOverloaded && (
           <p className="text-xs text-destructive mt-2">
-            {(totalHours - dailyLimit).toFixed(1)}h por encima de tu límite diario
+            {formatStudyHours(totalHours - dailyLimit)} por encima de tu límite diario
           </p>
         )}
       </CardContent>

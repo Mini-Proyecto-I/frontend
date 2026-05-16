@@ -8,6 +8,7 @@ import {
   getApiValidationErrorMessage,
   SUBTASK_SAVE_GENERIC_FALLBACK,
 } from "@/shared/utils/apiErrorMessage";
+import { formatStudyHours, normalizeHalfHourStep } from "@/shared/utils/studyLimitFormat";
 
 type SaveResult =
   | { ok: true }
@@ -122,15 +123,35 @@ export default function EditSubtaskModal({
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                 Horas estimadas
               </label>
-              <Input
-                type="number"
-                step="0.5"
-                min="0.5"
-                value={editHours}
-                onChange={(e) => setEditHours(e.target.value)}
-                className="h-11 bg-[#1F2937]/60 border-slate-700/60 text-slate-200 rounded-xl focus-visible:ring-blue-500"
-                disabled={isSavingEdit}
-              />
+              <div className="h-11 bg-[#1F2937]/60 border border-slate-700/60 text-slate-200 rounded-xl px-1 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const current = normalizeHalfHourStep(parseFloat(String(editHours)), 0.5, 24);
+                    setEditHours(String(normalizeHalfHourStep(current - 0.5, 0.5, 24)));
+                  }}
+                  className="h-8 w-8 rounded-md bg-slate-800 hover:bg-slate-700 text-white font-bold disabled:opacity-50"
+                  disabled={isSavingEdit}
+                  aria-label="Restar 30 minutos"
+                >
+                  -
+                </button>
+                <span className="font-semibold text-sm min-w-[110px] text-center">
+                  {formatStudyHours(normalizeHalfHourStep(parseFloat(String(editHours)), 0.5, 24))}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const current = normalizeHalfHourStep(parseFloat(String(editHours)), 0.5, 24);
+                    setEditHours(String(normalizeHalfHourStep(current + 0.5, 0.5, 24)));
+                  }}
+                  className="h-8 w-8 rounded-md bg-slate-800 hover:bg-slate-700 text-white font-bold disabled:opacity-50"
+                  disabled={isSavingEdit}
+                  aria-label="Sumar 30 minutos"
+                >
+                  +
+                </button>
+              </div>
             </div>
 
             {editError && (
@@ -181,7 +202,7 @@ export default function EditSubtaskModal({
 
                   if (!Number.isInteger(nextHours * 2)) {
                     setEditError(
-                      "Las horas deben ir en pasos de 0.5 (por ejemplo: 0.5, 1.0, 1.5)."
+                      "Las horas deben ir en bloques de 30 min (por ejemplo: 1h, 1h 30min, 2h)."
                     );
                     return;
                   }

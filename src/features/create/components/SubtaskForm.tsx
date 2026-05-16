@@ -4,6 +4,7 @@ import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import InfoTooltip from "@/features/create/components/InfoTooltip";
 import WeeklyDatePicker from "@/features/create/components/WeeklyDatePicker";
+import { formatStudyHours, normalizeHalfHourStep } from "@/shared/utils/studyLimitFormat";
 
 export interface Subtarea {
     id: number;
@@ -83,7 +84,7 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
             </div>
 
             {/* Table header */}
-            <div className="grid grid-cols-[1fr_160px_100px_48px] gap-3 items-center px-2 mb-3">
+            <div className="grid grid-cols-[1fr_160px_132px_48px] gap-3 items-center px-2 mb-3">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                     <InfoTooltip text="Escribe un nombre descriptivo para una tarea concreta que te ayude a completar la actividad." />
                     Nombre subtarea <span className="text-blue-500">*</span>
@@ -94,7 +95,7 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                 </span>
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 whitespace-nowrap">
                     <InfoTooltip text="Horas estimadas para completar esta subtarea." />
-                    Est. Horas <span className="text-blue-500">*</span>
+                    Horas Estimadas <span className="text-blue-500">*</span>
                 </span>
                 <span className="min-w-[48px]" aria-hidden />
             </div>
@@ -123,7 +124,7 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                         return (
                             <div key={sub.id} className="space-y-2" data-subtask-id={sub.id}>
                                 <div
-                                    className={`grid grid-cols-[1fr_160px_100px_48px] gap-3 rounded-xl px-3 py-2 transition-all ${
+                                    className={`grid grid-cols-[1fr_160px_132px_48px] gap-3 rounded-xl px-3 py-2 transition-all ${
                                         highlightHoras || highlightFecha
                                             ? "bg-amber-500/5 border border-amber-500/30 ring-1 ring-amber-500/20"
                                             : isDateConflicted
@@ -234,27 +235,42 @@ const SubtaskForm = ({ subtareas, onAdd, onRemove, onUpdate, errors, onClearErro
                                         )}
                                     </div>
                                     <div className="flex flex-col py-1.5">
-                                        <div className="relative">
-                                            <input
-                                                type="number"
-                                                step="0.5"
-                                                min="0.5"
-                                                value={sub.horas}
-                                                onChange={(e) => {
-                                                    onUpdate(sub.id, "horas", e.target.value);
+                                        <div className={`w-full h-10 rounded-lg text-sm border transition-colors bg-[#1F2937]/50 text-slate-200 flex items-center overflow-hidden ${
+                                            highlightHoras
+                                                ? 'border-amber-500 ring-2 ring-amber-500/40 animate-pulse'
+                                                : subErrors.horas
+                                                ? 'border-red-500'
+                                                : 'border-slate-700/50'
+                                        }`}>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const current = normalizeHalfHourStep(parseFloat(sub.horas), 0.5, 24);
+                                                    const next = normalizeHalfHourStep(current - 0.5, 0.5, 24);
+                                                    onUpdate(sub.id, "horas", String(next));
                                                     onClearError?.(sub.id, "horas");
                                                 }}
-                                                className={`w-full h-10 rounded-lg text-sm text-center py-1.5 focus:outline-none border pr-7 transition-colors bg-[#1F2937]/50 text-slate-200 ${
-                                                    highlightHoras
-                                                        ? 'border-amber-500 ring-2 ring-amber-500/40 animate-pulse'
-                                                        : subErrors.horas
-                                                        ? 'border-red-500 focus:ring-red-500'
-                                                        : 'border-slate-700/50 focus:ring-blue-500 focus:border-blue-500'
-                                                }`}
-                                            />
-                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-500">
-                                                hr
+                                                className="h-full w-[30px] p-0 text-slate-200 hover:bg-[#334155]/40 text-sm font-bold border-r border-slate-700/50"
+                                                aria-label="Restar 30 minutos"
+                                            >
+                                                -
+                                            </button>
+                                            <span className="h-full flex-1 px-1 text-slate-100 font-bold text-xs flex items-center justify-center text-center">
+                                                {formatStudyHours(normalizeHalfHourStep(parseFloat(sub.horas), 0.5, 24))}
                                             </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const current = normalizeHalfHourStep(parseFloat(sub.horas), 0.5, 24);
+                                                    const next = normalizeHalfHourStep(current + 0.5, 0.5, 24);
+                                                    onUpdate(sub.id, "horas", String(next));
+                                                    onClearError?.(sub.id, "horas");
+                                                }}
+                                                className="h-full w-[30px] p-0 text-slate-200 hover:bg-[#334155]/40 text-sm font-bold border-l border-slate-700/50"
+                                                aria-label="Sumar 30 minutos"
+                                            >
+                                                +
+                                            </button>
                                         </div>
                                         {highlightHoras && (
                                             <p className="text-xs text-amber-400 font-medium mt-1 flex items-center gap-1">

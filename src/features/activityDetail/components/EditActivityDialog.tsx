@@ -584,7 +584,7 @@ export default function EditActivityDialog({
   const addSubtarea = () => {
     setSubtareas([
       ...subtareas,
-      { id: Date.now(), nombre: "", fechaObjetivo: "", horas: "" },
+      { id: Date.now(), nombre: "", fechaObjetivo: "", horas: "0.5" },
     ]);
   };
 

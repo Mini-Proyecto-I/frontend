@@ -13,6 +13,7 @@ import ActivityDetailHeader from "./ActivityDetailHeader";
 import StudyPlanSection from "./StudyPlanSection";
 import { getActivity } from "@/api/services/activity";
 import { useToast } from "@/shared/components/toast";
+import { formatStudyHours } from "@/shared/utils/studyLimitFormat";
 
 const PROGRESS_STATUS = {
   PENDING: "PENDING",
@@ -400,7 +401,7 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
         title: subtask.title, // El backend devuelve 'title'
         date: formatDate(subtask.target_date), // Fecha formateada para mostrar
         dateOriginal: subtask.target_date || "", // Fecha original en formato YYYY-MM-DD para el modal de edición
-        hours: subtask.estimated_hours ? `${subtask.estimated_hours}h` : "0h",
+        hours: formatStudyHours(subtask.estimated_hours),
         completed: subtask.status === "DONE",
         isActive: subtask.status === "PENDING" && !isToday,
         todayBadge: isToday,
@@ -515,7 +516,7 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
 
     const val = parseFloat(reduceHours);
     if (isNaN(val) || val < 0.5) {
-      setReduceError("Ingresa un número válido (mínimo 0.5)");
+      setReduceError("Ingresa un número válido (mínimo 30 min).");
       return;
     }
 

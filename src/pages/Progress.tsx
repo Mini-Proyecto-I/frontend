@@ -46,6 +46,7 @@ import {
   getApiValidationErrorMessage,
   SUBTASK_SAVE_GENERIC_FALLBACK,
 } from "@/shared/utils/apiErrorMessage";
+import { formatStudyHours } from "@/shared/utils/studyLimitFormat";
 import { Link, useNavigate } from 'react-router-dom';
 import { ResolveConflictModal } from '@/shared/components/ResolveConflictModal';
 import { ConflictOutcomeModal } from '@/shared/components/ConflictOutcomeModal';
@@ -592,7 +593,7 @@ export default function ProgressPage() {
     if (!conflictModalTask || !conflictActivityMeta) return;
     const hrs = parseFloat(reduceHours);
     if (isNaN(hrs) || hrs < 0.5) {
-      setReduceError("Ingresa un número válido (mínimo 0.5)");
+      setReduceError("Ingresa un número válido (mínimo 30 min).");
       return;
     }
 
@@ -1124,7 +1125,7 @@ export default function ProgressPage() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400">Tiempo de estudio</span>
-                <span className="font-semibold text-white">{stats.hoursDone.toFixed(1)}h</span>
+                <span className="font-semibold text-white">{formatStudyHours(stats.hoursDone)}</span>
               </div>
             </div>
           </div>

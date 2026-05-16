@@ -27,6 +27,7 @@ import {
     getApiValidationErrorMessage,
     SUBTASK_SAVE_GENERIC_FALLBACK,
 } from "@/shared/utils/apiErrorMessage";
+import { formatStudyHours, normalizeHalfHourStep } from "@/shared/utils/studyLimitFormat";
 
 export default function Calendar() {
     const navigate = useNavigate();
@@ -193,7 +194,7 @@ export default function Calendar() {
                 dateKey: dateStr,
                 course: item.activity?.course?.name || "Actividad",
                 title: item.title,
-                duration: item.estimated_hours ? `${item.estimated_hours} h` : "0 h",
+                duration: formatStudyHours(item.estimated_hours),
                 durationNum: parseFloat(item.estimated_hours || 0),
                 status: item.status,
                 courseId: item.activity?.course?.id,
@@ -272,7 +273,7 @@ export default function Calendar() {
         setReprogramSuccessMessage(null);
     };
 
-    const formatHours = (hours: number) => (hours % 1 === 0 ? `${hours}h` : `${hours.toFixed(1)}h`);
+    const formatHours = (hours: number) => formatStudyHours(hours);
 
     const computeProjectedHours = (day: Date, hoursForSelected: number, taskOverride?: any) => {
         const task = taskOverride ?? selectedSubtask;
@@ -432,7 +433,7 @@ export default function Calendar() {
             return;
         }
         if (next < 0.5) {
-            setReduceConflictError("La estimación mínima es 0.5h.");
+            setReduceConflictError("La estimación mínima es 30 min.");
             return;
         }
         if (!Number.isFinite(current) || current <= 0) {
@@ -900,7 +901,7 @@ export default function Calendar() {
                                                     ? 'EXCEDE EL LÍMITE'
                                                     : willConflictForMove
                                                         ? `QUEDARÍA EN ${formatHours(projectedHoursForMove)}`
-                                                        : `Disponibilidad: ${availableHours % 1 === 0 ? availableHours : availableHours.toFixed(1)}h`}
+                                                        : `Disponibilidad: ${formatStudyHours(availableHours)}`}
                                         </span>
                                     </div>
 
@@ -1262,38 +1263,35 @@ export default function Calendar() {
                                     <div className="bg-slate-900/50 border border-slate-700/60 rounded-2xl p-4">
                                         <p className="text-sm text-slate-300 mb-3">
                                             Define las nuevas horas para guardar en este día. Rango permitido:{" "}
-                                            <span className="font-semibold text-white">0.5h</span> a{" "}
+                                            <span className="font-semibold text-white">30min</span> a{" "}
                                             <span className="font-semibold text-white">{formatHours(selectedSubtask.durationNum)}</span>.
                                         </p>
                                         <div className="flex gap-3 items-center flex-wrap">
-                                            <input
-                                                type="number"
-                                                step="0.25"
-                                                min="0.5"
-                                                max={selectedSubtask.durationNum}
-                                                value={reduceHoursForConflict}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === "-" || e.key === "Minus") e.preventDefault();
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const current = normalizeHalfHourStep(parseFloat(reduceHoursForConflict), 0.5, selectedSubtask.durationNum);
+                                                    setReduceHoursForConflict(String(normalizeHalfHourStep(current - 0.5, 0.5, selectedSubtask.durationNum)));
                                                 }}
-                                                onChange={(e) => {
-                                                    const raw = e.target.value;
-                                                    if (raw === "") {
-                                                        setReduceHoursForConflict(raw);
-                                                        return;
-                                                    }
-                                                    const parsed = parseFloat(raw);
-                                                    if (!Number.isFinite(parsed)) {
-                                                        setReduceHoursForConflict(raw);
-                                                        return;
-                                                    }
-                                                    const clamped = Math.min(
-                                                        selectedSubtask.durationNum,
-                                                        Math.max(0.5, parsed)
-                                                    );
-                                                    setReduceHoursForConflict(String(clamped));
+                                                className="h-11 w-11 rounded-xl bg-[#1F2937]/60 border border-slate-700/60 text-slate-200 font-bold"
+                                                aria-label="Restar 30 minutos"
+                                            >
+                                                -
+                                            </button>
+                                            <div className="h-11 min-w-[120px] text-base font-semibold bg-[#1F2937]/60 border border-slate-700/60 text-slate-200 rounded-xl px-3 flex items-center justify-center">
+                                                {formatHours(normalizeHalfHourStep(parseFloat(reduceHoursForConflict), 0.5, selectedSubtask.durationNum))}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const current = normalizeHalfHourStep(parseFloat(reduceHoursForConflict), 0.5, selectedSubtask.durationNum);
+                                                    setReduceHoursForConflict(String(normalizeHalfHourStep(current + 0.5, 0.5, selectedSubtask.durationNum)));
                                                 }}
-                                                className="h-11 w-24 text-base font-semibold bg-[#1F2937]/60 border border-slate-700/60 text-slate-200 rounded-xl px-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            />
+                                                className="h-11 w-11 rounded-xl bg-[#1F2937]/60 border border-slate-700/60 text-slate-200 font-bold"
+                                                aria-label="Sumar 30 minutos"
+                                            >
+                                                +
+                                            </button>
                                             <Button
                                                 onClick={handleResolveByReducingHours}
                                                 disabled={isResolvingConflict}
@@ -1421,16 +1419,13 @@ export default function Calendar() {
                                     <>
                                         Te recomendamos establecer la estimación de horas de esta tarea a{" "}
                                         <span className="text-amber-300 font-extrabold">
-                                            {reduceBlockedData.recommendedHours % 1 === 0
-                                                ? reduceBlockedData.recommendedHours
-                                                : reduceBlockedData.recommendedHours.toFixed(1)}
-                                            h
+                                            {formatHours(reduceBlockedData.recommendedHours)}
                                         </span>
                                         {" "}(tiempo disponible ese día). Puedes volver atrás para aplicar esta estimación.
                                     </>
                                 ) : reduceBlockedData.cannotReduceEvenMin ? (
                                     <>
-                                        Ni con la reducción mínima (0,5 h) se soluciona el conflicto. Te recomendamos mover tu tarea a otro día o mover las tareas ya programadas para el día{" "}
+                                        Ni con la reducción mínima (30 min) se soluciona el conflicto. Te recomendamos mover tu tarea a otro día o mover las tareas ya programadas para el día{" "}
                                         <span className="text-white font-semibold capitalize">{reduceBlockedData.dateLabel}</span>.
                                     </>
                                 ) : (
@@ -1446,11 +1441,7 @@ export default function Calendar() {
                                     setShowReduceBlockedModal(false);
                                     setReduceBlockedData(null);
                                     if (data?.recommendedHours != null) {
-                                        setReduceHoursForConflict(
-                                            data.recommendedHours % 1 === 0
-                                                ? String(data.recommendedHours)
-                                                : data.recommendedHours.toFixed(1)
-                                        );
+                                        setReduceHoursForConflict(String(data.recommendedHours));
                                         setOverloadModalStep("reduce");
                                     } else {
                                         setOverloadModalStep("menu");
@@ -1486,10 +1477,7 @@ export default function Calendar() {
                                 </span>{" "}
                                 el conflicto quedó resuelto. Te quedan{" "}
                                 <span className="text-emerald-300 font-extrabold">
-                                    {reduceConflictOutcome.availableHours % 1 === 0
-                                        ? reduceConflictOutcome.availableHours
-                                        : reduceConflictOutcome.availableHours.toFixed(1)}
-                                    h
+                                    {formatHours(reduceConflictOutcome.availableHours)}
                                 </span>{" "}
                                 disponibles.
                             </p>
