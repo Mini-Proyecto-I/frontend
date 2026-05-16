@@ -7,6 +7,7 @@ import { patchSubtask, updateSubtask, deleteSubtask } from "@/api/services/subta
 import { useToast } from "@/shared/components/toast";
 import { SubtaskDetailModal } from "@/shared/components/SubtaskDetailModal";
 import { cn } from "@/shared/utils/utils";
+import { formatStudyHours } from "@/shared/utils/studyLimitFormat";
 
 interface SubtaskItemProps {
   id: string;
@@ -619,18 +620,18 @@ export default function SubtaskItem({
                     <p className="mt-6 text-sm text-slate-300 leading-relaxed">
                       No pudimos actualizar{" "}
                       <span className="font-semibold text-white">"{conflictTitle}"</span> de{" "}
-                      <span className="font-semibold text-white">{conflictData.horasAntiguas.toFixed(1)}h</span> a{" "}
-                      <span className="font-semibold text-white">{conflictData.horasIntentadas.toFixed(1)}h</span> porque ese día se superaría tu límite de horas de estudio.
+                      <span className="font-semibold text-white">{formatStudyHours(conflictData.horasAntiguas)}</span> a{" "}
+                      <span className="font-semibold text-white">{formatStudyHours(conflictData.horasIntentadas)}</span> porque ese día se superaría tu límite de horas de estudio.
                     </p>
 
                     <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
                       <div className="mt-3 flex items-center justify-center gap-2">
                         <span className="text-2xl font-black text-red-400">
-                          {conflictData.horasOcupadas.toFixed(1)}h
+                          {formatStudyHours(conflictData.horasOcupadas)}
                         </span>
                         <span className="text-slate-400">/</span>
                         <span className="text-xl font-bold text-slate-300">
-                          {conflictData.limiteDiario.toFixed(1)}h
+                          {formatStudyHours(conflictData.limiteDiario)}
                         </span>
                       </div>
                       <p className="text-xs text-slate-400 mt-2 text-center">

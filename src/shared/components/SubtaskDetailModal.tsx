@@ -16,6 +16,7 @@ import { cn } from "@/shared/utils/utils";
 import { TaskHistoryModal } from "./TaskHistoryModal";
 import { Separator } from "@/shared/components/separator";
 import { resolveSubtaskCourseName } from "@/shared/utils/course";
+import { formatStudyHours } from "@/shared/utils/studyLimitFormat";
 
 export interface SubtaskDetailModalProps {
   open: boolean;
@@ -126,7 +127,7 @@ export function SubtaskDetailModal({
                   <Clock className="size-4 text-emerald-400" />
                 </div>
                 <span className="text-sm font-semibold">
-                  {subtask.estimated_hours ? parseFloat(String(subtask.estimated_hours)).toFixed(1) : "0.0"}h
+                  {formatStudyHours(subtask.estimated_hours)}
                 </span>
               </div>
             </div>

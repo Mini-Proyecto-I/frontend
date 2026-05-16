@@ -1,5 +1,6 @@
 import { AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/shared/components/card";
+import { formatStudyHours } from "@/shared/utils/studyLimitFormat";
 
 interface OverloadAlertProps {
   totalHours: number;
@@ -22,8 +23,8 @@ export const OverloadAlert = ({ totalHours, dailyLimit, conflictedCount }: Overl
             {isOverloaded ? (
               <>
                 Has planificado{" "}
-                <strong className="text-white">{totalHours.toFixed(1)}h</strong> de estudio hoy, pero tu límite diario es{" "}
-                <strong className="text-white">{dailyLimit}h</strong>. Considera reprogramar algunas tareas.
+                <strong className="text-white">{formatStudyHours(totalHours)}</strong> de estudio hoy, pero tu límite diario es{" "}
+                <strong className="text-white">{formatStudyHours(dailyLimit)}</strong>. Considera reprogramar algunas tareas.
               </>
             ) : (
               <>

@@ -6,6 +6,7 @@ import { Checkbox } from "@/shared/components/checkbox";
 import { Badge } from "@/shared/components/badge";
 import { Button } from "@/shared/components/button";
 import { MessageModal } from "@/shared/components/MessageModal";
+import { formatStudyHours } from "@/shared/utils/studyLimitFormat";
 
 interface BackendSubtask {
   id: string;
@@ -53,7 +54,7 @@ export const TaskItem = ({ subtask, activityId, onStatusChange }: TaskItemProps)
       <div className="flex items-center gap-2">
         <Badge variant="secondary" className="text-xs">
           <Clock className="h-3 w-3 mr-1" />
-          {estimatedHours.toFixed(1)}h
+          {formatStudyHours(estimatedHours)}
         </Badge>
         <Button
           variant="ghost"

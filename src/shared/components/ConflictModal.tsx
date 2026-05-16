@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { AlertCircle, X } from "lucide-react";
+import { formatStudyHours } from "@/shared/utils/studyLimitFormat";
 
 interface ConflictTask {
   nombre: string;
@@ -139,11 +140,11 @@ export default function ConflictModal({
                             </p>
                             <div className="shrink-0 flex items-center gap-2">
                               <span className="text-red-400 font-black">
-                                +{exceso.toFixed(1)}h
+                                +{formatStudyHours(exceso)}
                               </span>
                               <span className="text-slate-400">/</span>
                               <span className="text-white font-bold">
-                                {limiteDiario.toFixed(1)}h
+                                {formatStudyHours(limiteDiario)}
                               </span>
                             </div>
                           </div>
@@ -154,7 +155,7 @@ export default function ConflictModal({
                                   {task.nombre}
                                 </span>
                                 <span className="text-slate-400 shrink-0">
-                                  {task.horas.toFixed(1)}h
+                                  {formatStudyHours(task.horas)}
                                 </span>
                               </div>
                             ))}
@@ -174,14 +175,14 @@ export default function ConflictModal({
                   <>
                     No pudimos actualizar{" "}
                     <span className="font-semibold text-white">"{singleTask?.nombre}"</span> de{" "}
-                    <span className="font-semibold text-white">{singleTask.horasAntiguas.toFixed(1)}h</span> a{" "}
-                    <span className="font-semibold text-white">{singleTask.horasIntentadas.toFixed(1)}h</span> porque ese día se superaría tu límite de horas de estudio.
+                    <span className="font-semibold text-white">{formatStudyHours(singleTask.horasAntiguas)}</span> a{" "}
+                    <span className="font-semibold text-white">{formatStudyHours(singleTask.horasIntentadas)}</span> porque ese día se superaría tu límite de horas de estudio.
                   </>
                 ) : (
                   <>
                     No pudimos agregar{" "}
                     <span className="font-semibold text-white">"{singleTask?.nombre}"</span> de{" "}
-                    <span className="font-semibold text-white">{singleTask?.horasIntentadas.toFixed(1)}h</span> porque ese día se superaría tu límite de horas de estudio.
+                    <span className="font-semibold text-white">{formatStudyHours(singleTask?.horasIntentadas)}</span> porque ese día se superaría tu límite de horas de estudio.
                   </>
                 )}
               </p>
@@ -189,11 +190,11 @@ export default function ConflictModal({
               <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
                 <div className="mt-3 flex items-center justify-center gap-2">
                   <span className="text-2xl font-black text-red-400">
-                    {singleTask?.horasOcupadas.toFixed(1)}h
+                    {formatStudyHours(singleTask?.horasOcupadas)}
                   </span>
                   <span className="text-slate-400">/</span>
                   <span className="text-xl font-bold text-slate-300">
-                    {limiteDiario.toFixed(1)}h
+                    {formatStudyHours(limiteDiario)}
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-2 text-center">

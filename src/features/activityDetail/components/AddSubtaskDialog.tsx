@@ -11,6 +11,7 @@ import {
 import { Button } from "@/shared/components/button";
 import { useToast } from "@/shared/components/toast";
 import { createSubtask } from "@/api/services/subtask";
+import { formatStudyHours, normalizeHalfHourStep } from "@/shared/utils/studyLimitFormat";
 
 interface AddSubtaskDialogProps {
   open: boolean;
@@ -29,7 +30,7 @@ export default function AddSubtaskDialog({
 }: AddSubtaskDialogProps) {
   const [nombre, setNombre] = useState("");
   const [fechaObjetivo, setFechaObjetivo] = useState("");
-  const [horas, setHoras] = useState("");
+  const [horas, setHoras] = useState("0.5");
   const [errors, setErrors] = useState<{
     nombre?: string;
     fechaObjetivo?: string;
@@ -71,7 +72,7 @@ export default function AddSubtaskDialog({
       if (isNaN(hoursValue) || hoursValue <= 0) {
         newErrors.horas = "Las horas estimadas deben ser un número válido mayor a 0.";
       } else if (hoursValue % 0.5 !== 0) {
-        newErrors.horas = "Las horas deben ser múltiplos de 0.5 (ej: 1, 1.5, 2, 2.5, etc.).";
+        newErrors.horas = "Las horas deben ir en bloques de 30 min (ej: 1h, 1h 30min, 2h, 2h 30min).";
       }
     }
 
@@ -113,7 +114,7 @@ export default function AddSubtaskDialog({
       // Limpiar el formulario
       setNombre("");
       setFechaObjetivo("");
-      setHoras("");
+      setHoras("0.5");
       setErrors({});
 
       // Cerrar el modal después de un breve delay
@@ -160,7 +161,7 @@ export default function AddSubtaskDialog({
   const handleClose = () => {
     setNombre("");
     setFechaObjetivo("");
-    setHoras("");
+    setHoras("0.5");
     setErrors({});
     onOpenChange(false);
   };
@@ -264,24 +265,34 @@ export default function AddSubtaskDialog({
               <label className="block text-sm font-medium mb-1.5 text-foreground">
                 <span className="text-white">Horas estimadas:</span> <span className="text-primary">*</span>
               </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  value={horas}
-                  onChange={(e) => {
-                    setHoras(e.target.value);
-                    if (errors.horas) {
-                      setErrors((prev) => ({ ...prev, horas: undefined }));
-                    }
+              <div className={`w-full rounded-lg bg-[#111827] border px-2 py-2.5 text-sm flex items-center justify-between ${errors.horas ? 'border-[#EF4444]' : 'border-border'}`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = normalizeHalfHourStep(parseFloat(horas) - 0.5, 0.5, 24);
+                    setHoras(String(next));
+                    if (errors.horas) setErrors((prev) => ({ ...prev, horas: undefined }));
                   }}
-                  placeholder="ej. 2.5"
-                  className={`${inputClass} text-center pr-10 ${errors.horas ? 'border-[#EF4444] focus:ring-[#EF4444]' : ''}`}
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                  hr
+                  className="h-8 w-8 rounded-md bg-slate-800 hover:bg-slate-700 text-white font-bold"
+                  aria-label="Restar 30 minutos"
+                >
+                  -
+                </button>
+                <span className="font-semibold text-slate-100 min-w-[110px] text-center">
+                  {formatStudyHours(parseFloat(horas))}
                 </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = normalizeHalfHourStep(parseFloat(horas) + 0.5, 0.5, 24);
+                    setHoras(String(next));
+                    if (errors.horas) setErrors((prev) => ({ ...prev, horas: undefined }));
+                  }}
+                  className="h-8 w-8 rounded-md bg-slate-800 hover:bg-slate-700 text-white font-bold"
+                  aria-label="Sumar 30 minutos"
+                >
+                  +
+                </button>
               </div>
               {errors.horas && (
                 <div className="mt-2 flex items-start gap-2">
