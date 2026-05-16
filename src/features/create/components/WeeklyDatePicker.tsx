@@ -3,6 +3,7 @@ import { format, startOfWeek, addDays, subWeeks, addWeeks, isSameDay, parseISO, 
 import { es } from "date-fns/locale";
 import { useHoy } from "@/features/today/hooks/useHoy";
 import UnifiedCalendarModal, { type UnifiedCalendarDay } from "./UnifiedCalendarModal";
+import { formatStudyHours } from "@/shared/utils/studyLimitFormat";
 
 interface PlannedSubtaskPreview {
     id: number | string;
@@ -217,13 +218,13 @@ export default function WeeklyDatePicker({
                     ...dayActivities.map((act) => ({
                         id: act.id,
                         title: act.title,
-                        hoursLabel: `${act.durationNum}h`,
+                        hoursLabel: formatStudyHours(act.durationNum),
                         muted: act.status === "DONE",
                     })),
                     ...plannedForDay.map((sub) => ({
                         id: `planned-${sub.id}`,
                         title: sub.title || "Subtarea planeada",
-                        hoursLabel: `${sub.hours}h (plan)`,
+                        hoursLabel: `${formatStudyHours(sub.hours)} (plan)`,
                     })),
                 ],
             };

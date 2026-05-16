@@ -33,6 +33,7 @@ import {
   getApiValidationErrorMessage,
   SUBTASK_SAVE_GENERIC_FALLBACK,
 } from "@/shared/utils/apiErrorMessage";
+import { formatStudyHours, normalizeHalfHourStep } from "@/shared/utils/studyLimitFormat";
 
 
 function getGreeting(name: string) {
@@ -45,9 +46,7 @@ function getGreeting(name: string) {
 }
 
 function formatHours(hoursStr: string | number) {
-  const h = parseFloat(String(hoursStr));
-  if (h < 1) return `${Math.round(h * 60)} MIN`;
-  return `${h.toFixed(1)}H`;
+  return formatStudyHours(hoursStr).toUpperCase();
 }
 
 function getRelativeDateLabel(targetDateStr: string) {
@@ -106,6 +105,18 @@ export default function Today() {
   const [conflictBlockModalOpen, setConflictBlockModalOpen] = useState(false);
   const { showToast, ToastComponent } = useToast();
 
+  const adjustTempLimit = (delta: number) => {
+    const current = normalizeHalfHourStep(parseFloat(tempLimit), 1, 24);
+    const next = normalizeHalfHourStep(current + delta, 1, 24);
+    setTempLimit(String(next));
+  };
+
+  const adjustWelcomeLimit = (delta: number) => {
+    const current = normalizeHalfHourStep(parseFloat(welcomeLimit), 1, 24);
+    const next = normalizeHalfHourStep(current + delta, 1, 24);
+    setWelcomeLimit(String(next));
+  };
+
   const handleShowHistory = (subtaskId: string, title: string) => {
     setHistorySubtaskId(subtaskId);
     setHistoryTaskTitle(title);
@@ -159,9 +170,8 @@ export default function Today() {
 
   const handleSaveLimit = async () => {
     let val = parseFloat(tempLimit);
-    if (isNaN(val)) val = limitHours;
-    if (val < 0.5) val = 0.5;
-    if (val > 24) val = 24;
+    if (Number.isNaN(val)) val = limitHours;
+    val = normalizeHalfHourStep(val, 1, 24);
 
     try {
       // Sincronizar con el backend
@@ -169,7 +179,7 @@ export default function Today() {
 
       // Actualizar estado local
       setLimitHours(val);
-      setTempLimit(val.toString());
+      setTempLimit(String(val));
       window.localStorage.setItem("studyLimitHours", val.toString());
       setIsEditingLimit(false);
 
@@ -179,7 +189,7 @@ export default function Today() {
       console.error("Error al actualizar límite diario:", error);
       // Aún así guardar en localStorage para que el usuario vea el cambio
       setLimitHours(val);
-      setTempLimit(val.toString());
+      setTempLimit(String(val));
       window.localStorage.setItem("studyLimitHours", val.toString());
       setIsEditingLimit(false);
     }
@@ -207,9 +217,10 @@ export default function Today() {
         if (backendLimit !== undefined && backendLimit !== null) {
           const num = parseFloat(String(backendLimit));
           if (!isNaN(num)) {
-            setLimitHours(num);
-            setTempLimit(num.toString());
-            window.localStorage.setItem("studyLimitHours", num.toString());
+            const normalized = normalizeHalfHourStep(num, 1, 24);
+            setLimitHours(normalized);
+            setTempLimit(String(normalized));
+            window.localStorage.setItem("studyLimitHours", String(normalized));
           }
         }
       } catch (error) {
@@ -261,14 +272,14 @@ export default function Today() {
       try {
         const config = await getConfig();
         if (config?.daily_hours_limit) {
-          const backendLimit = parseFloat(config.daily_hours_limit);
+          const backendLimit = normalizeHalfHourStep(parseFloat(config.daily_hours_limit), 1, 24);
           const currentLimit = parseFloat(window.localStorage.getItem("studyLimitHours") || "6");
 
           // Solo actualizar si es diferente para evitar refrescos innecesarios
           if (Math.abs(backendLimit - currentLimit) > 0.01) {
             setLimitHours(backendLimit);
-            setTempLimit(backendLimit.toString());
-            window.localStorage.setItem("studyLimitHours", backendLimit.toString());
+            setTempLimit(String(backendLimit));
+            window.localStorage.setItem("studyLimitHours", String(backendLimit));
             // Refrescar datos para recalcular conflictos con el límite correcto
             refetch();
           }
@@ -455,7 +466,7 @@ export default function Today() {
       return;
     }
     // Sugerencia por defecto: reducir exactamente el sobretrabajo,
-    // sin bajar de 0.5h como límite mínimo.
+    // sin bajar de 30 min como límite mínimo.
     const dayKey = selectedConflict?.target_date;
     const stats = computeDayLoadForDateKey(dayKey);
     const over = stats.overworkHours || 0;
@@ -464,11 +475,11 @@ export default function Today() {
     if (over > 0) {
       suggested = current - over;
     } else {
-      // Si no hay sobretrabajo, sugerimos reducir 0.5h como antes.
+      // Si no hay sobretrabajo, sugerimos reducir 30 min como antes.
       suggested = current - 0.5;
     }
 
-    // Redondeo a 0.1h y respetar límite inferior 0.5h
+    // Redondeo a 0.1h y respetar límite inferior de 30 min
     suggested = Math.max(0.5, Math.round(suggested * 10) / 10);
     setReduceHours(String(suggested));
   }, [selectedConflict?.id]);
@@ -548,7 +559,7 @@ export default function Today() {
       return;
     }
     if (next >= current) {
-      setReduceError(`Debe ser menor a ${current.toFixed(2)}h.`);
+      setReduceError(`Debe ser menor a ${formatStudyHours(current)}.`);
       return;
     }
 
@@ -907,8 +918,8 @@ export default function Today() {
 
                 <div className="flex items-center justify-between w-full mt-2">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-black text-white">{totalHours % 1 === 0 ? totalHours : totalHours.toFixed(1)}h</span>
-                    <span className="text-slate-400 font-bold text-lg">/ {limitHours}h</span>
+                    <span className="text-4xl font-black text-white">{formatStudyHours(totalHours)}</span>
+                    <span className="text-slate-400 font-bold text-lg">/ {formatStudyHours(limitHours)}</span>
                   </div>
 
                   {!isEditingLimit ? (
@@ -923,16 +934,25 @@ export default function Today() {
                     </Button>
                   ) : (
                     <div className="flex items-center gap-2 bg-slate-900 border border-blue-500/30 rounded-xl p-1.5 animate-in zoom-in-95 duration-200">
-                      <Input
-                        type="number"
-                        step="0.5"
-                        min="0.5"
-                        max="24"
-                        value={tempLimit}
-                        onChange={(e) => setTempLimit(e.target.value)}
-                        className="w-20 h-9 text-center bg-[#111827] border-slate-700 focus-visible:ring-1 focus-visible:ring-blue-500 text-white font-bold text-base rounded-lg"
-                        autoFocus
-                      />
+                      <Button
+                        size="sm"
+                        type="button"
+                        onClick={() => adjustTempLimit(-0.5)}
+                        className="h-9 w-9 p-0 bg-slate-800 hover:bg-slate-700 text-white rounded-lg"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </Button>
+                      <div className="min-w-[110px] h-9 px-3 flex items-center justify-center bg-[#111827] border border-slate-700 rounded-lg text-white font-bold text-sm">
+                        {formatStudyHours(tempLimit)}
+                      </div>
+                      <Button
+                        size="sm"
+                        type="button"
+                        onClick={() => adjustTempLimit(0.5)}
+                        className="h-9 w-9 p-0 bg-slate-800 hover:bg-slate-700 text-white rounded-lg"
+                      >
+                        <ChevronUp className="w-4 h-4" />
+                      </Button>
                       <Button
                         size="sm"
                         onClick={handleSaveLimit}
@@ -1187,31 +1207,35 @@ export default function Today() {
               <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-3">
                 Límite de horas diarias
               </label>
-              <div className="relative group">
-                <Input
-                  type="number"
-                  step="0.5"
-                  min="0.5"
-                  max="24"
-                  value={welcomeLimit}
-                  onChange={(e) => setWelcomeLimit(e.target.value)}
-                  className="w-full h-16 text-center bg-slate-900/50 border-slate-700/50 focus-visible:ring-blue-500 text-white font-black text-3xl rounded-2xl transition-all group-hover:bg-slate-900"
-                />
-                <div className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-lg pointer-events-none">
-                  Horas
+              <div className="group flex items-center justify-center gap-3">
+                <Button
+                  type="button"
+                  onClick={() => adjustWelcomeLimit(-0.5)}
+                  className="h-14 w-14 p-0 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white"
+                >
+                  <ChevronDown className="w-6 h-6" />
+                </Button>
+                <div className="min-w-[200px] h-16 px-4 flex items-center justify-center bg-slate-900/50 border border-slate-700/50 text-white font-black text-2xl rounded-2xl transition-all group-hover:bg-slate-900">
+                  {formatStudyHours(welcomeLimit)}
                 </div>
+                <Button
+                  type="button"
+                  onClick={() => adjustWelcomeLimit(0.5)}
+                  className="h-14 w-14 p-0 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white"
+                >
+                  <ChevronUp className="w-6 h-6" />
+                </Button>
               </div>
             </div>
             <Button
               onClick={async () => {
                 let val = parseFloat(welcomeLimit);
-                if (isNaN(val)) val = 6;
-                if (val < 0.5) val = 0.5;
-                if (val > 24) val = 24;
+                if (Number.isNaN(val)) val = 6;
+                val = normalizeHalfHourStep(val, 1, 24);
 
                 setLimitHours(val);
-                setTempLimit(val.toString());
-                window.localStorage.setItem("studyLimitHours", val.toString());
+                setTempLimit(String(val));
+                window.localStorage.setItem("studyLimitHours", String(val));
 
                 try {
                   await updateConfig(val);

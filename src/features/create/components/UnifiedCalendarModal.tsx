@@ -2,6 +2,7 @@ import React from "react";
 import { format, startOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Clock, Loader2, CalendarRange, CalendarCheck, Check, X } from "lucide-react";
+import { formatStudyHours } from "@/shared/utils/studyLimitFormat";
 
 export interface UnifiedCalendarTask {
     id: string | number;
@@ -255,7 +256,7 @@ export default function UnifiedCalendarModal({
                                             <div className="flex items-center gap-1 mt-1">
                                                 <Clock className={`w-3 h-3 ${hasAvailability ? "text-emerald-400" : "text-amber-400"}`} />
                                                 <span className={`text-[9px] font-bold ${hasAvailability ? "text-emerald-400" : "text-amber-400"}`}>
-                                                    {day.availabilityHours % 1 === 0 ? day.availabilityHours : day.availabilityHours.toFixed(1)}h disp.
+                                                    {formatStudyHours(day.availabilityHours)} disp.
                                                 </span>
                                             </div>
                                             {!day.disabled && day.actionLabel && (

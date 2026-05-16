@@ -15,6 +15,7 @@ import {
 } from "@/shared/components/dialog";
 import { Button } from "@/shared/components/button";
 import { useToast } from "@/shared/components/toast";
+import { MessageModal } from "@/shared/components/MessageModal";
 
 interface Course {
   id: string;
@@ -40,7 +41,7 @@ interface EditActivityDialogProps {
       horas: string;
     }>;
   };
-  onActivityUpdated?: () => void;
+  onActivityUpdated?: () => void | Promise<void>;
 }
 
 const activityTypes = [
@@ -75,6 +76,7 @@ export default function EditActivityDialog({
   const [creatingCourse, setCreatingCourse] = useState(false);
   const [courseError, setCourseError] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
+  const [showEditSuccessModal, setShowEditSuccessModal] = useState(false);
 
   // Estados de errores de validación
   const [errors, setErrors] = useState<{
@@ -462,10 +464,32 @@ export default function EditActivityDialog({
           );
         }
 
-        // Actualizar subtareas existentes
+        // Actualizar solo subtareas existentes que realmente cambiaron
         if (existingSubtasks.length > 0) {
+          const normalizeDate = (value?: string | null) => (value || "").trim();
+          const normalizeTitle = (value?: string | null) => (value || "").trim();
+          const normalizeHours = (value?: string | number | null) => {
+            const parsed = parseFloat(String(value ?? ""));
+            return Number.isFinite(parsed) ? parsed : 0;
+          };
+
+          const changedExistingSubtasks = existingSubtasks.filter(({ subtask, originalId }) => {
+            const originalSubtask = originalSubtasks.find(os => String(os.id) === originalId);
+            if (!originalSubtask) return false;
+
+            const titleChanged =
+              normalizeTitle(subtask.nombre) !== normalizeTitle(originalSubtask.title);
+            const dateChanged =
+              normalizeDate(subtask.fechaObjetivo) !== normalizeDate(originalSubtask.target_date);
+            const hoursChanged =
+              Math.abs(normalizeHours(subtask.horas) - normalizeHours(originalSubtask.estimated_hours)) > 0.001;
+
+            return titleChanged || dateChanged || hoursChanged;
+          });
+
+          if (changedExistingSubtasks.length > 0) {
           await Promise.all(
-            existingSubtasks.map(({ subtask, originalId }) => {
+              changedExistingSubtasks.map(({ subtask, originalId }) => {
               const originalSubtask = originalSubtasks.find(os => String(os.id) === originalId);
               if (originalSubtask) {
                 return updateSubtask(activityId, originalId, {
@@ -477,6 +501,7 @@ export default function EditActivityDialog({
               return Promise.resolve();
             })
           );
+          }
         }
 
         // Eliminar subtareas que ya no están en la lista
@@ -504,18 +529,7 @@ export default function EditActivityDialog({
         );
       }
 
-      // Mostrar mensaje de éxito
-      showToast("¡Todo salió bien! La actividad se actualizó correctamente.", "success");
-
-      // Llamar al callback para actualizar los datos en el componente padre
-      if (onActivityUpdated) {
-        onActivityUpdated();
-      }
-
-      // Cerrar el modal después de un breve delay
-      setTimeout(() => {
-        onOpenChange(false);
-      }, 1500);
+      setShowEditSuccessModal(true);
 
     } catch (error: any) {
       console.error("Error al actualizar actividad:", error);
@@ -559,10 +573,18 @@ export default function EditActivityDialog({
     }
   };
 
+  const handleEditSuccessConfirm = async () => {
+    setShowEditSuccessModal(false);
+    if (onActivityUpdated) {
+      await onActivityUpdated();
+    }
+    onOpenChange(false);
+  };
+
   const addSubtarea = () => {
     setSubtareas([
       ...subtareas,
-      { id: Date.now(), nombre: "", fechaObjetivo: "", horas: "" },
+      { id: Date.now(), nombre: "", fechaObjetivo: "", horas: "0.5" },
     ]);
   };
 
@@ -582,7 +604,24 @@ export default function EditActivityDialog({
   return (
     <>
       <ToastComponent />
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <MessageModal
+        open={showEditSuccessModal}
+        onOpenChange={setShowEditSuccessModal}
+        type="success"
+        title="¡Actividad editada correctamente!"
+        message="Los cambios se guardaron correctamente."
+        onConfirm={handleEditSuccessConfirm}
+        overlayClassName="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+      />
+      <Dialog
+        modal={!showEditSuccessModal}
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && !showEditSuccessModal) {
+            onOpenChange(false);
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-[880px] max-h-[90vh] overflow-y-auto bg-[#111827] border-border">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold text-foreground">

@@ -16,6 +16,7 @@ import {
     ArrowLeft,
     Users,
 } from "lucide-react";
+import { formatStudyHours, normalizeHalfHourStep } from "@/shared/utils/studyLimitFormat";
 
 // Tipos
 export interface ConflictInfo {
@@ -164,7 +165,7 @@ export default function ConflictResolutionModal({
         }
         if (newH >= selectedExistingTask.hours) {
             setHoursError(
-                `Debe ser menor a ${selectedExistingTask.hours}h para liberar espacio.`
+                `Debe ser menor a ${formatStudyHours(selectedExistingTask.hours)} para liberar espacio.`
             );
             return;
         }
@@ -256,11 +257,11 @@ export default function ConflictResolutionModal({
                                     <span className="text-sm font-bold text-white">Resumen del conflicto</span>
                                     <div className="flex items-center gap-2">
                                         <span className="text-lg font-black text-red-400">
-                                            {conflict.totalHours.toFixed(1)}h
+                                            {formatStudyHours(conflict.totalHours)}
                                         </span>
                                         <span className="text-slate-500">/</span>
                                         <span className="text-sm font-bold text-slate-300">
-                                            {conflict.limitHours.toFixed(1)}h límite
+                                            {formatStudyHours(conflict.limitHours)} límite
                                         </span>
                                     </div>
                                 </div>
@@ -278,7 +279,7 @@ export default function ConflictResolutionModal({
                                 <p className="text-xs text-red-400 mt-2 font-medium">
                                     Exceso de{" "}
                                     <span className="font-black">
-                                        +{conflict.excessHours.toFixed(1)}h
+                                        +{formatStudyHours(conflict.excessHours)}
                                     </span>{" "}
                                     sobre el límite diario de estudio.
                                 </p>
@@ -300,7 +301,7 @@ export default function ConflictResolutionModal({
                                                 <span className="text-slate-300 truncate">{task.title}</span>
                                             </div>
                                             <span className="text-slate-400 text-xs font-bold shrink-0 ml-2">
-                                                {task.hours.toFixed(1)}h
+                                                {formatStudyHours(task.hours)}
                                             </span>
                                         </div>
                                     ))}
@@ -319,7 +320,7 @@ export default function ConflictResolutionModal({
                                                 </span>
                                             </div>
                                             <span className="text-blue-300 text-xs font-bold shrink-0 ml-2">
-                                                {task.hours.toFixed(1)}h
+                                                {formatStudyHours(task.hours)}
                                             </span>
                                         </div>
                                     ))}
@@ -348,7 +349,7 @@ export default function ConflictResolutionModal({
                                                     {task.title || "Nueva subtarea"}
                                                 </span>
                                                 <span className="text-xs font-bold shrink-0 ml-2">
-                                                    {task.hours.toFixed(1)}h
+                                                    {formatStudyHours(task.hours)}
                                                 </span>
                                             </button>
                                         ))}
@@ -501,7 +502,7 @@ export default function ConflictResolutionModal({
                                                 {task.title}
                                             </p>
                                             <p className="text-xs text-slate-400 mt-0.5">
-                                                {task.course} · {task.hours.toFixed(1)}h
+                                                {task.course} · {formatStudyHours(task.hours)}
                                             </p>
                                         </div>
                                         {selectedExistingTask?.id === task.id && (
@@ -566,7 +567,7 @@ export default function ConflictResolutionModal({
                                 <p className="text-xs text-slate-400">
                                     {selectedExistingTask.course} · Horas actuales:{" "}
                                     <span className="text-white font-bold">
-                                        {selectedExistingTask.hours.toFixed(1)}h
+                                        {formatStudyHours(selectedExistingTask.hours)}
                                     </span>
                                 </p>
                             </div>
@@ -580,33 +581,45 @@ export default function ConflictResolutionModal({
                                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 block">
                                         Nuevas horas
                                     </label>
-                                    <div className="relative">
-                                        <input
-                                            type="number"
-                                            step="0.5"
-                                            min="0.5"
-                                            max={selectedExistingTask.hours}
-                                            value={newHoursValue}
-                                            onChange={(e) => {
-                                                setNewHoursValue(e.target.value);
+                                    <div className={`w-full h-11 rounded-xl bg-[#1F2937]/50 border text-sm text-slate-200 px-1 flex items-center justify-between ${
+                                        hoursError
+                                            ? "border-red-500"
+                                            : "border-slate-700/50"
+                                    }`}>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const current = normalizeHalfHourStep(parseFloat(newHoursValue), 0.5, selectedExistingTask.hours);
+                                                setNewHoursValue(String(normalizeHalfHourStep(current - 0.5, 0.5, selectedExistingTask.hours)));
                                                 setHoursError(null);
                                             }}
-                                            className={`w-full h-11 rounded-xl bg-[#1F2937]/50 border text-sm text-center text-slate-200 focus:outline-none focus:ring-2 transition-colors pr-8 ${
-                                                hoursError
-                                                    ? "border-red-500 focus:ring-red-500"
-                                                    : "border-slate-700/50 focus:ring-blue-500 focus:border-blue-500"
-                                            }`}
-                                        />
-                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">
-                                            hr
+                                            className="h-8 w-8 rounded-md bg-slate-800 hover:bg-slate-700 text-white font-bold"
+                                            aria-label="Restar 30 minutos"
+                                        >
+                                            -
+                                        </button>
+                                        <span className="font-semibold min-w-[110px] text-center">
+                                            {formatStudyHours(normalizeHalfHourStep(parseFloat(newHoursValue), 0.5, selectedExistingTask.hours))}
                                         </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const current = normalizeHalfHourStep(parseFloat(newHoursValue), 0.5, selectedExistingTask.hours);
+                                                setNewHoursValue(String(normalizeHalfHourStep(current + 0.5, 0.5, selectedExistingTask.hours)));
+                                                setHoursError(null);
+                                            }}
+                                            className="h-8 w-8 rounded-md bg-slate-800 hover:bg-slate-700 text-white font-bold"
+                                            aria-label="Sumar 30 minutos"
+                                        >
+                                            +
+                                        </button>
                                     </div>
                                 </div>
                                 {freedHours > 0 && (
                                     <div className="pt-5">
                                         <div className="px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
                                             <p className="text-xs font-bold text-emerald-400">
-                                                Liberas {freedHours.toFixed(1)}h
+                                                Liberas {formatStudyHours(freedHours)}
                                             </p>
                                         </div>
                                     </div>

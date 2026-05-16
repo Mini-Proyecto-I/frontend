@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { formatStudyHours } from "@/shared/utils/studyLimitFormat";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/shared/components/button";
 
@@ -94,10 +95,7 @@ export function ConflictOutcomeModal({
                         </>
                       )}
                       <span className="text-emerald-300 font-extrabold">
-                        {outcome.availableHours % 1 === 0
-                          ? outcome.availableHours
-                          : outcome.availableHours.toFixed(1)}
-                        h
+                        {formatStudyHours(outcome.availableHours)}
                       </span>{" "}
                       disponibles.
                     </>
@@ -120,14 +118,11 @@ export function ConflictOutcomeModal({
                 </span>{" "}
                 sigue sobrecargado. Hay un sobretrabajo de{" "}
                 <span className="text-[#F59E0B] font-extrabold">
-                  {outcome.overworkHours % 1 === 0
-                    ? outcome.overworkHours
-                    : outcome.overworkHours.toFixed(1)}
-                  h
+                  {formatStudyHours(outcome.overworkHours)}
                 </span>{" "}
                 sobre tu límite de{" "}
                 <span className="text-slate-200 font-bold">
-                  {outcome.limitHours}h
+                  {formatStudyHours(outcome.limitHours)}
                 </span>
                 .
               </>

@@ -50,7 +50,7 @@ export default function EditSubtaskDialog({
     }
   }, [open, subtaskData?.nombre, subtaskData?.horas]);
 
-  // Validar que las horas sean múltiplos de 0.5 (1, 1.5, 2, 2.5, etc.)
+  // Validar que las horas sean bloques de 30 min (1, 1.5, 2, etc.)
   const validateHours = (hoursStr: string): boolean => {
     if (!hoursStr.trim()) return false;
     
@@ -65,7 +65,7 @@ export default function EditSubtaskDialog({
       return false;
     }
     
-    // Verificar que sea múltiplo de 0.5
+    // Verificar que sea múltiplo de 0.5 (30 min)
     const remainder = hours % 0.5;
     return Math.abs(remainder) < 0.001; // Tolerancia para errores de punto flotante
   };
@@ -80,7 +80,7 @@ export default function EditSubtaskDialog({
     if (!horas.trim()) {
       newErrors.horas = "Las horas estimadas son obligatorias.";
     } else if (!validateHours(horas)) {
-      newErrors.horas = "Las horas deben ser múltiplos de 0.5 (ej: 1, 1.5, 2, 2.5, etc.).";
+      newErrors.horas = "Las horas deben ir en bloques de 30 min (ej: 1h, 1h 30min, 2h, 2h 30min).";
     }
 
     setErrors(newErrors);

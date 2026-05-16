@@ -1,13 +1,14 @@
 import React from "react";
 import { AlertCircle, X, ChevronDown, Clock } from "lucide-react";
-import { Input } from "@/shared/components/input";
 import { Button } from "@/shared/components/button";
 import InfoTooltip from "@/features/create/components/InfoTooltip";
 import { useEffect, useRef } from "react";
+import { formatStudyHours, normalizeHalfHourStep } from "@/shared/utils/studyLimitFormat";
 
 export interface ResolveConflictModalProps {
   isOpen: boolean;
   onClose: () => void;
+  isLoading?: boolean;
 
   // Conflict state
   conflictedCount?: number;
@@ -37,6 +38,7 @@ export interface ResolveConflictModalProps {
 export function ResolveConflictModal({
   isOpen,
   onClose,
+  isLoading = false,
   conflictedCount = 1,
   conflictedTasks = [],
   selectedConflictId,
@@ -55,6 +57,16 @@ export function ResolveConflictModal({
   onMoveTask,
 }: ResolveConflictModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
+  const maxReducibleHours = Math.max(0.5, parseFloat(String(selectedConflict?.estimated_hours ?? 0)) || 0.5);
+  const parsedReduceHours = parseFloat(String(reduceHours));
+  const normalizedReduceHours = Number.isFinite(parsedReduceHours)
+    ? normalizeHalfHourStep(parsedReduceHours, 0.5, maxReducibleHours)
+    : normalizeHalfHourStep(maxReducibleHours, 0.5, maxReducibleHours);
+
+  const handleAdjustReduceHours = (delta: number) => {
+    const next = normalizeHalfHourStep(normalizedReduceHours + delta, 0.5, maxReducibleHours);
+    setReduceHours(String(next));
+  };
 
   useEffect(() => {
     if (isOpen && modalRef.current) {
@@ -72,7 +84,7 @@ export function ResolveConflictModal({
       role="dialog"
       aria-modal="true"
       aria-label="Resolución de conflicto"
-      className="w-full max-w-[560px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
+      className="relative w-full max-w-[560px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
         <div className="p-6 sm:p-7 relative">
           <button
             type="button"
@@ -144,7 +156,7 @@ export function ResolveConflictModal({
                 <span className="flex items-center gap-1.5">
                   <Clock className="w-4 h-4 text-slate-500" />
                   <span className="font-semibold text-slate-200">
-                    {parseFloat(String(selectedConflict.estimated_hours ?? 0)).toFixed(1)}h
+                    {formatStudyHours(parseFloat(String(selectedConflict.estimated_hours ?? 0)))}
                   </span>
                 </span>
               </div>
@@ -165,14 +177,14 @@ export function ResolveConflictModal({
                   <div>
                     <p className="text-slate-500 text-sm font-medium mb-0.5">Horas usadas / Límite</p>
                     <p className="text-lg font-bold text-amber-400">
-                      {(usedHours % 1 === 0 ? usedHours : usedHours.toFixed(1))}h / {limitHours}h
+                      {formatStudyHours(usedHours)} / {formatStudyHours(limitHours)}
                     </p>
                   </div>
                   {overworkHours !== undefined && overworkHours > 0 && (
                     <div className="sm:col-span-2">
                       <p className="text-slate-500 text-sm font-medium mb-0.5">Sobretrabajo</p>
                       <p className="text-base font-bold text-amber-500">
-                        +{(overworkHours % 1 === 0 ? overworkHours : overworkHours.toFixed(1))}h sobre el límite
+                        +{formatStudyHours(overworkHours)} sobre el límite
                       </p>
                     </div>
                   )}
@@ -185,41 +197,30 @@ export function ResolveConflictModal({
               <label className="text-sm font-bold text-slate-400 uppercase tracking-wider block mb-3">
                 <span className="inline-flex items-center gap-2">
                   <span>Reestablecer nueva estimación de horas</span>
-                  <InfoTooltip text="Con esto cambias la estimación de horas de tu tarea a una nueva. las horas deben ser menores a las actuales y mayores a 0.5." />
+                  <InfoTooltip text="Con esto cambias la estimación de horas de tu tarea a una nueva. Las horas deben ser menores a las actuales y mayores a 30 min." />
                 </span>
               </label>
 
               <div className="flex gap-3 items-center flex-wrap">
-                <Input
-                  type="number"
-                  step="0.25"
-                  min="0.5"
-                  max={selectedConflict?.estimated_hours ?? undefined}
-                  value={reduceHours}
-                  onKeyDown={(e) => {
-                    if (e.key === "-" || e.key === "Minus") {
-                      e.preventDefault();
-                    }
-                  }}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    const current = parseFloat(String(selectedConflict.estimated_hours ?? 0));
-                    let num = parseFloat(raw);
-
-                    if (!Number.isFinite(num)) {
-                      setReduceHours(raw);
-                      return;
-                    }
-                    if (Number.isFinite(current) && current > 0 && num > current) {
-                      num = current;
-                    }
-                    if (num < 0.5) {
-                      num = 0.5;
-                    }
-                    setReduceHours(String(num));
-                  }}
-                  className="h-12 w-24 text-base font-semibold bg-[#1F2937]/60 border-slate-700/60 text-slate-200 rounded-xl focus-visible:ring-2 focus-visible:ring-blue-500"
-                />
+                <Button
+                  type="button"
+                  onClick={() => handleAdjustReduceHours(-0.5)}
+                  disabled={isReducing || normalizedReduceHours <= 0.5}
+                  className="h-12 w-12 p-0 rounded-xl bg-[#1F2937]/60 border border-slate-700/60 text-slate-200 hover:bg-[#334155]/60 disabled:opacity-50"
+                >
+                  -
+                </Button>
+                <div className="h-12 min-w-[120px] px-4 rounded-xl bg-[#1F2937]/60 border border-slate-700/60 text-slate-100 font-bold text-base flex items-center justify-center">
+                  {formatStudyHours(normalizedReduceHours)}
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => handleAdjustReduceHours(0.5)}
+                  disabled={isReducing || normalizedReduceHours >= maxReducibleHours}
+                  className="h-12 w-12 p-0 rounded-xl bg-[#1F2937]/60 border border-slate-700/60 text-slate-200 hover:bg-[#334155]/60 disabled:opacity-50"
+                >
+                  +
+                </Button>
                 <Button
                   onClick={onReduceConfirm}
                   disabled={isReducing}
@@ -253,6 +254,9 @@ export function ResolveConflictModal({
             </div>
           </div>
         </div>
+        {isLoading && (
+          <div className="absolute inset-0 z-20 bg-black/60 backdrop-blur-[1px]" />
+        )}
       </div>
     </div>
   );
