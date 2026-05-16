@@ -8,7 +8,7 @@ import { useToast } from "@/shared/components/toast";
 import { SubtaskDetailModal } from "@/shared/components/SubtaskDetailModal";
 import { cn } from "@/shared/utils/utils";
 import { Checkbox } from "@/shared/components/checkbox";
-import { formatStudyHours } from "@/shared/utils/studyLimitFormat";
+import { formatStudyHours, parseEstimatedHours } from "@/shared/utils/studyLimitFormat";
 
 interface SubtaskItemProps {
   id: string;
@@ -18,6 +18,7 @@ interface SubtaskItemProps {
   note?: string;
   dateOriginal?: string; // Fecha original en formato YYYY-MM-DD para el modal de edición
   hours: string;
+  estimatedHoursNum: number;
   completed?: boolean;
   isActive?: boolean;
   todayBadge?: boolean;
@@ -44,6 +45,7 @@ export default function SubtaskItem({
   note,
   dateOriginal,
   hours,
+  estimatedHoursNum,
   completed = false,
   isActive = false,
   todayBadge = false,
@@ -57,6 +59,11 @@ export default function SubtaskItem({
   onOpenResolveConflict,
   onOpenPostpone,
 }: SubtaskItemProps) {
+  const durationHours =
+    Number.isFinite(estimatedHoursNum) && estimatedHoursNum > 0
+      ? estimatedHoursNum
+      : parseEstimatedHours(hours);
+
   const navigate = useNavigate();
   const [isChecked, setIsChecked] = useState(completed);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
@@ -341,7 +348,7 @@ export default function SubtaskItem({
           return saved ? parseFloat(saved) : 6;
         })();
 
-        const horasActualesSubtask = parseFloat(hours.replace("h", "").trim()) || 0;
+        const horasActualesSubtask = durationHours;
         const horasIntentadas = payload.estimatedHours;
         const diferenciaHoras = horasIntentadas - horasActualesSubtask;
         const horasOcupadasEstimadas = limiteDiario + diferenciaHoras;
@@ -513,7 +520,7 @@ export default function SubtaskItem({
           id,
           title,
           target_date: dateOriginal || (date.includes(" ") ? date.split(" ")[0] : date),
-          estimated_hours: hours.replace("h", ""),
+          estimated_hours: durationHours,
           status: isChecked ? "DONE" : status === "POSTPONED" ? "POSTPONED" : "PENDING",
           execution_note: note,
           activity: {
@@ -528,17 +535,17 @@ export default function SubtaskItem({
         }}
         onReprogram={() => {
           const dateKey = dateOriginal || (date.includes(" ") ? date.split(" ")[0] : date);
-          const estimatedHours = parseFloat(hours.replace("h", "").trim()) || 0;
           navigate("/calendario", {
             state: {
               focusDate: dateKey,
+              returnTo: `/actividad/${activityId}`,
               reprogramSubtask: {
                 id,
                 activityId,
                 title,
                 deadline: deadlineDate,
                 dateKey,
-                durationNum: estimatedHours,
+                durationNum: durationHours,
               },
             },
           });
@@ -551,20 +558,20 @@ export default function SubtaskItem({
         open={showEditDialog}
         onOpenChange={handleCloseEditDialog}
         initialTitle={(pendingEditData?.nombre ?? title) as string}
-        initialHours={(pendingEditData?.horas ?? hours.replace("h", "")) as string}
+        initialHours={(pendingEditData?.horas ?? String(durationHours)) as string}
         onReprogram={() => {
-          const dateKey = dateOriginal || date.split(" ")[0];
-          const estimatedHours = parseFloat(hours.replace("h", "").trim()) || 0;
+          const dateKey = dateOriginal || (date.includes(" ") ? date.split(" ")[0] : date);
           navigate("/calendario", {
             state: {
               focusDate: dateKey,
+              returnTo: `/actividad/${activityId}`,
               reprogramSubtask: {
                 id,
                 activityId,
                 title,
                 deadline: deadlineDate,
                 dateKey,
-                durationNum: estimatedHours,
+                durationNum: durationHours,
               },
             },
           });

@@ -12,6 +12,7 @@ interface Subtask {
   date: string;
   dateOriginal?: string; // Fecha original en formato YYYY-MM-DD para el modal de edición
   hours: string;
+  estimatedHoursNum: number;
   completed?: boolean;
   isActive?: boolean;
   todayBadge?: boolean;
@@ -154,6 +155,7 @@ export default function StudyPlanSection({
             note={subtask.execution_note}
             dateOriginal={subtask.dateOriginal}
             hours={subtask.hours}
+            estimatedHoursNum={subtask.estimatedHoursNum}
             completed={subtask.completed}
             isActive={subtask.isActive}
             todayBadge={subtask.todayBadge}
