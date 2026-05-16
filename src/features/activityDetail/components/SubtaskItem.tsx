@@ -67,6 +67,7 @@ export default function SubtaskItem({
   const navigate = useNavigate();
   const [isChecked, setIsChecked] = useState(completed);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [detailTriggerElement, setDetailTriggerElement] = useState<HTMLElement | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -396,7 +397,7 @@ export default function SubtaskItem({
     }
   };
 
-  const handleSubtaskClick = (e: React.MouseEvent) => {
+  const handleSubtaskClick = (e: React.MouseEvent<HTMLElement>) => {
     // Prevenir que se abra el modal si se hace clic en el checkbox o en los botones
     const target = e.target as HTMLElement;
     if (
@@ -406,6 +407,15 @@ export default function SubtaskItem({
     ) {
       return;
     }
+    setDetailTriggerElement(e.currentTarget);
+    setShowDetailsDialog(true);
+  };
+
+  const handleSubtaskKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    setDetailTriggerElement(e.currentTarget);
     setShowDetailsDialog(true);
   };
 
@@ -421,8 +431,13 @@ export default function SubtaskItem({
       />
       <article
         onClick={handleSubtaskClick}
+        onKeyDown={handleSubtaskKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-label={`Ver detalles de la subtarea ${title}`}
         className={cn(
           "group bg-[#111827] border border-slate-700/50 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 transition-all hover:bg-slate-800 hover:border-slate-600 cursor-pointer",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
           borderClass,
           isChecked && "opacity-50"
         )}
@@ -515,7 +530,16 @@ export default function SubtaskItem({
 
       <SubtaskDetailModal
         open={showDetailsDialog}
-        onOpenChange={(open: boolean) => setShowDetailsDialog(open)}
+        onOpenChange={(open: boolean) => {
+          setShowDetailsDialog(open);
+          if (!open) {
+            const triggerEl = detailTriggerElement;
+            if (triggerEl && document.contains(triggerEl)) {
+              requestAnimationFrame(() => triggerEl.focus());
+            }
+            setDetailTriggerElement(null);
+          }
+        }}
         subtask={{
           id,
           title,

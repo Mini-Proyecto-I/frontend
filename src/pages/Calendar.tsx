@@ -85,6 +85,7 @@ export default function Calendar() {
     const pendingNavigateAfterModalRef = useRef<{ to: string; state?: object } | null>(null);
     const [editingSubtask, setEditingSubtask] = useState<any | null>(null);
     const [showHelpModal, setShowHelpModal] = useState(false);
+    const [moveTriggerElement, setMoveTriggerElement] = useState<HTMLElement | null>(null);
 
     const { vencidas, para_hoy, proximas, loading, refetch } = useHoy({ days_ahead: 30 });
 
@@ -247,13 +248,15 @@ export default function Calendar() {
         setShowWeekPicker(false);
     };
 
-    const handleSelectForMove = (activity: any) => {
+    const handleSelectForMove = (activity: any, triggerEl?: HTMLElement) => {
         setSelectedSubtask(activity);
         setIsMoving(true);
         setStrictMoveMode(false);
+        setMoveTriggerElement(triggerEl ?? null);
     };
 
     const handleCancelMove = (keepProcessingModal = false) => {
+        const triggerEl = moveTriggerElement;
         setSelectedSubtask(null);
         setIsMoving(false);
         setShowOverloadModal(false);
@@ -271,6 +274,10 @@ export default function Calendar() {
             setConflictProcessingMessage("Estamos revisando tu planificación...");
         }
         setReprogramSuccessMessage(null);
+        if (triggerEl && document.contains(triggerEl)) {
+            requestAnimationFrame(() => triggerEl.focus());
+        }
+        setMoveTriggerElement(null);
     };
 
     const formatHours = (hours: number) => formatStudyHours(hours);
@@ -950,17 +957,36 @@ export default function Calendar() {
                                                                 }}
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
+                                                                    if (isDone) return;
                                                                     if (isMoving) {
                                                                         if (isSelected) handleCancelMove();
                                                                         return;
                                                                     }
-                                                                    setSelectedSubtask(activity);
-                                                                    setIsMoving(true);
+                                                                    handleSelectForMove(activity, e.currentTarget);
                                                                 }}
+                                                                onKeyDown={(e) => {
+                                                                    if (isDone) return;
+                                                                    if (e.key !== "Enter" && e.key !== " ") return;
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    if (isMoving) {
+                                                                        if (isSelected) handleCancelMove();
+                                                                        return;
+                                                                    }
+                                                                    handleSelectForMove(activity, e.currentTarget);
+                                                                }}
+                                                                role="button"
+                                                                tabIndex={isDone ? -1 : 0}
+                                                                aria-disabled={isDone}
+                                                                aria-label={
+                                                                    isMoving && isSelected
+                                                                        ? `Cancelar reprogramación de ${activity.title}`
+                                                                        : `Seleccionar ${activity.title} para reprogramar`
+                                                                }
                                                                 className={`relative p-5 rounded-2xl bg-[#111827] border border-slate-800/80 shadow-xl shadow-black/20 group border-l-4 ${activeTheme.border} transition-all duration-300 cursor-pointer
                                                             ${isConflicted ? activeTheme.glow : ''}
                                                             ${isSelected ? `ring-4 ${activeTheme.ring} translate-y-[-4px] scale-[1.02] z-20` : 'hover:translate-y-[-2px]'} 
-                                                            ${shouldDim ? 'opacity-40 grayscale-[0.5]' : ''}
+                                                            ${shouldDim ? 'opacity-40 grayscale-[0.5]' : ''} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950
                                                             ${isDone && !isSelected ? 'opacity-30 grayscale pointer-events-none' : ''}`}
                                                             >
                                                                 {isConflicted && !isSelected && (

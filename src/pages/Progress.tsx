@@ -273,6 +273,7 @@ export default function ProgressPage() {
 
   // Detail Modal State
   const [detailTask, setDetailTask] = useState<any>(null);
+  const [detailTriggerElement, setDetailTriggerElement] = useState<HTMLElement | null>(null);
 
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -395,8 +396,10 @@ export default function ProgressPage() {
       return courseMatch && (searchTerm || timeFilter !== "all" ? hasMatches : true);
     }).sort((a, b) => {
       // First sort: Put fully completed activities at the end
-      const aDone = a.completion_percent === 100 || (a.total_subtasks > 0 && a.total_subtasks === a.total_subtasks_done);
-      const bDone = b.completion_percent === 100 || (b.total_subtasks > 0 && b.total_subtasks === b.total_subtasks_done);
+      const aTotalSubtasks = a.total_subtasks ?? 0;
+      const bTotalSubtasks = b.total_subtasks ?? 0;
+      const aDone = a.completion_percent === 100 || (aTotalSubtasks > 0 && aTotalSubtasks === a.total_subtasks_done);
+      const bDone = b.completion_percent === 100 || (bTotalSubtasks > 0 && bTotalSubtasks === b.total_subtasks_done);
 
       if (aDone && !bDone) return 1;
       if (!aDone && bDone) return -1;
@@ -660,6 +663,11 @@ export default function ProgressPage() {
         }
       }
     });
+  };
+
+  const openDetailTask = (task: any, triggerEl?: HTMLElement) => {
+    setDetailTriggerElement(triggerEl ?? null);
+    setDetailTask(task);
   };
 
   if (loading) {
@@ -987,7 +995,20 @@ export default function ProgressPage() {
                         return (
                           <div
                             key={st.id}
-                            onClick={() => !isProcessing && setDetailTask({ ...st, activity })}
+                            onClick={(e) => {
+                              if (isProcessing) return;
+                              openDetailTask({ ...st, activity }, e.currentTarget);
+                            }}
+                            onKeyDown={(e) => {
+                              if (isProcessing) return;
+                              if (e.key !== "Enter" && e.key !== " ") return;
+                              e.preventDefault();
+                              openDetailTask({ ...st, activity }, e.currentTarget);
+                            }}
+                            role="button"
+                            tabIndex={isProcessing ? -1 : 0}
+                            aria-disabled={isProcessing}
+                            aria-label={`Ver detalles de la tarea ${st.name || st.title || ""}`}
                             className={cn(
                               "relative group p-4 rounded-xl border transition-all duration-200 bg-[#1F2937]/30 cursor-pointer",
                               isConflicted
@@ -995,6 +1016,7 @@ export default function ProgressPage() {
                                 : isPostponed
                                   ? "border-[#8B5CF6]/30 bg-[#8B5CF6]/20"
                                   : "border-slate-700/50 hover:border-blue-500/50 hover:bg-slate-800/40 bg-slate-800/20",
+                              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
                               st.status === STATUS.DONE && "opacity-50",
                               isProcessing && "cursor-wait"
                             )}
@@ -1061,7 +1083,10 @@ export default function ProgressPage() {
                                         variant="ghost"
                                         size="sm"
                                         className="h-8 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                                        onClick={() => setDetailTask({ ...st, activity })}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openDetailTask({ ...st, activity }, e.currentTarget);
+                                        }}
                                       >
                                         <FileText className="h-3 w-3 mr-1" />
                                         Ver nota
@@ -1147,12 +1172,12 @@ export default function ProgressPage() {
           <div className="space-y-4">
             {/* Upcoming Deadlines */}
             <div className={cn(
-              "bg-[#111827] border border-slate-800/60 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl",
+              "bg-[#111827] border border-slate-800/60 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl focus-within:ring-2 focus-within:ring-blue-400/50",
               openSection === "upcoming" ? "ring-1 ring-blue-500/30" : ""
             )}>
               <button
                 onClick={() => toggleSection("upcoming")}
-                className="w-full flex items-center justify-between p-5 text-left hover:bg-slate-800/30 transition-colors"
+                className="w-full flex items-center justify-between p-5 text-left hover:bg-slate-800/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 focus-visible:ring-inset"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500">
@@ -1177,7 +1202,13 @@ export default function ProgressPage() {
                         const days = getDaysLeft(item.deadline);
                         const isUrgent = days !== null && days <= 2;
                         return (
-                          <div key={item.id} className="relative group cursor-pointer" onClick={() => navigate(`/actividad/${item.id}`)}>
+                          <button
+                            key={item.id}
+                            type="button"
+                            className="relative group cursor-pointer w-full text-left"
+                            onClick={() => navigate(`/actividad/${item.id}`)}
+                            aria-label={`Ver actividad ${item.title}`}
+                          >
                             <div className={cn(
                               "absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-[#111827] group-hover:scale-125 transition-transform",
                               isUrgent ? 'bg-red-500' : 'bg-slate-600'
@@ -1191,7 +1222,7 @@ export default function ProgressPage() {
                               </div>
                               <ArrowUpRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all" />
                             </div>
-                          </div>
+                          </button>
                         );
                       })}
                     </div>
@@ -1221,12 +1252,12 @@ export default function ProgressPage() {
               );
               return (
                 <div className={cn(
-                  "bg-[#111827] border border-slate-800/60 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl",
+                  "bg-[#111827] border border-slate-800/60 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl focus-within:ring-2 focus-within:ring-purple-400/50",
                   openSection === "postponed" ? "ring-1 ring-purple-500/30" : ""
                 )}>
                   <button
                     onClick={() => toggleSection("postponed")}
-                    className="w-full flex items-center justify-between p-5 text-left hover:bg-slate-800/30 transition-colors"
+                    className="w-full flex items-center justify-between p-5 text-left hover:bg-slate-800/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-400/80 focus-visible:ring-inset"
                   >
                     <div className="flex items-center gap-3">
                       <div className="p-2 rounded-xl bg-purple-500/10 text-purple-500">
@@ -1293,12 +1324,12 @@ export default function ProgressPage() {
               );
               return (
                 <div className={cn(
-                  "bg-[#111827] border border-slate-800/60 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl",
+                  "bg-[#111827] border border-slate-800/60 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl focus-within:ring-2 focus-within:ring-emerald-400/50",
                   openSection === "history" ? "ring-1 ring-emerald-500/30" : ""
                 )}>
                   <button
                     onClick={() => toggleSection("history")}
-                    className="w-full flex items-center justify-between p-5 text-left hover:bg-slate-800/30 transition-colors"
+                    className="w-full flex items-center justify-between p-5 text-left hover:bg-slate-800/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/80 focus-visible:ring-inset"
                   >
                     <div className="flex items-center gap-3">
                       <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
@@ -1487,7 +1518,16 @@ export default function ProgressPage() {
       {/* Subtask Detail Dialog */}
       <SubtaskDetailModal
         open={!!detailTask}
-        onOpenChange={(open) => { if (!open) setDetailTask(null); }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDetailTask(null);
+            const triggerEl = detailTriggerElement;
+            if (triggerEl && document.contains(triggerEl)) {
+              requestAnimationFrame(() => triggerEl.focus());
+            }
+            setDetailTriggerElement(null);
+          }
+        }}
         subtask={detailTask}
         getFormattedDate={getFormattedDate}
         onEdit={(st: any) => {
