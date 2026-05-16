@@ -13,7 +13,7 @@ import ActivityDetailHeader from "./ActivityDetailHeader";
 import StudyPlanSection from "./StudyPlanSection";
 import { getActivity } from "@/api/services/activity";
 import { useToast } from "@/shared/components/toast";
-import { formatStudyHours } from "@/shared/utils/studyLimitFormat";
+import { formatStudyHours, parseEstimatedHours } from "@/shared/utils/studyLimitFormat";
 
 const PROGRESS_STATUS = {
   PENDING: "PENDING",
@@ -395,13 +395,16 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
           today.getDate() === day;
       }
 
+      const estimatedHoursNum = parseEstimatedHours(subtask.estimated_hours);
+
       return {
         id: subtask.id,
         activityId: activityId || "",
         title: subtask.title, // El backend devuelve 'title'
         date: formatDate(subtask.target_date), // Fecha formateada para mostrar
         dateOriginal: subtask.target_date || "", // Fecha original en formato YYYY-MM-DD para el modal de edición
-        hours: formatStudyHours(subtask.estimated_hours),
+        hours: formatStudyHours(estimatedHoursNum),
+        estimatedHoursNum,
         completed: subtask.status === "DONE",
         isActive: subtask.status === "PENDING" && !isToday,
         todayBadge: isToday,
@@ -608,7 +611,7 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
                   id: st.id,
                   title: st.title,
                   target_date: st.dateOriginal || "",
-                  estimated_hours: parseFloat(String(st.hours || "0").replace("h", "")) || 0,
+                  estimated_hours: st.estimatedHoursNum ?? parseEstimatedHours(st.hours),
                   activity: {
                     id: activity.id,
                     title: activity.title,

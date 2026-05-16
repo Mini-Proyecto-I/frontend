@@ -8,7 +8,7 @@ import { useToast } from "@/shared/components/toast";
 import { SubtaskDetailModal } from "@/shared/components/SubtaskDetailModal";
 import { cn } from "@/shared/utils/utils";
 import { Checkbox } from "@/shared/components/checkbox";
-import { formatStudyHours } from "@/shared/utils/studyLimitFormat";
+import { formatStudyHours, parseEstimatedHours } from "@/shared/utils/studyLimitFormat";
 
 interface SubtaskItemProps {
   id: string;
@@ -18,6 +18,7 @@ interface SubtaskItemProps {
   note?: string;
   dateOriginal?: string; // Fecha original en formato YYYY-MM-DD para el modal de edición
   hours: string;
+  estimatedHoursNum: number;
   completed?: boolean;
   isActive?: boolean;
   todayBadge?: boolean;
@@ -44,6 +45,7 @@ export default function SubtaskItem({
   note,
   dateOriginal,
   hours,
+  estimatedHoursNum,
   completed = false,
   isActive = false,
   todayBadge = false,
@@ -57,9 +59,15 @@ export default function SubtaskItem({
   onOpenResolveConflict,
   onOpenPostpone,
 }: SubtaskItemProps) {
+  const durationHours =
+    Number.isFinite(estimatedHoursNum) && estimatedHoursNum > 0
+      ? estimatedHoursNum
+      : parseEstimatedHours(hours);
+
   const navigate = useNavigate();
   const [isChecked, setIsChecked] = useState(completed);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [detailTriggerElement, setDetailTriggerElement] = useState<HTMLElement | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -341,7 +349,7 @@ export default function SubtaskItem({
           return saved ? parseFloat(saved) : 6;
         })();
 
-        const horasActualesSubtask = parseFloat(hours.replace("h", "").trim()) || 0;
+        const horasActualesSubtask = durationHours;
         const horasIntentadas = payload.estimatedHours;
         const diferenciaHoras = horasIntentadas - horasActualesSubtask;
         const horasOcupadasEstimadas = limiteDiario + diferenciaHoras;
@@ -389,7 +397,7 @@ export default function SubtaskItem({
     }
   };
 
-  const handleSubtaskClick = (e: React.MouseEvent) => {
+  const handleSubtaskClick = (e: React.MouseEvent<HTMLElement>) => {
     // Prevenir que se abra el modal si se hace clic en el checkbox o en los botones
     const target = e.target as HTMLElement;
     if (
@@ -399,6 +407,15 @@ export default function SubtaskItem({
     ) {
       return;
     }
+    setDetailTriggerElement(e.currentTarget);
+    setShowDetailsDialog(true);
+  };
+
+  const handleSubtaskKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    setDetailTriggerElement(e.currentTarget);
     setShowDetailsDialog(true);
   };
 
@@ -414,8 +431,13 @@ export default function SubtaskItem({
       />
       <article
         onClick={handleSubtaskClick}
+        onKeyDown={handleSubtaskKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-label={`Ver detalles de la subtarea ${title}`}
         className={cn(
           "group bg-[#111827] border border-slate-700/50 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 transition-all hover:bg-slate-800 hover:border-slate-600 cursor-pointer",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
           borderClass,
           isChecked && "opacity-50"
         )}
@@ -508,12 +530,21 @@ export default function SubtaskItem({
 
       <SubtaskDetailModal
         open={showDetailsDialog}
-        onOpenChange={(open: boolean) => setShowDetailsDialog(open)}
+        onOpenChange={(open: boolean) => {
+          setShowDetailsDialog(open);
+          if (!open) {
+            const triggerEl = detailTriggerElement;
+            if (triggerEl && document.contains(triggerEl)) {
+              requestAnimationFrame(() => triggerEl.focus());
+            }
+            setDetailTriggerElement(null);
+          }
+        }}
         subtask={{
           id,
           title,
           target_date: dateOriginal || (date.includes(" ") ? date.split(" ")[0] : date),
-          estimated_hours: hours.replace("h", ""),
+          estimated_hours: durationHours,
           status: isChecked ? "DONE" : status === "POSTPONED" ? "POSTPONED" : "PENDING",
           execution_note: note,
           activity: {
@@ -528,17 +559,17 @@ export default function SubtaskItem({
         }}
         onReprogram={() => {
           const dateKey = dateOriginal || (date.includes(" ") ? date.split(" ")[0] : date);
-          const estimatedHours = parseFloat(hours.replace("h", "").trim()) || 0;
           navigate("/calendario", {
             state: {
               focusDate: dateKey,
+              returnTo: `/actividad/${activityId}`,
               reprogramSubtask: {
                 id,
                 activityId,
                 title,
                 deadline: deadlineDate,
                 dateKey,
-                durationNum: estimatedHours,
+                durationNum: durationHours,
               },
             },
           });
@@ -551,20 +582,20 @@ export default function SubtaskItem({
         open={showEditDialog}
         onOpenChange={handleCloseEditDialog}
         initialTitle={(pendingEditData?.nombre ?? title) as string}
-        initialHours={(pendingEditData?.horas ?? hours.replace("h", "")) as string}
+        initialHours={(pendingEditData?.horas ?? String(durationHours)) as string}
         onReprogram={() => {
-          const dateKey = dateOriginal || date.split(" ")[0];
-          const estimatedHours = parseFloat(hours.replace("h", "").trim()) || 0;
+          const dateKey = dateOriginal || (date.includes(" ") ? date.split(" ")[0] : date);
           navigate("/calendario", {
             state: {
               focusDate: dateKey,
+              returnTo: `/actividad/${activityId}`,
               reprogramSubtask: {
                 id,
                 activityId,
                 title,
                 deadline: deadlineDate,
                 dateKey,
-                durationNum: estimatedHours,
+                durationNum: durationHours,
               },
             },
           });

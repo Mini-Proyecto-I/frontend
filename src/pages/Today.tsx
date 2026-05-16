@@ -99,6 +99,7 @@ export default function Today() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingTask, setDeletingTask] = useState<any | null>(null);
   const [detailTask, setDetailTask] = useState<any | null>(null);
+  const [detailTriggerElement, setDetailTriggerElement] = useState<HTMLElement | null>(null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historySubtaskId, setHistorySubtaskId] = useState<string | null>(null);
   const [historyTaskTitle, setHistoryTaskTitle] = useState("");
@@ -773,7 +774,10 @@ export default function Today() {
                           setIsPostponeModalOpen(true);
                         }}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
-                        onTitleClick={() => setDetailTask(item)}
+                        onTitleClick={(triggerEl?: HTMLElement) => {
+                          setDetailTriggerElement(triggerEl ?? null);
+                          setDetailTask(item);
+                        }}
                         onShowHistory={handleShowHistory}
                       />
                     ))}
@@ -813,7 +817,10 @@ export default function Today() {
                           setIsPostponeModalOpen(true);
                         }}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
-                        onTitleClick={() => setDetailTask(item)}
+                        onTitleClick={(triggerEl?: HTMLElement) => {
+                          setDetailTriggerElement(triggerEl ?? null);
+                          setDetailTask(item);
+                        }}
                         onShowHistory={handleShowHistory}
                       />
                     ))}
@@ -863,7 +870,10 @@ export default function Today() {
                           setIsPostponeModalOpen(true);
                         }}
                         onViewConflict={item?.is_conflicted && item?.status !== "DONE" ? () => { setSelectedConflictId(item.id); setIsConflictModalOpen(true); } : undefined}
-                        onTitleClick={() => setDetailTask(item)}
+                        onTitleClick={(triggerEl?: HTMLElement) => {
+                          setDetailTriggerElement(triggerEl ?? null);
+                          setDetailTask(item);
+                        }}
                         onShowHistory={handleShowHistory}
                       />
                     ))}
@@ -1545,7 +1555,16 @@ export default function Today() {
       {/* Detail Task Modal */}
       <SubtaskDetailModal
         open={!!detailTask}
-        onOpenChange={(open: boolean) => { if (!open) setDetailTask(null); }}
+        onOpenChange={(open: boolean) => {
+          if (!open) {
+            setDetailTask(null);
+            const triggerEl = detailTriggerElement;
+            if (triggerEl && document.contains(triggerEl)) {
+              requestAnimationFrame(() => triggerEl.focus());
+            }
+            setDetailTriggerElement(null);
+          }
+        }}
         subtask={detailTask}
         getFormattedDate={getFormattedDate}
         onEdit={(st: any) => {
@@ -1714,13 +1733,16 @@ function ScrollableTaskSection({ children }: { children: React.ReactNode }) {
 }
 
 // Sub-component for individual tasks matching the requested UI
-function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPostpone, onTitleClick, onShowHistory }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void, onEdit: () => void, onViewConflict?: () => void, onPostpone?: () => void, onTitleClick?: () => void, onShowHistory?: (subtaskId: string, title: string) => void }) {
+function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPostpone, onTitleClick, onShowHistory }: { item: any, badge: string | null, theme: "red" | "emerald" | "blue", onToggle: () => void, onEdit: () => void, onViewConflict?: () => void, onPostpone?: () => void, onTitleClick?: (triggerEl?: HTMLElement) => void, onShowHistory?: (subtaskId: string, title: string) => void }) {
   const navigate = useNavigate();
   const isDone = item.status === "DONE";
   const isPostponed = item.status === "POSTPONED";
   const isConflicted = !isDone && !!item?.is_conflicted;
   const courseName = item.activity?.course?.name || "Actividad";
   const title = item.title;
+  const handleOpenDetails = (triggerEl?: HTMLElement) => {
+    onTitleClick?.(triggerEl);
+  };
 
   const handleReprogram = () => {
     const targetDate = item?.target_date;
@@ -1783,9 +1805,18 @@ function TaskCard({ item, badge, theme, onToggle, onEdit, onViewConflict, onPost
 
   return (
     <div
-      onClick={() => onTitleClick?.()}
+      onClick={(e) => handleOpenDetails(e.currentTarget)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleOpenDetails(e.currentTarget);
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`Ver detalles de la tarea ${title}`}
       className={`relative flex flex-col gap-4 border ${isConflicted ? 'border-[#F59E0B] animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.5)]' : colors.border
-        } ${colors.bg} rounded-3xl p-5 w-full transition-all duration-300 ${colors.hover} shadow-lg ${isDone ? 'opacity-50 grayscale' : 'hover:-translate-y-1 hover:shadow-xl cursor-pointer active:scale-[0.99]'
+        } ${colors.bg} rounded-3xl p-5 w-full transition-all duration-300 ${colors.hover} shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/80 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${isDone ? 'opacity-50 grayscale' : 'hover:-translate-y-1 hover:shadow-xl cursor-pointer active:scale-[0.99]'
         }`}
     >
       {badge && (
