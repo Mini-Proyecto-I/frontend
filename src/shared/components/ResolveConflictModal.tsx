@@ -8,6 +8,7 @@ import { useEffect, useRef } from "react";
 export interface ResolveConflictModalProps {
   isOpen: boolean;
   onClose: () => void;
+  isLoading?: boolean;
 
   // Conflict state
   conflictedCount?: number;
@@ -37,6 +38,7 @@ export interface ResolveConflictModalProps {
 export function ResolveConflictModal({
   isOpen,
   onClose,
+  isLoading = false,
   conflictedCount = 1,
   conflictedTasks = [],
   selectedConflictId,
@@ -72,7 +74,7 @@ export function ResolveConflictModal({
       role="dialog"
       aria-modal="true"
       aria-label="Resolución de conflicto"
-      className="w-full max-w-[560px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
+      className="relative w-full max-w-[560px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden">
         <div className="p-6 sm:p-7 relative">
           <button
             type="button"
@@ -253,6 +255,9 @@ export function ResolveConflictModal({
             </div>
           </div>
         </div>
+        {isLoading && (
+          <div className="absolute inset-0 z-20 bg-black/60 backdrop-blur-[1px]" />
+        )}
       </div>
     </div>
   );

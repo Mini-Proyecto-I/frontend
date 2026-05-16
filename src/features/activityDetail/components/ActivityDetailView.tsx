@@ -73,6 +73,11 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
   const [isReducing, setIsReducing] = useState(false);
   const [reduceError, setReduceError] = useState("");
   const [dayLoad, setDayLoad] = useState({ usedHours: 0, limitHours: 6, overworkHours: 0 });
+  const [isConflictDataLoading, setIsConflictDataLoading] = useState(false);
+  const [conflictDayLoadCache, setConflictDayLoadCache] = useState<
+    Record<string, { usedHours: number; limitHours: number; overworkHours: number; fromApi?: boolean }>
+  >({});
+  const conflictPrefetchInFlightRef = useRef<Set<string>>(new Set());
 
   const navigate = useNavigate();
   const { showToast, ToastComponent } = useToast();
@@ -255,6 +260,40 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
     };
   }, [activityId]); // Removido showToast de las dependencias para evitar loops infinitos
 
+  useEffect(() => {
+    if (!subtasks.length) return;
+
+    const conflictedTasks = subtasks.filter(
+      (task) => !!task.is_conflicted && task.status !== "DONE" && !!task.target_date
+    );
+
+    if (conflictedTasks.length === 0) return;
+
+    // Cache local inmediata para apertura instantánea del modal
+    setConflictDayLoadCache((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      conflictedTasks.forEach((task) => {
+        const idKey = String(task.id);
+        if (!next[idKey]) {
+          next[idKey] = getLocalDayLoadForTask(task);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+
+    // Prefetch en background solo de tareas aún no hidratadas por API
+    conflictedTasks.forEach((task) => {
+      const idKey = String(task.id);
+      if (conflictPrefetchInFlightRef.current.has(idKey)) return;
+      if (conflictDayLoadCache[idKey]?.fromApi) return;
+
+      conflictPrefetchInFlightRef.current.add(idKey);
+      fetchDailyLoadForTask(task, false);
+    });
+  }, [subtasks]);
+
   // Formatear fecha para mostrar (formato: "DD MMM")
   const formatDate = (dateString?: string): string => {
     if (!dateString) return "";
@@ -421,9 +460,12 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
     setConflictModalTask(null);
   };
 
-  const fetchDailyLoadForTask = async (task: any) => {
+  const fetchDailyLoadForTask = async (task: any, showLoadingOverlay = true) => {
     if (!task || !task.target_date) return;
     try {
+      if (showLoadingOverlay) {
+        setIsConflictDataLoading(true);
+      }
       const data = await getSubtaskCalendar(task.id, task.target_date);
       const day = data.calendar.find((d: any) => d.date === task.target_date);
       if (day) {
@@ -431,15 +473,41 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
         // Sumamos las horas actuales de la tarea para tener el total usado del día.
         const currentTaskHrs = parseFloat(String(task.estimated_hours || 0));
         const totalUsed = day.current_load + currentTaskHrs;
-        setDayLoad({
+        const computedLoad = {
           usedHours: totalUsed,
           limitHours: day.limit,
           overworkHours: Math.max(0, totalUsed - day.limit)
-        });
+        };
+        setDayLoad(computedLoad);
+        setConflictDayLoadCache((prev) => ({
+          ...prev,
+          [String(task.id)]: { ...computedLoad, fromApi: true },
+        }));
       }
     } catch (err) {
       console.error("Error fetching day load:", err);
+    } finally {
+      if (showLoadingOverlay) {
+        setIsConflictDataLoading(false);
+      }
+      conflictPrefetchInFlightRef.current.delete(String(task.id));
     }
+  };
+
+  const getLocalDayLoadForTask = (task: any) => {
+    if (!task?.target_date) return { usedHours: 0, limitHours: 6, overworkHours: 0 };
+    const limitHours = 6;
+    const currentTaskHours = parseFloat(String(task.estimated_hours || 0)) || 0;
+    const usedHours = subtasks
+      .filter((subtask) => subtask.status !== "DONE" && subtask.target_date === task.target_date)
+      .reduce((sum, subtask) => sum + (parseFloat(String(subtask.estimated_hours || 0)) || 0), 0);
+
+    const normalizedUsedHours = usedHours > 0 ? usedHours : currentTaskHours;
+    return {
+      usedHours: normalizedUsedHours,
+      limitHours,
+      overworkHours: Math.max(0, normalizedUsedHours - limitHours),
+    };
   };
 
   const handleReduceConflictHours = async () => {
@@ -535,11 +603,28 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
               onSubtaskUpdated={handleSubtaskUpdated}
               deadlineDate={activity.deadline}
               onOpenResolveConflict={(st: any) => {
-                setConflictModalTask(st);
-                setReduceHours(st.estimated_hours ? String(st.estimated_hours) : "");
+                const mappedConflictTask = {
+                  id: st.id,
+                  title: st.title,
+                  target_date: st.dateOriginal || "",
+                  estimated_hours: parseFloat(String(st.hours || "0").replace("h", "")) || 0,
+                  activity: {
+                    id: activity.id,
+                    title: activity.title,
+                  },
+                };
+                setConflictModalTask(mappedConflictTask);
+                setReduceHours(mappedConflictTask.estimated_hours ? String(mappedConflictTask.estimated_hours) : "");
                 setReduceError("");
+                const cachedLoad = conflictDayLoadCache[String(mappedConflictTask.id)];
+                setDayLoad(cachedLoad || getLocalDayLoadForTask(mappedConflictTask));
                 setIsConflictModalOpen(true);
-                fetchDailyLoadForTask(st);
+
+                // Si no está cacheado desde API, refrescar en background (sin bloquear apertura)
+                if (!cachedLoad?.fromApi && !conflictPrefetchInFlightRef.current.has(String(mappedConflictTask.id))) {
+                  conflictPrefetchInFlightRef.current.add(String(mappedConflictTask.id));
+                  fetchDailyLoadForTask(mappedConflictTask, false);
+                }
               }}
               onOpenPostpone={(st: any) => {
                 setPostponingTask(st);
@@ -559,7 +644,9 @@ export default function ActivityDetailView({ activityId }: ActivityDetailViewPro
             setConflictModalTask(null);
             setReduceHours("");
             setReduceError("");
+            setIsConflictDataLoading(false);
           }}
+          isLoading={isConflictDataLoading}
           selectedConflict={conflictModalTask}
           usedHours={dayLoad.usedHours}
           limitHours={dayLoad.limitHours}

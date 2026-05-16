@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Pencil, Trash2, Calendar, Clock, Loader2, CheckCircle2, AlertCircle, AlertTriangle, X, FileText } from "lucide-react";
+import { Pencil, Trash2, Calendar, Clock, CheckCircle2, AlertCircle, AlertTriangle, X, FileText } from "lucide-react";
 import EditSubtaskModal from "@/shared/components/EditSubtaskModal";
 import { MessageModal } from "@/shared/components/MessageModal";
 import { patchSubtask, updateSubtask, deleteSubtask } from "@/api/services/subtask";
 import { useToast } from "@/shared/components/toast";
 import { SubtaskDetailModal } from "@/shared/components/SubtaskDetailModal";
 import { cn } from "@/shared/utils/utils";
+import { Checkbox } from "@/shared/components/checkbox";
 
 interface SubtaskItemProps {
   id: string;
@@ -414,9 +415,23 @@ export default function SubtaskItem({
         onClick={handleSubtaskClick}
         className={cn(
           "group bg-[#111827] border border-slate-700/50 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 transition-all hover:bg-slate-800 hover:border-slate-600 cursor-pointer",
-          borderClass
+          borderClass,
+          isChecked && "opacity-50"
         )}
       >
+        <div className="flex-shrink-0 pt-0.5 sm:pt-0 self-start sm:self-center z-10">
+          <Checkbox
+            checked={isChecked}
+            disabled={isUpdating}
+            onClick={(e) => e.stopPropagation()}
+            onCheckedChange={(checked) => {
+              const nextChecked = checked === true;
+              if (nextChecked === isChecked) return;
+              handleCheckChange(nextChecked);
+            }}
+            className="flex-shrink-0  w-7 h-7 border-2 rounded-lg cursor-pointer border-gray-500 flex items-center justify-center transition-colors shadow-inner z-10"
+          />
+        </div>
         <div className={`flex-1 min-w-0 ${isChecked ? "line-through text-slate-500 dark:text-slate-400" : ""} ${status === "POSTPONED" ? "opacity-80" : ""}`}>
           <div className="flex items-center gap-2 mb-2">
             <h4 className={`truncate font-bold ${isChecked ? "text-slate-500 dark:text-slate-400" : "text-slate-900 dark:text-white"}`}>
@@ -481,36 +496,12 @@ export default function SubtaskItem({
                 e.stopPropagation();
                 onOpenResolveConflict?.();
               }}
-              className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-all font-bold text-xs shadow-lg shadow-amber-500/20 z-10"
+              className="cursor-pointer h-8 inline-flex items-center gap-1.5 px-3 text-[11px] font-semibold bg-amber-400/20 text-amber-400 hover:text-amber-300 border border-amber-400/40 hover:bg-amber-400/30 rounded-lg transition-all z-10"
             >
-              <AlertTriangle className="size-4" />
-              Resolver conflicto
+              <AlertCircle className="size-3.5" />
+              Ver conflicto
             </button>
           )}
-
-          <button
-            type="button"
-            disabled={isUpdating}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleCheckChange(!isChecked);
-            }}
-            className={cn(
-              "cursor-pointer inline-flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all font-black uppercase tracking-widest text-[10px] border-2 z-10",
-              isChecked
-                ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/20"
-                : "bg-slate-800 border-slate-700 text-slate-400 hover:border-blue-500 hover:text-blue-400"
-            )}
-          >
-            {isUpdating ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : isChecked ? (
-              <CheckCircle2 className="size-4" />
-            ) : (
-              <div className="size-4 rounded border border-current" />
-            )}
-            <span>{isChecked ? "Completada" : "Hecho"}</span>
-          </button>
         </div>
       </article>
 

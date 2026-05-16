@@ -131,7 +131,7 @@ export default function StudyPlanSection({
         <div className="p-3 rounded-xl bg-slate-800 group-hover:bg-blue-500/20 transition-colors">
           <Plus className="size-6" />
         </div>
-        <span>Añadir nueva subtarea al plan</span>
+        <span>Crear nueva subtarea para tu plan</span>
       </button>
 
       {filteredSubtasks.length === 0 ? (
@@ -175,15 +175,17 @@ export default function StudyPlanSection({
         onOpenChange={setShowAddDialog}
         activityId={activityId}
         deadlineDate={deadlineDate}
+        existingSubtasks={validSubtasks.map((subtask) => ({
+          id: subtask.id,
+          title: subtask.title,
+          dateOriginal: subtask.dateOriginal,
+          hours: subtask.hours,
+        }))}
         onSubtaskCreated={() => {
-          setShowAddDialog(false);
           if (onSubtaskUpdated) {
-            onSubtaskUpdated();
+            return onSubtaskUpdated();
           }
-          // Recargar la página después de crear la subtarea
-          setTimeout(() => {
-            window.location.reload();
-          }, 500);
+          return Promise.resolve();
         }}
       />
     </section>

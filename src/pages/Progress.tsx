@@ -40,6 +40,7 @@ import { Card, CardContent } from '@/shared/components/card';
 import { Badge } from '@/shared/components/badge';
 import { Button } from '@/shared/components/button';
 import { Input } from '@/shared/components/input';
+import { Checkbox } from '@/shared/components/checkbox';
 import { cn } from '@/shared/utils/utils';
 import {
   getApiValidationErrorMessage,
@@ -981,31 +982,48 @@ export default function ProgressPage() {
                                 : isPostponed
                                   ? "border-[#8B5CF6]/30 bg-[#8B5CF6]/20"
                                   : "border-slate-700/50 hover:border-blue-500/50 hover:bg-slate-800/40 bg-slate-800/20",
+                              st.status === STATUS.DONE && "opacity-50",
                               isProcessing && "cursor-wait"
                             )}
                           >
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3">
-                              <div className="flex flex-wrap items-center gap-2 mb-3 sm:mb-0">
-                                <Badge className={cn("text-[10px] font-bold uppercase tracking-widest px-2", getSubtaskStatus(st).color)}>
-                                  {getSubtaskStatus(st).label}
-                                </Badge>
-
-                                <span className={cn(
-                                  "text-sm font-bold transition-colors",
-                                  st.status === STATUS.DONE ? "text-slate-500 line-through" : "text-slate-200 group-hover:text-blue-400"
-                                )}>
-                                  {st.name || st.title || ""}
-                                </span>
-                                {st.estimated_hours && (
-                                  <Badge variant="secondary" className="text-[10px] bg-slate-700/50 text-slate-300 border-slate-600">
-                                    <Clock className="h-3 w-3 mr-1" />
-                                    {typeof st.estimated_hours === 'string'
-                                      ? parseFloat(st.estimated_hours).toFixed(1)
-                                      : (st.estimated_hours || 0).toFixed(1)}h
-                                  </Badge>
-                                )}
+                            <div className="flex items-start gap-3">
+                              <div className="flex-shrink-0 pt-1">
+                                <Checkbox
+                                  checked={st.status === STATUS.DONE}
+                                  disabled={isProcessing}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onCheckedChange={(checked) => {
+                                    const nextChecked = checked === true;
+                                    if (nextChecked === (st.status === STATUS.DONE)) return;
+                                    handleCompleteTask(activity.id, st.id);
+                                  }}
+                                  className="flex-shrink-0 w-7 h-7 border-2 rounded-lg cursor-pointer border-gray-500 checked:bg-emerald-500 flex items-center justify-center transition-colors shadow-inner z-10"
+                                />
                               </div>
-                              <div className="flex items-center gap-2 pl-8 sm:pl-0">
+
+                              <div className="flex-1 min-w-0">
+                                <div className="flex mt-1 flex-col sm:flex-row sm:items-start justify-between gap-2 mb-3">
+                                  <div className="flex flex-wrap items-center gap-2 mb-3 sm:mb-0">
+                                    <Badge className={cn("text-[10px] font-bold uppercase tracking-widest px-2", getSubtaskStatus(st).color)}>
+                                      {getSubtaskStatus(st).label}
+                                    </Badge>
+
+                                    <span className={cn(
+                                      "text-sm font-bold transition-colors",
+                                      st.status === STATUS.DONE ? "text-slate-500 line-through" : "text-slate-200 group-hover:text-blue-400"
+                                    )}>
+                                      {st.name || st.title || ""}
+                                    </span>
+                                    {st.estimated_hours && (
+                                      <Badge variant="secondary" className="text-[10px] bg-slate-700/50 text-slate-300 border-slate-600">
+                                        <Clock className="h-3 w-3 mr-1" />
+                                        {typeof st.estimated_hours === 'string'
+                                          ? parseFloat(st.estimated_hours).toFixed(1)
+                                          : (st.estimated_hours || 0).toFixed(1)}h
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 sm:self-start sm:pl-0">
                                 {isConflicted && (
                                   <Button
                                     size="sm"
@@ -1017,64 +1035,29 @@ export default function ProgressPage() {
                                     }}
                                   >
                                     <AlertCircle className="h-3 w-3 mr-1" />
-                                    Solucionar
+                                    Ver conflicto
                                   </Button>
                                 )}
-                                {isPostponed ? (
-                                  <Badge variant="secondary" className="text-[10px] bg-slate-700/50 text-slate-300 border-slate-600">
-                                    <Clock className="h-3 w-3 mr-1" />
-                                    Pospuesta
-                                  </Badge>
-                                ) : st.status === STATUS.DONE ? (
-                                  st.note ? (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                                      onClick={() => setDetailTask({ ...st, activity })}
-                                    >
-                                      <FileText className="h-3 w-3 mr-1" />
-                                      Ver nota
-                                    </Button>
-                                  ) : null
-                                ) : (
-                                  <Button
-                                    size="sm"
-                                    disabled={isProcessing}
-                                    className={cn(
-                                      "h-8 text-xs transition-all disabled:opacity-50",
-                                      st.status === STATUS.DONE
-                                        ? "bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white"
-                                        : "bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white"
-                                    )}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleCompleteTask(activity.id, st.id);
-                                    }}
-                                  >
-                                    {isProcessing ? (
-                                      <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                                    ) : st.status === STATUS.DONE ? (
-                                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                                    ) : (
-                                      <Circle className="h-3 w-3 mr-1" />
-                                    )}
-                                    <span>{st.status === STATUS.DONE ? 'Completada' : 'Hecho'}</span>
-                                  </Button>
-                                )}
+                                    {isPostponed ? (
+                                      <Badge variant="secondary" className="text-[10px] bg-slate-700/50 text-slate-300 border-slate-600">
+                                        <Clock className="h-3 w-3 mr-1" />
+                                        Pospuesta
+                                      </Badge>
+                                    ) : st.status === STATUS.DONE && st.note ? (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                                        onClick={() => setDetailTask({ ...st, activity })}
+                                      >
+                                        <FileText className="h-3 w-3 mr-1" />
+                                        Ver nota
+                                      </Button>
+                                    ) : null}
+                                  </div>
+                                </div>
                               </div>
                             </div>
-                            {isProcessing && (
-                              <div
-                                className="absolute inset-0 bg-black/30 flex items-center justify-center z-10 rounded-xl"
-                                aria-hidden="true"
-                              >
-                                <span className="bg-[#111827] border border-slate-700 text-slate-200 px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg">
-                                  <RefreshCw className="h-4 w-4 animate-spin text-blue-400" />
-                                  Cargando...
-                                </span>
-                              </div>
-                            )}
                           </div>
                         );
                       })}

@@ -179,7 +179,6 @@ const ActivityForm = () => {
     // Flujo simplificado de conflictos en /crear
     const [pendingConflicts, setPendingConflicts] = useState<ConflictInfo[]>([]);
     const [showConflictConfirmModal, setShowConflictConfirmModal] = useState(false);
-    const [showConflictsAddedModal, setShowConflictsAddedModal] = useState(false);
 
     // Función helper para obtener la fecha de hoy en formato YYYY-MM-DD
     const getTodayDate = (): string => {
@@ -715,19 +714,6 @@ const ActivityForm = () => {
         setModalOpen(true);
     };
 
-    const formatConflictDate = (dateStr: string) => {
-        if (!dateStr) return "Sin fecha";
-        try {
-            return new Date(`${dateStr}T00:00:00`).toLocaleDateString("es-ES", {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-            });
-        } catch {
-            return dateStr;
-        }
-    };
-
     const saveSubtasksToBackend = async (conflictsDetected: ConflictInfo[] = []) => {
         if (!createdActivityId) return;
         const allowConflicts = conflictsDetected.length > 0;
@@ -805,12 +791,6 @@ const ActivityForm = () => {
 
             markSubtasksPersisted();
 
-            if (conflictsDetected.length > 0) {
-                setPendingConflicts(conflictsDetected);
-                setShowConflictsAddedModal(true);
-                return;
-            }
-
             navigateToCreateSuccess();
         } catch (error: any) {
             console.error("[ActivityForm] Error inesperado al crear las subtareas:", error);
@@ -835,10 +815,6 @@ const ActivityForm = () => {
         }
 
         if (subtasksSavedRef.current) {
-            if (pendingConflicts.length > 0) {
-                setShowConflictsAddedModal(true);
-                return;
-            }
             navigateToCreateSuccess();
             return;
         }
@@ -975,59 +951,6 @@ const ActivityForm = () => {
                                     Sí, añadir con conflicto
                                 </button>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-            {showConflictsAddedModal && (
-                <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-                    <div
-                        role="dialog"
-                        aria-modal="true"
-                        aria-label="Subtareas añadidas con conflicto"
-                        className="w-full max-w-[480px] bg-[#111827] border border-slate-800 rounded-3xl shadow-2xl shadow-black/60 overflow-hidden"
-                    >
-                        <div className="p-6 sm:p-8">
-                            <div className="flex flex-col items-center text-center gap-4 mb-6">
-                                <div className="w-14 h-14 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center">
-                                    <AlertCircle className="w-7 h-7 text-amber-400" />
-                                </div>
-                                <h3 className="text-xl font-extrabold text-white tracking-tight">
-                                    Subtareas añadidas con conflicto
-                                </h3>
-                                <p className="text-sm text-slate-400 leading-relaxed max-w-[400px]">
-                                    Se añadieron las subtareas, pero debes resolver estos conflictos más adelante.
-                                </p>
-                            </div>
-
-                            <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1 scrollbar-gray mb-8">
-                                {pendingConflicts.map((conflict) => (
-                                    <div
-                                        key={conflict.date}
-                                        className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl"
-                                    >
-                                        <div className="flex items-center justify-between gap-3">
-                                            <p className="text-sm font-semibold text-white capitalize">
-                                                {formatConflictDate(conflict.date)}
-                                            </p>
-                                            <span className="text-red-400 font-black shrink-0">
-                                                +{conflict.excessHours.toFixed(1)}h
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <Button
-                                type="button"
-                                onClick={() => {
-                                    setShowConflictsAddedModal(false);
-                                    navigateToCreateSuccess();
-                                }}
-                                className="w-full h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-600/20 text-sm transition-all"
-                            >
-                                Aceptar
-                            </Button>
                         </div>
                     </div>
                 </div>
