@@ -492,10 +492,19 @@ export default function Calendar() {
             queryCache.invalidateByPrefix("hoy:");
             refetch();
 
+            // Actualización optimista para que la tarea aparezca en su nuevo lugar inmediatamente
+            const subtaskId = selectedSubtask.id;
+            setOverriddenDates(prev => ({
+                ...prev,
+                [subtaskId]: dateKey
+            }));
+            setIsMoving(false);
+            setSelectedSubtask(null);
+
             // Mantener UI de “mover” para poder seguir configurando horas si no se resolvió
             setConflictOverrides((prev) => {
                 const nextState = { ...prev };
-                delete nextState[selectedSubtask.id];
+                delete nextState[subtaskId];
                 return nextState;
             });
 

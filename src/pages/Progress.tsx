@@ -393,6 +393,19 @@ export default function ProgressPage() {
       const hasMatches = activity.matchingSubtasks.length > 0;
 
       return courseMatch && (searchTerm || timeFilter !== "all" ? hasMatches : true);
+    }).sort((a, b) => {
+      // First sort: Put fully completed activities at the end
+      const aDone = a.completion_percent === 100 || (a.total_subtasks > 0 && a.total_subtasks === a.total_subtasks_done);
+      const bDone = b.completion_percent === 100 || (b.total_subtasks > 0 && b.total_subtasks === b.total_subtasks_done);
+
+      if (aDone && !bDone) return 1;
+      if (!aDone && bDone) return -1;
+
+      // Second sort: Sort by deadline proximity (closest first)
+      const aDeadline = a.deadline ? new Date(a.deadline).getTime() : Infinity;
+      const bDeadline = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+
+      return aDeadline - bDeadline;
     });
   }, [activities, courseFilter, statusFilter, searchTerm, timeFilter]);
 
@@ -772,7 +785,6 @@ export default function ProgressPage() {
             <SelectItem value="PENDING" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Pendiente</SelectItem>
             <SelectItem value="DONE" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Completado</SelectItem>
             <SelectItem value="POSTPONED" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">Pospuesto</SelectItem>
-            <SelectItem value="WAITING" className="focus:bg-blue-600 focus:text-white rounded-lg cursor-pointer">En Espera</SelectItem>
           </SelectContent>
         </Select>
 
@@ -1210,14 +1222,14 @@ export default function ProgressPage() {
               return (
                 <div className={cn(
                   "bg-[#111827] border border-slate-800/60 rounded-3xl overflow-hidden transition-all duration-300 shadow-xl",
-                  openSection === "postponed" ? "ring-1 ring-yellow-500/30" : ""
+                  openSection === "postponed" ? "ring-1 ring-purple-500/30" : ""
                 )}>
                   <button
                     onClick={() => toggleSection("postponed")}
                     className="w-full flex items-center justify-between p-5 text-left hover:bg-slate-800/30 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-xl bg-yellow-500/10 text-yellow-500">
+                      <div className="p-2 rounded-xl bg-purple-500/10 text-purple-500">
                         <Clock className="h-5 w-5" />
                       </div>
                       <div>
@@ -1236,10 +1248,10 @@ export default function ProgressPage() {
                       {postponed.length > 0 ? (
                         <div className="space-y-4">
                           {postponed.slice(0, 5).map((t) => (
-                            <div key={t.id} className="p-3 bg-slate-900/50 border border-slate-800 rounded-2xl group hover:border-yellow-500/30 transition-all">
+                            <div key={t.id} className="p-3 bg-slate-900/50 border border-slate-800 rounded-2xl group hover:border-purple-500/30 transition-all">
                               <div className="flex items-start justify-between gap-2 mb-1.5">
                                 <div className="flex items-center gap-2">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
+                                  <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
                                   <p className="text-sm font-bold text-slate-100 truncate max-w-[140px]">{t.name || t.title}</p>
                                 </div>
                                 <button
